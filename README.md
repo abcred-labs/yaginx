@@ -40,4 +40,4 @@ See [the Go installation runbook](docs/go-version-new-install-runbook.md) for
 the required permissions, runtime configuration, and service verification.
 
 For an existing current Go deployment, back up the database and run
-`yaginx database migrate --config /etc/yaginx/config.json` instead. Older v1 and .NET schemas follow [the compatibility procedure](docs/migrations.md); unsafe or ambiguous schemas are rejected without writes.
+`yaginx database migrate --config /etc/yaginx/config.json` instead. Older v1 and .NET schemas follow [the compatibility procedure](docs/migrations.md); unsafe or ambiguous schemas are rejected without writes. The reviewed .NET/PostgreSQL importer is `gateway/cmd/legacyimport` and never reads legacy plaintext passwords or private-key material.

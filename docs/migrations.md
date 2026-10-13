@@ -20,11 +20,26 @@ lineage, and fails closed for an ambiguous or partially modified schema.
   migrator, then upgrade to 1.x and run `database migrate`. The 1.x binary does
   not guess at v1 data or rewrite it implicitly.
 - .NET database: create a read-only compatibility report with
-  `gateway/cmd/contractdbinspect`, export a sanitized backup, and perform an
-  offline, reviewed import into a new public baseline. The import must map
-  accounts, websites, domains, certificates, traffic, history, and settings;
-  it must never copy passwords or private keys. A failed or ambiguous report
-  stops before any write.
+  `gateway/cmd/contractdbinspect`, export a sanitized backup, and run
+  `go run ./cmd/legacyimport` with `YAGINX_LEGACY_DATABASE_URL` and
+  `YAGINX_TARGET_DATABASE_URL`. The source is opened read-only and the target
+  import is one transaction. The adapter maps accounts, websites, domains,
+  traffic, resource reports, and request metadata into a new public baseline;
+  it never selects plaintext passwords, recovery-code material, HTTP
+  headers/bodies, exception text, or private keys. Passwords must be reset and
+  ACME certificates re-issued/configured after cutover. A failed or ambiguous
+  report stops before any data write, and a completed import can be repeated
+  safely.
+
+Example (use environment variables or a secret manager; never put DSNs in
+shell history or repository files):
+
+```powershell
+$env:YAGINX_LEGACY_DATABASE_URL = '<read-only sanitized source DSN>'
+$env:YAGINX_TARGET_DATABASE_URL = '<new public target DSN>'
+go run ./cmd/legacyimport --timeout 30m
+Remove-Item Env:YAGINX_LEGACY_DATABASE_URL, Env:YAGINX_TARGET_DATABASE_URL
+```
 
 The compatibility work belongs in [`gateway/migrations/compat`](../gateway/migrations/compat)
 and must be versioned as a separate release artifact. Production credentials,
