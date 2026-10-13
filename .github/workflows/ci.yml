@@ -43,7 +43,21 @@ jobs:
           go run ./cmd/contractlint
           go run ./cmd/contractcheck
           go run ./cmd/proxycheck
-      - name: PostgreSQL integration
+      - name: Set up pnpm for integration
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: adminui/pnpm-lock.yaml
+      - name: Build admin UI for integration
+        working-directory: adminui
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm run build
+      - name: Run PostgreSQL integration
         working-directory: gateway
         env:
           YAGINX_TEST_DATABASE_URL: postgres://yaginx_test:yaginx_test_pw@127.0.0.1:5432/yaginx_test?sslmode=disable
@@ -109,9 +123,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Secret scan
+        run: docker run --rm -v "${{ github.workspace }}:/repo" zricethezav/gitleaks:v8.28.0 detect --source=/repo --no-banner --redact
       - uses: anchore/scan-action@v6
         with:
           path: .
