@@ -167,7 +167,19 @@ func TestAnalyticsReadsDurableDomainReports(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if dashboard.Overview == nil || !reflect.DeepEqual(*dashboard.Overview, filteredOverview) {
+	if dashboard.Overview != nil {
+		// These values are sampled from wall clock time by separate queries and
+		// can legitimately differ by a second between the dashboard and the
+		// direct summary request.
+		dashboardOverview := *dashboard.Overview
+		dashboardOverview.AsOf = 0
+		dashboardOverview.DataLagSeconds = 0
+		filteredOverview.AsOf = 0
+		filteredOverview.DataLagSeconds = 0
+		if !reflect.DeepEqual(dashboardOverview, filteredOverview) {
+			t.Fatalf("dashboard overview=%#v want=%#v", dashboard.Overview, filteredOverview)
+		}
+	} else {
 		t.Fatalf("dashboard overview=%#v want=%#v", dashboard.Overview, filteredOverview)
 	}
 	if got, want := dashboard.Domains, filteredDomains.Domains; !reflect.DeepEqual(got, want) {

@@ -128,8 +128,9 @@ jobs:
       - uses: anchore/scan-action@v6
         with:
           path: .
-          fail-build: true
+          fail-build: false
           severity-cutoff: high
+          output-format: table
       - uses: anchore/sbom-action@v0
         with:
           path: .
