@@ -1,0 +1,6 @@
+[allowlist]
+description = "Documented non-secret test constants and type names"
+regexes = [
+  '''dGhlIHNhbXBsZSBub25jZQ==''',
+  '''certcrypto\.EC256'''
+]
