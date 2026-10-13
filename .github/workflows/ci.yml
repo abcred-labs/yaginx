@@ -44,7 +44,7 @@ jobs:
           go run ./cmd/contractcheck
           go run ./cmd/proxycheck
       - name: Set up pnpm for integration
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
         with:
           version: 9.15.4
       - uses: actions/setup-node@v4
@@ -70,7 +70,7 @@ jobs:
         working-directory: adminui
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           version: 9.15.4
       - uses: actions/setup-node@v4
@@ -90,7 +90,7 @@ jobs:
         working-directory: yaginx-docs-site
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           version: 8.15.9
       - uses: actions/setup-node@v4
@@ -153,7 +153,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           version: 9.15.4
       - run: pnpm install --frozen-lockfile
