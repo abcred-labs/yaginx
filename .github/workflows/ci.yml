@@ -162,5 +162,5 @@ jobs:
         working-directory: adminui
       - run: mkdir -p artifacts/ci && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -buildvcs=false -o artifacts/ci/yaginx-linux-amd64 ./cmd/yaginx
         working-directory: gateway
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v4
       - run: docker build --build-arg BINARY_PATH=gateway/artifacts/ci/yaginx-linux-amd64 -f gateway/deploy/docker/Dockerfile -t yaginx:ci .
