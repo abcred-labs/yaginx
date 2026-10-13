@@ -125,7 +125,7 @@ jobs:
           fetch-depth: 0
       - name: Secret scan
         run: docker run --rm -v "${{ github.workspace }}:/repo" zricethezav/gitleaks:v8.28.0 detect --source=/repo --no-banner --redact
-      - uses: anchore/scan-action@v6
+      - uses: anchore/scan-action@v7
         with:
           path: .
           fail-build: false
