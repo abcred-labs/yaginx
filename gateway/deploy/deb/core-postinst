@@ -1,0 +1,4 @@
+#!/bin/sh
+set -eu
+install -d -o root -g root -m 0700 /var/lib/yaginx /var/lib/yaginx/core
+systemctl daemon-reload || true

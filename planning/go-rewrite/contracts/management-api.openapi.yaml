@@ -1,0 +1,3051 @@
+openapi: 3.1.0
+info:
+  title: Yaginx Management API v2 Contract
+  version: 2.0.0
+  description: >-
+    Canonical management contract for the Go service. JSON uses lowerCamelCase,
+    IDs serialize as strings, and epochs use named ...At fields. The relative
+    server URL is served only by the CIDR-restricted independent management
+    listener.
+servers:
+  - url: /yaginx_console
+    description: Default bind is 127.0.0.1:9090; business listeners return 404 for this base path.
+security:
+  - bearerAuth: []
+tags:
+  - name: account
+  - name: website
+  - name: web_domain
+  - name: analytics
+  - name: request_history
+  - name: ip_blacklist
+  - name: system_errors
+  - name: diagnostics
+  - name: system_setting
+  - name: gateway_node
+paths:
+  /api/account/login:
+    post:
+      tags: [account]
+      operationId: accountLogin
+      security: []
+      x-fixture-required: true
+      x-go-handler: internal/management/account.Handler.Login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+            example:
+              email: admin@example.com
+              password: secret
+      responses:
+        '200':
+          description: Login succeeds and also sets the secure HttpOnly yaginx-token cookie.
+          headers:
+            Set-Cookie:
+              schema: { type: string }
+              example: yaginx-token=eyJ...; expires=Sun, 26 Jul 2026 10:10:00 GMT; path=/; secure; httponly
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LoginEnvelope' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/account/password_recovery/start:
+    post:
+      tags: [account]
+      operationId: passwordRecoveryStart
+      security: []
+      x-fixture-required: true
+      x-go-handler: internal/management/account.Handler.PasswordRecoveryStart
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PasswordRecoveryStartRequest' }
+      responses:
+        '200':
+          description: Recovery flow created without revealing whether unrelated accounts exist.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PasswordRecoveryStartEnvelope' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /api/account/password_recovery/verify_email:
+    post:
+      tags: [account]
+      operationId: passwordRecoveryVerifyEmail
+      security: []
+      x-fixture-required: true
+      x-go-handler: internal/management/account.Handler.PasswordRecoveryVerifyEmail
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PasswordRecoveryVerifyEmailRequest' }
+      responses:
+        '200':
+          description: Verification code sent.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BooleanEnvelope' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /api/account/password_recovery/reset:
+    post:
+      tags: [account]
+      operationId: passwordRecoveryReset
+      security: []
+      x-fixture-required: true
+      x-go-handler: internal/management/account.Handler.PasswordRecoveryReset
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PasswordRecoveryResetRequest' }
+      responses:
+        '200':
+          description: Password changed and recovery state completed.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BooleanEnvelope' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /api/account/refresh_token:
+    get:
+      tags: [account]
+      operationId: accountRefreshToken
+      security: []
+      x-fixture-required: true
+      x-deviation: v2-api-account-refresh-token-cookie-success
+      x-go-handler: internal/management/account.Handler.RefreshToken
+      description: >-
+        v2 deviation (see approved-deviations.json): authenticated by the
+        HttpOnly yaginx-refresh cookie set at login/refresh, not by an
+        Authorization bearer, so the session can be renewed after the access
+        token itself has expired.
+      responses:
+        '200':
+          description: New access token and a rotated yaginx-refresh cookie.
+          headers:
+            Set-Cookie:
+              schema: { type: string }
+              example: yaginx-token=eyJ...; path=/; secure; httponly
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LoginEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/account/logout:
+    post:
+      tags: [account]
+      operationId: accountLogout
+      security: []
+      x-go-handler: internal/management/account.Handler.Logout
+      description: >-
+        Best-effort: revokes the session named by the yaginx-refresh cookie if
+        one is present, then always clears both auth cookies and returns 200.
+      responses:
+        '200':
+          description: Cookies cleared; any matching session revoked.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EmptyResponseEnvelope' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/account/sessions:
+    get:
+      tags: [account]
+      operationId: accountSessionsList
+      x-go-handler: internal/management/account.Handler.ListSessions
+      description: Active refresh sessions for the caller's own account, most recently used first.
+      responses:
+        '200':
+          description: Active sessions.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SessionListEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/account/sessions/{id}/revoke:
+    post:
+      tags: [account]
+      operationId: accountSessionRevoke
+      x-go-handler: internal/management/account.Handler.RevokeSession
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { $ref: '#/components/schemas/Int64String' }
+      responses:
+        '200':
+          description: Session revoked.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EmptyResponseEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/account/sessions/revoke_others:
+    post:
+      tags: [account]
+      operationId: accountSessionRevokeOthers
+      x-go-handler: internal/management/account.Handler.RevokeOtherSessions
+      description: Signs out every other active session for the caller's account, keeping the one the request authenticated with.
+      responses:
+        '200':
+          description: Other sessions revoked.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EmptyResponseEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/account/register:
+    post:
+      tags: [account]
+      operationId: accountRegister
+      x-fixture-required: true
+      x-go-handler: internal/management/account.Handler.Register
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UserCreateRequest' }
+      responses:
+        '200':
+          description: Account created.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EmptyResponseEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /api/account/profile:
+    get:
+      tags: [account]
+      operationId: accountProfileGet
+      x-fixture-required: true
+      x-go-handler: internal/management/account.Handler.GetProfile
+      responses:
+        '200':
+          description: Current account profile.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProfileEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/account/update_profile:
+    post:
+      tags: [account]
+      operationId: accountProfileUpdate
+      x-fixture-required: true
+      x-go-handler: internal/management/account.Handler.UpdateProfile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AccountProfileUpdateRequest' }
+      responses:
+        '200':
+          description: Profile updated.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BooleanEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /api/website/upsert:
+    post:
+      tags: [website]
+      operationId: websiteUpsert
+      x-fixture-required: true
+      x-go-handler: internal/management/website.Handler.Upsert
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/WebsiteUpsertRequest' }
+      responses:
+        '200':
+          description: Created or updated website configuration.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WebsiteUpsertEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /api/website/rule/refresh:
+    post:
+      tags: [website]
+      operationId: websiteRuleRefresh
+      x-fixture-required: true
+      x-go-handler: internal/management/website.Handler.RefreshRules
+      responses:
+        '200':
+          description: Returns OK, or the previous ISO-8601 refresh timestamp when called inside the 30-second throttle window.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StringEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /api/website/delete:
+    delete:
+      tags: [website]
+      operationId: websiteDelete
+      x-fixture-required: true
+      x-go-handler: internal/management/website.Handler.Delete
+      parameters:
+        - $ref: '#/components/parameters/IdQuery'
+      responses:
+        '200':
+          description: Website deleted. Deleting a missing row remains successful if the repository reports no error.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EmptyResponseEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /api/website/delete_batch:
+    post:
+      tags: [website]
+      operationId: websiteBatchDelete
+      x-go-handler: internal/management/website.Handler.DeleteBatch
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/WebsiteBatchDeleteRequest' }
+      responses:
+        '200':
+          description: Deletes every existing requested website and reports IDs that were already absent.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WebsiteBatchDeleteEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /api/website/search:
+    get:
+      tags: [website]
+      operationId: websiteSearchGet
+      x-fixture-required: true
+      x-go-handler: internal/management/website.Handler.Search
+      responses:
+        '200':
+          description: All websites.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WebsiteListEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    post:
+      tags: [website]
+      operationId: websiteSearchPost
+      x-fixture-required: true
+      x-go-handler: internal/management/website.Handler.Search
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/WebsiteSearchRequest' }
+      responses:
+        '200':
+          description: Paged websites matching optional domain, upstream, and certificate filters.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WebsitePagedEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/website/get:
+    get:
+      tags: [website]
+      operationId: websiteGet
+      x-fixture-required: true
+      x-go-handler: internal/management/website.Handler.Get
+      parameters:
+        - $ref: '#/components/parameters/IdQuery'
+      responses:
+        '200':
+          description: Website or data null when the mapper receives no row.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/NullableWebsiteEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/website/get_by_name:
+    get:
+      tags: [website]
+      operationId: websiteGetByName
+      x-fixture-required: true
+      x-go-handler: internal/management/website.Handler.GetByName
+      parameters:
+        - $ref: '#/components/parameters/NameQuery'
+      responses:
+        '200':
+          description: Website or data null.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/NullableWebsiteEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/web_domain/upsert:
+    post:
+      tags: [web_domain]
+      operationId: webDomainUpsert
+      x-fixture-required: true
+      x-go-handler: internal/management/webdomain.Handler.Upsert
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/WebDomainUpsertRequest' }
+      responses:
+        '200':
+          description: Domain created or matching existing row updated.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WebDomainEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /api/web_domain/delete:
+    delete:
+      tags: [web_domain]
+      operationId: webDomainDelete
+      x-fixture-required: true
+      x-go-handler: internal/management/webdomain.Handler.Delete
+      parameters:
+        - $ref: '#/components/parameters/IdQuery'
+      responses:
+        '200':
+          description: Domain deleted.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EmptyResponseEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /api/web_domain/search:
+    get:
+      tags: [web_domain]
+      operationId: webDomainSearchGet
+      x-fixture-required: true
+      x-go-handler: internal/management/webdomain.Handler.Search
+      responses:
+        '200':
+          description: Domains sorted by certificate notAfter descending.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WebDomainListEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    post:
+      tags: [web_domain]
+      operationId: webDomainSearchPost
+      x-fixture-required: true
+      x-go-handler: internal/management/webdomain.Handler.Search
+      requestBody:
+        required: false
+        content:
+          application/json:
+              schema: { $ref: '#/components/schemas/WebDomainSearchRequest' }
+      responses:
+        '200':
+          description: Paged domains sorted by stable ID order.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WebDomainPagedEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/web_domain/get:
+    get:
+      tags: [web_domain]
+      operationId: webDomainGet
+      x-fixture-required: true
+      x-go-handler: internal/management/webdomain.Handler.Get
+      parameters:
+        - $ref: '#/components/parameters/IdQuery'
+      responses:
+        '200':
+          description: Domain or data null.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/NullableWebDomainListEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/web_domain/get_by_name:
+    get:
+      tags: [web_domain]
+      operationId: webDomainGetByName
+      x-fixture-required: true
+      x-go-handler: internal/management/webdomain.Handler.GetByName
+      parameters:
+        - $ref: '#/components/parameters/NameQuery'
+      responses:
+        '200':
+          description: Domain or data null.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/NullableWebDomainListEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/web_domain/acme/request:
+    post:
+      tags: [web_domain]
+      operationId: webDomainAcmeRequest
+      x-go-handler: internal/management/webdomain.Handler.RequestCertificate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AcmeRequestBody' }
+      responses:
+        '200':
+          description: Outcome of an operator-triggered ACME issuance attempt, run synchronously.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AcmeRequestEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '501': { $ref: '#/components/responses/InternalError' }
+  /api/web_domain/acme/status:
+    get:
+      tags: [web_domain]
+      operationId: webDomainAcmeStatus
+      x-go-handler: internal/management/webdomain.Handler.CertificateStatus
+      parameters:
+        - $ref: '#/components/parameters/NameQuery'
+      responses:
+        '200':
+          description: Latest ACME order/certificate snapshot for a domain.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AcmeStatusEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '501': { $ref: '#/components/responses/InternalError' }
+
+  /api/analytics/overview:
+    post:
+      tags: [analytics]
+      operationId: analyticsOverview
+      x-go-handler: internal/management/analytics.Handler.Overview
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AnalyticsOverviewQuery' }
+      responses:
+        '200':
+          description: Shared analytics envelope containing only the requested sections.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AnalyticsOverviewEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/analytics/domains:
+    post:
+      tags: [analytics]
+      operationId: analyticsDomains
+      x-go-handler: internal/management/analytics.Handler.Domains
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AnalyticsQuery' }
+      responses:
+        '200':
+          description: Domain traffic and error ranking for a bounded time range.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AnalyticsDomainsEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/analytics/timeseries:
+    post:
+      tags: [analytics]
+      operationId: analyticsTimeseries
+      x-go-handler: internal/management/analytics.Handler.Timeseries
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AnalyticsQuery' }
+      responses:
+        '200':
+          description: Dense subject-aware throughput, bandwidth and error time series.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AnalyticsTimeseriesEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/analytics/contributions:
+    post:
+      tags: [analytics]
+      operationId: analyticsContributions
+      x-go-handler: internal/management/analytics.Handler.Contributions
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AnalyticsQuery' }
+      responses:
+        '200':
+          description: Host request contribution rankings, summary and Top-N plus others timeline.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AnalyticsContributionsEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/analytics/details:
+    post:
+      tags: [analytics]
+      operationId: analyticsDetails
+      x-go-handler: internal/management/analytics.Handler.Details
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AnalyticsPagedQuery' }
+      responses:
+        '200':
+          description: Paged analytics buckets with a maximum page size of 200.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AnalyticsDetailsEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/analytics/catalog:
+    get:
+      tags: [analytics]
+      operationId: analyticsCatalog
+      x-go-handler: internal/management/analytics.Handler.Catalog
+      parameters:
+        - name: host
+          in: query
+          required: false
+          schema: { type: string }
+        - name: status
+          in: query
+          required: false
+          schema: { type: string, enum: [managed, unmanaged] }
+        - name: websiteAssociation
+          in: query
+          required: false
+          schema: { type: string, enum: [associated, unassociated] }
+        - name: pageIndex
+          in: query
+          required: false
+          schema: { type: integer, minimum: 0, default: 1 }
+        - name: pageSize
+          in: query
+          required: false
+          schema: { type: integer, minimum: 0, maximum: 200, default: 50 }
+      responses:
+        '200':
+          description: Paged, normalized Host directory merged from configured and observed sources.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ResourceCatalogEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/analytics/subject:
+    get:
+      tags: [analytics]
+      operationId: analyticsSubject
+      x-go-handler: internal/management/analytics.Handler.Subject
+      parameters:
+        - name: subjectType
+          in: query
+          required: true
+          schema: { type: string, enum: [domain, website] }
+        - name: key
+          in: query
+          required: true
+          description: Host name when subjectType is domain; website ID when subjectType is website.
+          schema: { type: string, minLength: 1 }
+        - $ref: '#/components/parameters/AnalyticsFrom'
+        - $ref: '#/components/parameters/AnalyticsTo'
+      responses:
+        '200':
+          description: One subject's configuration, certificate and analytics read model. The data field is null when no subject matches.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/NullableAnalyticsSubjectViewEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/request_history/search:
+    post:
+      tags: [request_history]
+      operationId: requestHistorySearch
+      x-fixture-required: true
+      x-go-handler: internal/management/history.Handler.Search
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RequestHistorySearchRequest' }
+      responses:
+        '200':
+          description: Request history page; page size is capped at 200.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RequestHistoryPagedEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/request_history/get:
+    get:
+      tags: [request_history]
+      operationId: requestHistoryGet
+      x-fixture-required: true
+      x-go-handler: internal/management/history.Handler.Get
+      parameters:
+        - $ref: '#/components/parameters/IdQuery'
+      responses:
+        '200':
+          description: Full captured request history record, or null when the record has been removed or is no longer available.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RequestHistoryEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/ip_blacklist/search:
+    post:
+      tags: [ip_blacklist]
+      operationId: ipBlacklistSearch
+      x-go-handler: internal/management/ipblacklist.Handler.Search
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/IPBlacklistSearchRequest' }
+      responses:
+        '200':
+          description: Active blacklist rules by default, with removed history when requested.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IPBlacklistPagedEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/system_errors/search:
+    post:
+      tags: [system_errors]
+      operationId: systemErrorsSearch
+      x-go-handler: internal/management/systemerrors.Handler.Search
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SystemErrorSearchRequest' }
+      responses:
+        '200':
+          description: System error page ordered by last occurrence and unique ID.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SystemErrorPagedEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/ip_blacklist/get:
+    get:
+      tags: [ip_blacklist]
+      operationId: ipBlacklistGet
+      x-go-handler: internal/management/ipblacklist.Handler.Get
+      parameters:
+        - $ref: '#/components/parameters/IdQuery'
+      responses:
+        '200':
+          description: A blacklist rule, or null when it does not exist.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/NullableIPBlacklistEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/ip_blacklist/upsert:
+    post:
+      tags: [ip_blacklist]
+      operationId: ipBlacklistUpsert
+      x-go-handler: internal/management/ipblacklist.Handler.Upsert
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/IPBlacklistUpsertRequest' }
+      responses:
+        '200':
+          description: Creates a rule, or returns the matching active CIDR rule.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IPBlacklistEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/ip_blacklist/remove:
+    post:
+      tags: [ip_blacklist]
+      operationId: ipBlacklistRemove
+      x-go-handler: internal/management/ipblacklist.Handler.Remove
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [id]
+              properties:
+                id: { $ref: '#/components/schemas/Int64String' }
+      responses:
+        '200':
+          description: Soft-removes an active rule while retaining its counters and snapshot.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IPBlacklistEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/ip_blacklist/lookup:
+    get:
+      tags: [ip_blacklist]
+      operationId: ipBlacklistLookup
+      x-go-handler: internal/management/ipblacklist.Handler.Lookup
+      parameters:
+        - name: ip
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Current IP profile fetched server-side from the configured tools service.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IPProfileEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /api/diagnostics/database:
+    get:
+      tags: [diagnostics]
+      operationId: diagnosticsDatabase
+      x-go-handler: internal/management/diagnostics.Handler.Database
+      responses:
+        '200':
+          description: Fixed read-only PostgreSQL health, maintenance, I/O and Top SQL snapshot for the authenticated Console.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DatabasePerformanceEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/diagnostics/overview:
+    get:
+      tags: [diagnostics]
+      operationId: diagnosticsOverview
+      x-go-handler: internal/management/diagnostics.Handler.Overview
+      responses:
+        '200':
+          description: Process, queue and gateway-node health summary for the authenticated Console.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DiagnosticsOverviewEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/system_setting/smtp:
+    get:
+      tags: [system_setting]
+      operationId: smtpGet
+      x-fixture-required: true
+      x-go-handler: internal/management/settings.Handler.GetSMTP
+      responses:
+        '200':
+          description: SMTP settings.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SmtpSettingEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+    post:
+      tags: [system_setting]
+      operationId: smtpUpsert
+      x-fixture-required: true
+      x-go-handler: internal/management/settings.Handler.UpsertSMTP
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SmtpSettingUpsertRequest' }
+      responses:
+        '200':
+          description: SMTP settings saved.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BooleanEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /api/system_setting/smtp/test_send:
+    post:
+      tags: [system_setting]
+      operationId: smtpTestSend
+      x-fixture-required: true
+      x-go-handler: internal/management/settings.Handler.TestSMTP
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SmtpTestSendRequest' }
+      responses:
+        '200':
+          description: Test message accepted by the configured SMTP server.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BooleanEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /api/system_setting/runtime:
+    get:
+      tags: [system_setting]
+      operationId: runtimeSettingGet
+      x-go-handler: internal/management/settings.Handler.GetRuntime
+      responses:
+        '200':
+          description: Shared runtime configuration.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RuntimeSettingEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+    post:
+      tags: [system_setting]
+      operationId: runtimeSettingUpsert
+      x-go-handler: internal/management/settings.Handler.UpsertRuntime
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RuntimeSettingUpsertRequest' }
+      responses:
+        '200':
+          description: Shared runtime configuration saved.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RuntimeSettingEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /api/system_setting/runtime/status:
+    get:
+      tags: [system_setting]
+      operationId: runtimeSettingStatus
+      x-go-handler: internal/management/settings.Handler.RuntimeStatus
+      responses:
+        '200':
+          description: Runtime configuration application status across nodes.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RuntimeSettingStatusEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /api/system_setting/runtime/access-context:
+    get:
+      tags: [system_setting]
+      operationId: runtimeSettingAccessContext
+      x-go-handler: internal/management/settings.Handler.RuntimeAccessContext
+      responses:
+        '200':
+          description: Client address and management CIDR match status.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RuntimeAccessContextEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /api/system_credentials:
+    get:
+      tags: [system_setting]
+      operationId: systemCredentialsList
+      x-go-handler: internal/management/credentials.Handler.List
+      responses:
+        '200':
+          description: API credentials without secret values.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/APICredentialListEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    post:
+      tags: [system_setting]
+      operationId: systemCredentialsCreate
+      x-go-handler: internal/management/credentials.Handler.Create
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/APICredentialCreateRequest' }
+      responses:
+        '200':
+          description: Created credential; token is returned once.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/APICredentialSecretEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/system_credentials/{id}/reset:
+    post:
+      tags: [system_setting]
+      operationId: systemCredentialsReset
+      x-go-handler: internal/management/credentials.Handler.Reset
+      parameters:
+        - { $ref: '#/components/parameters/IDPath' }
+      responses:
+        '200':
+          description: Reset credential; token is returned once.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/APICredentialSecretEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/system_credentials/{id}/revoke:
+    post:
+      tags: [system_setting]
+      operationId: systemCredentialsRevoke
+      x-go-handler: internal/management/credentials.Handler.Revoke
+      parameters:
+        - { $ref: '#/components/parameters/IDPath' }
+      responses:
+        '200':
+          description: Revoked credential without secret value.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/APICredentialEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/gateway_node/search:
+    post:
+      tags: [gateway_node]
+      operationId: gatewayNodeSearch
+      x-go-handler: internal/management/nodes.Handler.Search
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/GatewayNodeSearchRequest' }
+      responses:
+        '200':
+          description: Node page ordered by last heartbeat descending then node ID.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GatewayNodePagedEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /api/gateway_node/get:
+    get:
+      tags: [gateway_node]
+      operationId: gatewayNodeGet
+      x-go-handler: internal/management/nodes.Handler.Get
+      parameters:
+        - $ref: '#/components/parameters/NodeIdQuery'
+      responses:
+        '200':
+          description: Node or data null when not found.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/NullableGatewayNodeEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/gateway_node/disable:
+    post:
+      tags: [gateway_node]
+      operationId: gatewayNodeDisable
+      x-go-handler: internal/management/nodes.Handler.Disable
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/GatewayNodeDisableRequest' }
+      responses:
+        '200':
+          description: Node placed in disabled state.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GatewayNodeEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /api/gateway_node/delete:
+    post:
+      tags: [gateway_node]
+      operationId: gatewayNodeDelete
+      x-go-handler: internal/management/nodes.Handler.Delete
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/GatewayNodeDeleteRequest' }
+      responses:
+        '200': { description: Node deleted. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/gateway_node/reload:
+    post:
+      tags: [gateway_node]
+      operationId: gatewayNodeReload
+      x-go-handler: internal/management/nodes.Handler.Reload
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/GatewayNodeReloadRequest' }
+      responses:
+        '200':
+          description: Reload generation incremented; the target acknowledges asynchronously in observedReloadGeneration.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GatewayNodeReloadEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /api/gateway_node/restart:
+    post:
+      tags: [gateway_node]
+      operationId: gatewayNodeRestart
+      x-go-handler: internal/management/nodes.Handler.Restart
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/GatewayNodeReloadRequest' }
+      responses:
+        '200':
+          description: Node restart generation incremented; the node drains and restarts asynchronously.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GatewayNodeRestartEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+
+  /api/node/register:
+    post:
+      tags: [gateway_node]
+      operationId: nodeRegister
+      security: []
+      x-go-handler: internal/management/nodes.Handler.Register
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/NodeRegistrationRequest' }
+      responses:
+        '200':
+          description: Node summary for the registering gateway node.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/NodeSummaryEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /api/node/heartbeat:
+    post:
+      tags: [gateway_node]
+      operationId: nodeHeartbeat
+      security: []
+      x-go-handler: internal/management/nodes.Handler.Heartbeat
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/NodeHeartbeatRequest' }
+      responses:
+        '200':
+          description: Node summary reflecting the accepted heartbeat.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/NodeSummaryEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: HS256; issuer Yaginx Proxy Server; audience Yaingx Clients.
+  parameters:
+    IDPath:
+      name: id
+      in: path
+      required: true
+      schema: { $ref: '#/components/schemas/Int64String' }
+    IdQuery:
+      name: id
+      in: query
+      required: true
+      schema: { $ref: '#/components/schemas/Int64String' }
+    NameQuery:
+      name: name
+      in: query
+      required: true
+      schema: { type: string, minLength: 1 }
+    NodeIdQuery:
+      name: id
+      in: query
+      required: true
+      schema: { type: string, format: uuid }
+    AnalyticsFrom:
+      name: from
+      in: query
+      required: false
+      schema: { type: integer, format: int64, minimum: 0 }
+    AnalyticsTo:
+      name: to
+      in: query
+      required: false
+      schema: { type: integer, format: int64, minimum: 0 }
+  responses:
+    BadRequest:
+      description: Required query parameters are missing or unsupported.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+          example:
+            code: 400
+            msg: invalid sections
+            errMsg: invalid sections
+            tid: 0123456789abcdef0123456789abcdef
+            data: { requestId: 0123456789abcdef0123456789abcdef }
+    Conflict:
+      description: The credential name is already in use.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+    NotFound:
+      description: The credential does not exist.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+    Unauthorized:
+      description: Missing, malformed, expired, or invalid Bearer token.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+          example:
+            code: 401
+            msg: 授权认证失败
+            errMsg: 地址/yaginx_console/api/account/profile授权认证失败
+            tid: 0123456789abcdef0123456789abcdef
+            data: { requestId: 0123456789abcdef0123456789abcdef }
+    Forbidden:
+      description: Authenticated but not authorized.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+          example:
+            code: 403
+            msg: 无对应授权
+            errMsg: 地址/yaginx_console/api/example无对应授权
+            tid: 0123456789abcdef0123456789abcdef
+            data: { requestId: 0123456789abcdef0123456789abcdef }
+    InternalError:
+      description: Parameter conversion, validation, business, not-found, and controller exceptions preserve the current HTTP 500 behavior.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+          example:
+            code: 500
+            msg: 调用异常
+            errMsg: ''
+            tid: 0123456789abcdef0123456789abcdef
+            data: { requestId: 0123456789abcdef0123456789abcdef }
+    Unavailable:
+      description: Go node has no writable database connection.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorEnvelope' }
+          example:
+            code: 503
+            msg: 服务暂时不可用
+            errMsg: 数据库当前不可写
+            tid: 0123456789abcdef0123456789abcdef
+            data: { requestId: 0123456789abcdef0123456789abcdef }
+  schemas:
+    Int64String:
+      type: string
+      pattern: '^-?[0-9]+$'
+      examples: ['123456789012345678']
+    Int64Input:
+      oneOf:
+        - $ref: '#/components/schemas/Int64String'
+        - type: integer
+          format: int64
+    EpochSeconds:
+      oneOf:
+        - $ref: '#/components/schemas/Int64String'
+        - type: integer
+          format: int64
+    NullableString:
+      type: [string, 'null']
+    EnvelopeBase:
+      type: object
+      required: [code, msg, errMsg, tid]
+      properties:
+        code: { type: integer }
+        msg: { $ref: '#/components/schemas/NullableString' }
+        errMsg: { $ref: '#/components/schemas/NullableString' }
+        tid: { type: string }
+    ErrorEnvelope:
+      unevaluatedProperties: false
+      allOf:
+        - $ref: '#/components/schemas/EnvelopeBase'
+        - type: object
+          required: [data]
+          properties:
+            data:
+              type: object
+              additionalProperties: false
+              required: [requestId]
+              properties:
+                requestId: { type: string }
+    EmptyResponseEnvelope:
+      unevaluatedProperties: false
+      allOf:
+        - $ref: '#/components/schemas/EnvelopeBase'
+        - type: object
+          required: [data]
+          properties:
+            data:
+              type: object
+              additionalProperties: false
+    BooleanEnvelope:
+      unevaluatedProperties: false
+      allOf:
+        - $ref: '#/components/schemas/EnvelopeBase'
+        - type: object
+          required: [data]
+          properties:
+            data: { type: boolean }
+    StringEnvelope:
+      unevaluatedProperties: false
+      allOf:
+        - $ref: '#/components/schemas/EnvelopeBase'
+        - type: object
+          required: [data]
+          properties:
+            data: { type: string }
+    LoginRequest:
+      type: object
+      additionalProperties: false
+      description: Both credentials are required. remember is accountLogin-only; other callers of this shape (e.g. accountRegister) ignore it.
+      properties:
+        email: { type: [string, 'null'], default: null }
+        password: { type: [string, 'null'], default: null }
+        remember: { type: boolean, default: false }
+    LoginResult:
+      type: object
+      additionalProperties: false
+      required: [userId, name, expiresIn, token]
+      properties:
+        userId: { type: string }
+        name: { type: string }
+        expiresIn: { type: integer, minimum: 1 }
+        token: { type: string }
+    LoginEnvelope:
+      unevaluatedProperties: false
+      allOf:
+        - $ref: '#/components/schemas/EnvelopeBase'
+        - type: object
+          required: [data]
+          properties:
+            data: { $ref: '#/components/schemas/LoginResult' }
+    UserCreateRequest:
+      allOf:
+        - $ref: '#/components/schemas/LoginRequest'
+    SessionSummary:
+      type: object
+      additionalProperties: false
+      required: [id, remembered, userAgent, clientIp, issuedAt, lastUsedAt, idleExpiresAt, absoluteExpiresAt, current]
+      properties:
+        id: { $ref: '#/components/schemas/Int64String' }
+        remembered: { type: boolean }
+        userAgent: { type: string }
+        clientIp: { type: string }
+        issuedAt: { type: string, format: date-time }
+        lastUsedAt: { type: string, format: date-time }
+        idleExpiresAt: { type: string, format: date-time }
+        absoluteExpiresAt: { type: string, format: date-time }
+        current: { type: boolean }
+    SessionListEnvelope:
+      unevaluatedProperties: false
+      allOf:
+        - $ref: '#/components/schemas/EnvelopeBase'
+        - type: object
+          required: [data]
+          properties:
+            data:
+              type: array
+              items: { $ref: '#/components/schemas/SessionSummary' }
+    PasswordRecoveryStartRequest:
+      type: object
+      additionalProperties: false
+      description: accountEmail is required.
+      properties:
+        accountEmail: { type: [string, 'null'], default: null }
+    PasswordRecoveryStartResponse:
+      type: object
+      additionalProperties: false
+      required: [recoveryId, maskedEmail]
+      properties:
+        recoveryId: { type: string }
+        maskedEmail: { type: string }
+    PasswordRecoveryStartEnvelope:
+      unevaluatedProperties: false
+      allOf:
+        - $ref: '#/components/schemas/EnvelopeBase'
+        - type: object
+          required: [data]
+          properties:
+            data: { $ref: '#/components/schemas/PasswordRecoveryStartResponse' }
+    PasswordRecoveryVerifyEmailRequest:
+      type: object
+      additionalProperties: false
+      description: recoveryId and email are required.
+      properties:
+        recoveryId: { type: [string, 'null'], default: null }
+        email: { type: [string, 'null'], default: null }
+    PasswordRecoveryResetRequest:
+      type: object
+      additionalProperties: false
+      description: All fields are required.
+      properties:
+        recoveryId: { type: [string, 'null'], default: null }
+        code: { type: [string, 'null'], default: null }
+        newPassword: { type: [string, 'null'], default: null }
+        confirmPassword: { type: [string, 'null'], default: null }
+    AccountProfileUpdateRequest:
+      type: object
+      additionalProperties: false
+      description: oldPassword is required when updating the profile.
+      properties:
+        email: { type: [string, 'null'], default: null }
+        oldPassword: { type: [string, 'null'], default: null }
+        newPassword: { type: [string, 'null'], default: null }
+        confirmPassword: { type: [string, 'null'], default: null }
+    Profile:
+      type: object
+      additionalProperties: false
+      required: [email]
+      properties:
+        email: { type: string }
+    ProfileEnvelope:
+      unevaluatedProperties: false
+      allOf:
+        - $ref: '#/components/schemas/EnvelopeBase'
+        - type: object
+          required: [data]
+          properties:
+            data: { $ref: '#/components/schemas/Profile' }
+    KeyValueString:
+      type: object
+      additionalProperties: false
+      required: [key, value]
+      properties:
+        key: { type: string }
+        value: { type: string }
+    KeyValueStringRequest:
+      type: object
+      additionalProperties: false
+      description: Key and value must both be supplied.
+      properties:
+        key: { type: [string, 'null'], default: null }
+        value: { type: [string, 'null'], default: null }
+    WebsiteProxyRule:
+      type: object
+      additionalProperties: false
+      required: [ruleId, name, description, isEnabled, pathPattern, isRegexMatchPattern, destination, destinationHost, preserveOriginalHost, allowInvalidTlsCertificate, webProxy, removePrefix]
+      properties:
+        ruleId: { $ref: '#/components/schemas/Int64String' }
+        name: { type: [string, 'null'] }
+        description: { type: [string, 'null'] }
+        isEnabled: { type: boolean }
+        pathPattern: { type: [string, 'null'] }
+        isRegexMatchPattern: { type: boolean, description: Persisted but ignored by the current and first Go runtime. }
+        destination: { type: [string, 'null'] }
+        destinationHost: { type: [string, 'null'] }
+        preserveOriginalHost: { type: boolean }
+        allowInvalidTlsCertificate: { type: boolean }
+        webProxy: { type: [string, 'null'] }
+        removePrefix: { type: [string, 'null'] }
+    WebsiteProxyRuleRequest:
+      type: object
+      additionalProperties: false
+      description: Legacy model binding accepts omitted fields and supplies null, false, or zero before repository validation.
+      properties:
+        ruleId: { $ref: '#/components/schemas/Int64String', default: '0' }
+        name: { type: [string, 'null'], default: null }
+        description: { type: [string, 'null'], default: null }
+        isEnabled: { type: boolean, default: false }
+        pathPattern: { type: [string, 'null'], default: null }
+        isRegexMatchPattern: { type: boolean, default: false, description: Persisted but ignored by the current and first Go runtime. }
+        destination: { type: [string, 'null'], default: null }
+        destinationHost: { type: [string, 'null'], default: null }
+        preserveOriginalHost: { type: boolean, default: false }
+        allowInvalidTlsCertificate: { type: boolean, default: false }
+        webProxy: { type: [string, 'null'], default: null }
+        removePrefix: { type: [string, 'null'], default: null }
+    SimpleResponse:
+      type: object
+      additionalProperties: false
+      required: [path, contentType, statusCode, responseContent, extraHeaders]
+      properties:
+        path: { type: [string, 'null'] }
+        contentType: { type: [string, 'null'] }
+        statusCode: { type: integer }
+        responseContent: { type: [string, 'null'] }
+        extraHeaders:
+          type: [array, 'null']
+          items: { $ref: '#/components/schemas/KeyValueString' }
+    SimpleResponseRequest:
+      type: object
+      additionalProperties: false
+      description: Legacy model binding accepts omitted fields and supplies null or zero before runtime validation.
+      properties:
+        path: { type: [string, 'null'], default: null }
+        contentType: { type: [string, 'null'], default: null }
+        statusCode: { type: integer, default: 0 }
+        responseContent: { type: [string, 'null'], default: null }
+        extraHeaders:
+          type: [array, 'null']
+          default: null
+          items: { $ref: '#/components/schemas/KeyValueStringRequest' }
+    WebsiteBase:
+      type: object
+      required: [name, defaultHost, defaultDestination, defaultDestinationHost, webProxy, authorizationPolicy, preserveOriginalHost, allowInvalidTlsCertificate, redirectHttpToHttps, isMaintenanceMode, hosts, proxyRules, proxyTransforms, simpleResponses]
+      properties:
+        name: { type: [string, 'null'] }
+        defaultHost: { type: [string, 'null'] }
+        defaultDestination: { type: [string, 'null'] }
+        defaultDestinationHost: { type: [string, 'null'] }
+        webProxy: { type: [string, 'null'] }
+        authorizationPolicy: { type: [string, 'null'] }
+        preserveOriginalHost: { type: boolean }
+        allowInvalidTlsCertificate: { type: boolean }
+        redirectHttpToHttps: { type: boolean }
+        isMaintenanceMode: { type: boolean, description: When true, the proxy returns a fixed 503 maintenance response before CORS, simple responses, redirects, routes, or upstream forwarding. }
+        ipAccessMode: { type: string, enum: [disabled, blacklist, whitelist], description: Website-level client IP policy. }
+        ipAccessCIDRs:
+          type: [array, 'null']
+          items: { type: string }
+        hosts:
+          type: [array, 'null']
+          items: { type: string }
+        proxyRules:
+          type: [array, 'null']
+          items: { $ref: '#/components/schemas/WebsiteProxyRule' }
+        proxyTransforms:
+          type: [array, 'null']
+          items: { $ref: '#/components/schemas/KeyValueString' }
+        simpleResponses:
+          type: [array, 'null']
+          items: { $ref: '#/components/schemas/SimpleResponse' }
+        requestHistory: { $ref: '#/components/schemas/WebsiteRequestHistoryPolicy' }
+    WebsiteRequestHistoryPolicy:
+      type: object
+      additionalProperties: false
+      required: [mode]
+      properties:
+        mode: { type: string, enum: [inherit, errorsOnly, all], default: inherit }
+        successSamplingRate: { type: [number, 'null'], minimum: 0, maximum: 1, default: null }
+    WebsiteUpsertRequest:
+      type: object
+      additionalProperties: false
+      description: Canonical v2 website payload. Unknown fields are rejected.
+      properties:
+        id:
+          oneOf:
+            - $ref: '#/components/schemas/Int64String'
+            - type: 'null'
+          default: null
+        name: { type: [string, 'null'], default: null }
+        defaultHost: { type: [string, 'null'], default: null }
+        defaultDestination: { type: [string, 'null'], default: null }
+        defaultDestinationHost: { type: [string, 'null'], default: null }
+        webProxy: { type: [string, 'null'], default: null }
+        authorizationPolicy: { type: [string, 'null'], default: null }
+        preserveOriginalHost: { type: boolean, default: false }
+        allowInvalidTlsCertificate: { type: boolean, default: false }
+        redirectHttpToHttps: { type: boolean, default: false }
+        isMaintenanceMode: { type: boolean, default: false }
+        ipAccessMode:
+          type: string
+          enum: [disabled, blacklist, whitelist]
+          default: disabled
+        ipAccessCIDRs:
+          type: [array, 'null']
+          default: null
+          items: { type: string }
+        hosts:
+          type: [array, 'null']
+          default: null
+          items: { type: string }
+        proxyRules:
+          type: [array, 'null']
+          default: null
+          items: { $ref: '#/components/schemas/WebsiteProxyRuleRequest' }
+        proxyTransforms:
+          type: [array, 'null']
+          default: null
+          items: { $ref: '#/components/schemas/KeyValueStringRequest' }
+        simpleResponses:
+          type: [array, 'null']
+          default: null
+          items: { $ref: '#/components/schemas/SimpleResponseRequest' }
+        requestHistory:
+          oneOf:
+            - $ref: '#/components/schemas/WebsiteRequestHistoryPolicy'
+            - type: 'null'
+          default: null
+    WebsiteUpsertResult:
+      unevaluatedProperties: false
+      allOf:
+        - $ref: '#/components/schemas/WebsiteBase'
+        - type: object
+          required: [id]
+          properties:
+            id: { $ref: '#/components/schemas/Int64String' }
+    WebsiteSearchRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        pageIndex: { type: integer, minimum: 0, default: 1 }
+        pageSize: { type: integer, minimum: 0, maximum: 200, default: 50 }
+        websiteId: { oneOf: [{ $ref: '#/components/schemas/Int64Input' }, { type: 'null' }] }
+        domain: { type: [string, 'null'], description: Case-insensitive partial match against the default and additional hosts. }
+        upstream: { type: [string, 'null'], description: Case-insensitive partial match against the default upstream address. }
+        hasCertificate: { type: [boolean, 'null'], description: Matches the active, unexpired certificate state of the default host. }
+    WebsiteBatchDeleteRequest:
+      type: object
+      additionalProperties: false
+      required: [ids]
+      properties:
+        ids:
+          type: array
+          minItems: 1
+          items: { $ref: '#/components/schemas/Int64String' }
+    WebsiteBatchDeleteResult:
+      type: object
+      additionalProperties: false
+      required: [deletedIds, notFoundIds]
+      properties:
+        deletedIds:
+          type: array
+          items: { $ref: '#/components/schemas/Int64String' }
+        notFoundIds:
+          type: array
+          items: { $ref: '#/components/schemas/Int64String' }
+    WebsiteBatchDeleteEnvelope:
+      unevaluatedProperties: false
+      allOf:
+        - $ref: '#/components/schemas/EnvelopeBase'
+        - type: object
+          required: [data]
+          properties:
+            data: { $ref: '#/components/schemas/WebsiteBatchDeleteResult' }
+    WebsiteListItem:
+      unevaluatedProperties: false
+      allOf:
+        - $ref: '#/components/schemas/WebsiteBase'
+        - type: object
+          required: [id, hasCertificate]
+          properties:
+            id: { $ref: '#/components/schemas/Int64String' }
+            hasCertificate: { type: boolean }
+    WebsiteUpsertEnvelope:
+      unevaluatedProperties: false
+      allOf:
+        - $ref: '#/components/schemas/EnvelopeBase'
+        - type: object
+          required: [data]
+          properties:
+            data: { $ref: '#/components/schemas/WebsiteUpsertResult' }
+    WebsiteListEnvelope:
+      unevaluatedProperties: false
+      allOf:
+        - $ref: '#/components/schemas/EnvelopeBase'
+        - type: object
+          required: [data]
+          properties:
+            data:
+              type: array
+              items: { $ref: '#/components/schemas/WebsiteListItem' }
+    WebsitePage:
+      type: object
+      additionalProperties: false
+      required: [records, paging]
+      properties:
+        records: { type: array, items: { $ref: '#/components/schemas/WebsiteListItem' } }
+        paging: { $ref: '#/components/schemas/Paging' }
+    WebsitePagedEnvelope:
+      unevaluatedProperties: false
+      allOf:
+        - $ref: '#/components/schemas/EnvelopeBase'
+        - type: object
+          required: [data]
+          properties:
+            data: { $ref: '#/components/schemas/WebsitePage' }
+    NullableWebsiteEnvelope:
+      unevaluatedProperties: false
+      allOf:
+        - $ref: '#/components/schemas/EnvelopeBase'
+        - type: object
+          required: [data]
+          properties:
+            data:
+              oneOf:
+                - $ref: '#/components/schemas/WebsiteListItem'
+                - type: 'null'
+    WebDomainUpsertRequest:
+      type: object
+      additionalProperties: false
+      description: Canonical v2 domain payload. Unknown fields are rejected.
+      properties:
+        id:
+          oneOf:
+            - $ref: '#/components/schemas/Int64String'
+            - type: 'null'
+          default: null
+        name: { type: [string, 'null'], default: null }
+        autoRequestCertificate: { type: boolean, default: false }
+        isVerified: { type: boolean, default: false }
+        freeCertMessage: { type: [string, 'null'], default: null }
+    WebDomain:
+      type: object
+      additionalProperties: false
+      required: [id, name, autoRequestCertificate, isVerified, freeCertMessage]
+      properties:
+        id: { $ref: '#/components/schemas/Int64String' }
+        name: { type: [string, 'null'] }
+        autoRequestCertificate: { type: boolean }
+        isVerified: { type: boolean }
+        freeCertMessage: { type: [string, 'null'] }
+    CertSpec:
+      type: object
+      additionalProperties: false
+      required: [notAfter, notBefore, hasCertificate, thumbprint]
+      properties:
+        notAfter: { $ref: '#/components/schemas/EpochSeconds' }
+        notBefore: { $ref: '#/components/schemas/EpochSeconds' }
+        hasCertificate: { type: boolean }
+        thumbprint: { type: [string, 'null'] }
+    WebDomainListItem:
+      type: object
+      additionalProperties: false
+      required: [id, name, autoRequestCertificate, isVerified, certSpec]
+      properties:
+        id:
+          oneOf:
+            - $ref: '#/components/schemas/Int64String'
+            - type: 'null'
+        name: { type: [string, 'null'] }
+        autoRequestCertificate: { type: boolean }
+        isVerified: { type: boolean }
+        certSpec: { $ref: '#/components/schemas/CertSpec' }
+    WebDomainEnvelope:
+      unevaluatedProperties: false
+      allOf:
+        - $ref: '#/components/schemas/EnvelopeBase'
+        - type: object
+          required: [data]
+          properties:
+            data: { $ref: '#/components/schemas/WebDomain' }
+    WebDomainListEnvelope:
+      unevaluatedProperties: false
+      allOf:
+        - $ref: '#/components/schemas/EnvelopeBase'
+        - type: object
+          required: [data]
+          properties:
+            data:
+              type: array
+              items: { $ref: '#/components/schemas/WebDomainListItem' }
+    WebDomainSearchRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        pageIndex: { type: integer, minimum: 0, default: 1 }
+        pageSize: { type: integer, minimum: 0, maximum: 200, default: 50 }
+    WebDomainPage:
+      type: object
+      additionalProperties: false
+      required: [records, paging]
+      properties:
+        records: { type: array, items: { $ref: '#/components/schemas/WebDomainListItem' } }
+        paging: { $ref: '#/components/schemas/Paging' }
+    WebDomainPagedEnvelope:
+      unevaluatedProperties: false
+      allOf:
+        - $ref: '#/components/schemas/EnvelopeBase'
+        - type: object
+          required: [data]
+          properties:
+            data: { $ref: '#/components/schemas/WebDomainPage' }
+    NullableWebDomainListEnvelope:
+      unevaluatedProperties: false
+      allOf:
+        - $ref: '#/components/schemas/EnvelopeBase'
+        - type: object
+          required: [data]
+          properties:
+            data:
+              oneOf:
+                - $ref: '#/components/schemas/WebDomainListItem'
+                - type: 'null'
+    AcmeRequestBody:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name: { type: string }
+    AcmeRequestResult:
+      type: object
+      additionalProperties: false
+      required: [status, message]
+      properties:
+        status: { type: string, enum: [already_valid, issued, lock_busy, permanent_failure, temporary_failure, invalid_domain, internal_error, order_in_progress, disabled] }
+        message: { type: string }
+    AcmeRequestEnvelope:
+      unevaluatedProperties: false
+      allOf:
+        - $ref: '#/components/schemas/EnvelopeBase'
+        - type: object
+          required: [data]
+          properties:
+            data: { $ref: '#/components/schemas/AcmeRequestResult' }
+    AcmeStatusResult:
+      type: object
+      additionalProperties: false
+      required: [hostname, certificate, acmeOrder, checkedAt, hasOrder]
+      properties:
+        hostname: { type: string }
+        certificate:
+          oneOf: [{ $ref: '#/components/schemas/HostCertificateStatus' }, { type: 'null' }]
+        acmeOrder:
+          oneOf: [{ $ref: '#/components/schemas/HostACMEOrderStatus' }, { type: 'null' }]
+        checkedAt: { type: string, format: date-time }
+        hasOrder: { type: boolean }
+        orderStatus: { type: string }
+        errorMessage: { type: string }
+        attempt: { type: integer }
+        nextAttemptAt: { type: string, format: date-time }
+        certificateNotAfter: { type: string, format: date-time }
+    HostCertificateStatus:
+      type: object
+      additionalProperties: false
+      required: [exists, validity, isActive, notBefore, notAfter, remainingSeconds, remainingDays, fingerprint, issuer, serialNumber, dnsNames, source]
+      properties:
+        exists: { type: boolean }
+        validity: { type: string, enum: [valid, expired, not_yet_valid, absent] }
+        isActive: { type: boolean }
+        notBefore: { type: string, format: date-time }
+        notAfter: { type: string, format: date-time }
+        remainingSeconds: { type: integer, format: int64 }
+        remainingDays: { type: integer, format: int64 }
+        fingerprint: { type: string }
+        issuer: { type: string }
+        serialNumber: { type: string }
+        dnsNames: { type: array, items: { type: string } }
+        source: { type: string, enum: [acme, imported_pfx] }
+    HostACMEOrderStatus:
+      type: object
+      additionalProperties: false
+      required: [exists, isInProgress, id, status, attempt, createdAt, updatedAt, errorClass, errorMessage]
+      properties:
+        exists: { type: boolean }
+        isInProgress: { type: boolean }
+        id: { oneOf: [{ $ref: '#/components/schemas/Int64String' }, { type: 'null' }] }
+        status: { type: string }
+        attempt: { type: integer }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        nextAttemptAt: { oneOf: [{ type: string, format: date-time }, { type: 'null' }] }
+        finishedAt: { oneOf: [{ type: string, format: date-time }, { type: 'null' }] }
+        errorClass: { type: string }
+        errorMessage: { type: string }
+    AcmeStatusEnvelope:
+      unevaluatedProperties: false
+      allOf:
+        - $ref: '#/components/schemas/EnvelopeBase'
+        - type: object
+          required: [data]
+          properties:
+            data: { $ref: '#/components/schemas/AcmeStatusResult' }
+    Paging:
+      type: object
+      additionalProperties: false
+      required: [pageIndex, pageSize, total]
+      properties:
+        pageIndex: { type: integer, minimum: 1 }
+        pageSize: { type: integer, minimum: 1 }
+        total: { type: integer, format: int64 }
+    RequestHistorySearchRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        pageIndex: { type: integer, minimum: 0, default: 1 }
+        pageSize: { type: integer, minimum: 0, maximum: 200, default: 50 }
+        from:
+          oneOf: [{ $ref: '#/components/schemas/Int64Input' }, { type: 'null' }]
+        to:
+          oneOf: [{ $ref: '#/components/schemas/Int64Input' }, { type: 'null' }]
+        host: { type: [string, 'null'], default: '' }
+        statusCode: { type: [integer, 'null'] }
+        statusFamily: { type: [string, 'null'], default: '' }
+        statusCodePattern:
+          type: [string, 'null']
+          minLength: 3
+          maxLength: 3
+          pattern: '^[0-9xX]{3}$'
+          description: Three-digit matcher where x matches any digit at that position.
+        upstreamStatusCode: { type: [integer, 'null'] }
+        statusSource: { type: [string, 'null'], default: '' }
+        errorCategory: { type: [string, 'null'], default: '' }
+        errorCode: { type: [string, 'null'], default: '' }
+        clientIp: { type: [string, 'null'], default: '' }
+        userAgent: { type: [string, 'null'], default: '' }
+    RequestHistoryCommon:
+      type: object
+      required: [id, requestAt, durationMs, clientIp, method, host, path, statusCode, upstreamStatusCode, statusSource, errorCategory, errorCode, userAgent, proxyStage, exceptionStage, forwarderError, hasException, exceptionType]
+      properties:
+        id: { $ref: '#/components/schemas/Int64String' }
+        requestAt: { $ref: '#/components/schemas/EpochSeconds' }
+        durationMs: { $ref: '#/components/schemas/Int64String' }
+        clientIp: { type: string }
+        method: { type: string }
+        host: { type: string }
+        path: { type: string }
+        statusCode: { type: integer }
+        upstreamStatusCode: { type: [integer, 'null'] }
+        statusSource: { type: string }
+        errorCategory: { type: string }
+        errorCode: { type: string }
+        userAgent: { type: string }
+        proxyStage: { type: string }
+        exceptionStage: { type: string }
+        forwarderError: { type: string }
+        hasException: { type: boolean, readOnly: true }
+        exceptionType: { type: string }
+    RequestHistoryListItem:
+      unevaluatedProperties: false
+      allOf:
+        - $ref: '#/components/schemas/RequestHistoryCommon'
+    HeaderMap:
+      type: object
+      additionalProperties:
+        type: array
+        items: { type: string }
+    RequestHistory:
+      unevaluatedProperties: false
+      allOf:
+        - $ref: '#/components/schemas/RequestHistoryCommon'
+        - type: object
+          required: [scheme, queryString, url, protocol, requestHeaders, responseHeaders, requestBodyBase64, responseBodyBase64, requestContentType, responseContentType, requestBodyTruncated, responseBodyTruncated, exceptionMessage, exceptionStackTrace]
+          properties:
+            scheme: { type: string }
+            queryString: { type: string }
+            url: { type: string }
+            protocol: { type: string }
+            requestHeaders: { $ref: '#/components/schemas/HeaderMap' }
+            responseHeaders: { $ref: '#/components/schemas/HeaderMap' }
+            requestBodyBase64: { type: string }
+            responseBodyBase64: { type: string }
+            requestContentType: { type: string }
+            responseContentType: { type: string }
+            requestBodyTruncated: { type: boolean }
+            responseBodyTruncated: { type: boolean }
+            exceptionMessage: { type: string }
+            exceptionStackTrace: { type: string }
+    RequestHistoryPage:
+      type: object
+      additionalProperties: false
+      required: [records, paging]
+      properties:
+        records:
+          type: array
+          items: { $ref: '#/components/schemas/RequestHistoryListItem' }
+        paging: { $ref: '#/components/schemas/Paging' }
+    RequestHistoryPagedEnvelope:
+      unevaluatedProperties: false
+      allOf:
+        - $ref: '#/components/schemas/EnvelopeBase'
+        - type: object
+          required: [data]
+          properties:
+            data: { $ref: '#/components/schemas/RequestHistoryPage' }
+    RequestHistoryEnvelope:
+      unevaluatedProperties: false
+      allOf:
+        - $ref: '#/components/schemas/EnvelopeBase'
+        - type: object
+          required: [data]
+          properties:
+            data:
+              oneOf:
+                - $ref: '#/components/schemas/RequestHistory'
+                - type: 'null'
+    IPProfileName:
+      type: [object, 'null']
+      additionalProperties: false
+      properties:
+        name: { type: [string, 'null'] }
+        isoCode: { type: [string, 'null'] }
+    IPProfileNetwork:
+      type: object
+      additionalProperties: false
+      required: [type]
+      properties:
+        type: { type: string, enum: [datacenter, residential, mobile, proxy, unknown] }
+        isp: { type: [string, 'null'] }
+        organization: { type: [string, 'null'] }
+        connectionType: { type: [string, 'null'] }
+        userType: { type: [string, 'null'] }
+    IPProfile:
+      type: object
+      additionalProperties: false
+      required: [ip, network, traits]
+      properties:
+        ip: { type: string }
+        country: { $ref: '#/components/schemas/IPProfileName' }
+        subdivision: { $ref: '#/components/schemas/IPProfileName' }
+        city:
+          type: [object, 'null']
+          additionalProperties: false
+          properties:
+            name: { type: [string, 'null'] }
+            geoNameId: { type: [integer, 'null'] }
+        asn:
+          type: [object, 'null']
+          additionalProperties: false
+          properties:
+            number: { type: [integer, 'null'] }
+            organization: { type: [string, 'null'] }
+            network: { type: [string, 'null'] }
+        network: { $ref: '#/components/schemas/IPProfileNetwork' }
+        traits:
+          type: object
+          additionalProperties: { type: boolean }
+    IPBlacklistRule:
+      type: object
+      additionalProperties: false
+      required: [id, cidr, profile, blockedCount, lastBlockedAt, createdAt, removedAt, isActive]
+      properties:
+        id: { $ref: '#/components/schemas/Int64String' }
+        cidr: { type: string }
+        profile: { $ref: '#/components/schemas/IPProfile' }
+        blockedCount: { $ref: '#/components/schemas/Int64String' }
+        lastBlockedAt:
+          oneOf: [{ $ref: '#/components/schemas/EpochSeconds' }, { type: 'null' }]
+        createdAt: { $ref: '#/components/schemas/EpochSeconds' }
+        removedAt:
+          oneOf: [{ $ref: '#/components/schemas/EpochSeconds' }, { type: 'null' }]
+        isActive: { type: boolean }
+    IPBlacklistSearchRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        pageIndex: { type: integer, minimum: 0, default: 1 }
+        pageSize: { type: integer, minimum: 0, maximum: 200, default: 50 }
+        keyword: { type: [string, 'null'], default: '' }
+        includeRemoved: { type: [boolean, 'null'] }
+    IPBlacklistUpsertRequest:
+      type: object
+      additionalProperties: false
+      required: [cidr]
+      properties:
+        cidr: { type: string, description: IPv4/IPv6 address or CIDR. Literal addresses are persisted as /32 or /128. }
+    IPBlacklistPage:
+      type: object
+      additionalProperties: false
+      required: [records, paging]
+      properties:
+        records:
+          type: array
+          items: { $ref: '#/components/schemas/IPBlacklistRule' }
+        paging: { $ref: '#/components/schemas/Paging' }
+    IPBlacklistPagedEnvelope:
+      unevaluatedProperties: false
+      allOf:
+        - $ref: '#/components/schemas/EnvelopeBase'
+        - type: object
+          required: [data]
+          properties:
+            data: { $ref: '#/components/schemas/IPBlacklistPage' }
+    SystemErrorSearchRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        pageIndex: { type: integer, minimum: 0, default: 1 }
+        pageSize: { type: integer, minimum: 0, maximum: 200, default: 50 }
+        component: { type: [string, 'null'], default: '' }
+        severity: { type: [string, 'null'], default: '' }
+        errorCode: { type: [string, 'null'], default: '' }
+        configRevision: { type: [integer, 'null'] }
+        systemEventId: { type: [string, 'null'], format: uuid }
+    SystemErrorListItem:
+      type: object
+      additionalProperties: false
+      required: [id, systemEventId, occurredAt, nodeId, version, buildId, component, operation, severity, errorCode, message, occurrenceCount, firstSeenAt, lastSeenAt]
+      properties:
+        id: { $ref: '#/components/schemas/Int64String' }
+        systemEventId: { type: string, format: uuid }
+        occurredAt: { $ref: '#/components/schemas/EpochSeconds' }
+        nodeId: { type: string }
+        version: { type: string }
+        buildId: { type: string }
+        configRevision: { type: [integer, 'null'] }
+        component: { type: string }
+        operation: { type: string }
+        severity: { type: string }
+        errorCode: { type: string }
+        message: { type: string }
+        details: { type: object, additionalProperties: true }
+        traceId: { type: string }
+        occurrenceCount: { type: integer, format: int64 }
+        firstSeenAt: { $ref: '#/components/schemas/EpochSeconds' }
+        lastSeenAt: { $ref: '#/components/schemas/EpochSeconds' }
+    SystemErrorPage:
+      type: object
+      additionalProperties: false
+      required: [records, paging]
+      properties:
+        records: { type: array, items: { $ref: '#/components/schemas/SystemErrorListItem' } }
+        paging: { $ref: '#/components/schemas/Paging' }
+    SystemErrorPagedEnvelope:
+      unevaluatedProperties: false
+      allOf:
+        - $ref: '#/components/schemas/EnvelopeBase'
+        - type: object
+          required: [data]
+          properties:
+            data: { $ref: '#/components/schemas/SystemErrorPage' }
+    IPBlacklistEnvelope:
+      unevaluatedProperties: false
+      allOf:
+        - $ref: '#/components/schemas/EnvelopeBase'
+        - type: object
+          required: [data]
+          properties:
+            data: { $ref: '#/components/schemas/IPBlacklistRule' }
+    NullableIPBlacklistEnvelope:
+      unevaluatedProperties: false
+      allOf:
+        - $ref: '#/components/schemas/EnvelopeBase'
+        - type: object
+          required: [data]
+          properties:
+            data:
+              oneOf:
+                - $ref: '#/components/schemas/IPBlacklistRule'
+                - type: 'null'
+    IPProfileEnvelope:
+      unevaluatedProperties: false
+      allOf:
+        - $ref: '#/components/schemas/EnvelopeBase'
+        - type: object
+          required: [data]
+          properties:
+            data: { $ref: '#/components/schemas/IPProfile' }
+    MetricItem:
+      type: object
+      additionalProperties: false
+      required: [type, value]
+      properties:
+        type: { type: string }
+        value: { type: integer, format: int64 }
+    AnalyticsKpis:
+      type: object
+      additionalProperties: false
+      required: [requests, requestsPerSecond, inboundBytes, outboundBytes, inboundBytesPerSecond, outboundBytesPerSecond, errorRequests, errorRate, p50Ms, p95Ms, p99Ms, avgDurationMs, maxDurationMs, latencyCoverageRate]
+      properties:
+        requests: { type: integer, format: int64 }
+        requestsPerSecond: { type: number }
+        inboundBytes: { type: integer, format: int64 }
+        outboundBytes: { type: integer, format: int64 }
+        inboundBytesPerSecond: { type: number }
+        outboundBytesPerSecond: { type: number }
+        errorRequests: { type: integer, format: int64 }
+        errorRate: { type: number }
+        p50Ms: { type: [number, 'null'] }
+        p95Ms: { type: [number, 'null'] }
+        p99Ms: { type: [number, 'null'] }
+        avgDurationMs: { type: number }
+        maxDurationMs: { type: number }
+        latencyCoverageRate: { type: number }
+    AnalyticsLatency:
+      type: object
+      additionalProperties: false
+      required: [p50Ms, p95Ms, p99Ms, avgMs]
+      properties:
+        p50Ms: { type: [number, 'null'] }
+        p95Ms: { type: [number, 'null'] }
+        p99Ms: { type: [number, 'null'] }
+        avgMs: { type: number }
+    AnalyticsModeMetrics:
+      type: object
+      additionalProperties: false
+      required: [requests, completionLatency, firstByteLatency, firstTokenLatency, completionCoverageRate, firstByteCoverageRate, firstTokenCoverageRate]
+      properties:
+        requests: { type: integer, format: int64 }
+        completionLatency: { $ref: '#/components/schemas/AnalyticsLatency' }
+        firstByteLatency: { $ref: '#/components/schemas/AnalyticsLatency' }
+        firstTokenLatency: { $ref: '#/components/schemas/AnalyticsLatency' }
+        completionCoverageRate: { type: number }
+        firstByteCoverageRate: { type: number }
+        firstTokenCoverageRate: { type: number }
+    AnalyticsModeBreakdown:
+      type: object
+      additionalProperties: false
+      required: [nonStream, stream, upgrade]
+      properties:
+        nonStream: { $ref: '#/components/schemas/AnalyticsModeMetrics' }
+        stream: { $ref: '#/components/schemas/AnalyticsModeMetrics' }
+        upgrade: { $ref: '#/components/schemas/AnalyticsModeMetrics' }
+    AnalyticsUserAgents:
+      type: object
+      additionalProperties: false
+      required: [browsers, spiders, operatingSystems, coverage]
+      properties:
+        browsers: { type: array, items: { $ref: '#/components/schemas/MetricItem' } }
+        spiders: { type: array, items: { $ref: '#/components/schemas/MetricItem' } }
+        operatingSystems: { type: array, items: { $ref: '#/components/schemas/MetricItem' } }
+        coverage:
+          type: object
+          additionalProperties: false
+          required: [browserRate, osRate, spiderRate]
+          properties:
+            browserRate: { type: number }
+            osRate: { type: number }
+            spiderRate: { type: number }
+    AnalyticsCoverage:
+      type: object
+      additionalProperties: false
+      required: [from, to, isComplete, state, missingBuckets, windowBuckets]
+      properties:
+        from: { type: integer, format: int64 }
+        to: { type: integer, format: int64 }
+        isComplete: { type: boolean }
+        state: { type: string, enum: [collecting, complete, incomplete] }
+        missingBuckets: { type: integer }
+        windowBuckets: { type: integer }
+    AnalyticsBase:
+      type: object
+      additionalProperties: false
+      required: [asOf, from, to, grain, source, coverage]
+      properties:
+        asOf: { type: integer, format: int64 }
+        from: { type: integer, format: int64 }
+        to: { type: integer, format: int64 }
+        grain: { type: string, enum: [minute, hour, day] }
+        source: { type: string, enum: [gateway_traffic_contribution, resource_report, gateway_traffic_contribution+resource_report] }
+        coverage: { $ref: '#/components/schemas/AnalyticsCoverage' }
+    AnalyticsDomain:
+      allOf:
+        - $ref: '#/components/schemas/AnalyticsKpis'
+        - type: object
+          additionalProperties: false
+          required: [domain, isPartial, statusBreakdown, durationBuckets, userAgents, modes]
+          properties:
+            domain: { type: string }
+            isPartial: { type: boolean }
+            statusBreakdown: { type: array, items: { $ref: '#/components/schemas/MetricItem' } }
+            durationBuckets: { type: array, items: { $ref: '#/components/schemas/MetricItem' } }
+            userAgents: { $ref: '#/components/schemas/AnalyticsUserAgents' }
+            modes: { $ref: '#/components/schemas/AnalyticsModeBreakdown' }
+    AnalyticsPoint:
+      allOf:
+        - $ref: '#/components/schemas/AnalyticsKpis'
+        - type: object
+          additionalProperties: false
+          required: [bucketStartAt, isPartial, statusBreakdown, durationBuckets, modes]
+          properties:
+            bucketStartAt: { type: integer, format: int64 }
+            isPartial: { type: boolean }
+            statusBreakdown: { type: array, items: { $ref: '#/components/schemas/MetricItem' } }
+            durationBuckets: { type: array, items: { $ref: '#/components/schemas/MetricItem' } }
+            modes: { $ref: '#/components/schemas/AnalyticsModeBreakdown' }
+    AnalyticsQuery:
+      type: object
+      additionalProperties: false
+      description: The request contract shared by every analytics operation. An omitted window falls back to the service default, and the grain is always derived from the window width rather than requested.
+      properties:
+        from: { type: [integer, 'null'], format: int64, minimum: 0, default: null }
+        to: { type: [integer, 'null'], format: int64, minimum: 0, default: null }
+        domain: { type: [string, 'null'], default: null, description: Narrows the query to one Host. An omitted or null value aggregates every Host. }
+    AnalyticsOverviewQuery:
+      unevaluatedProperties: false
+      allOf:
+        - $ref: '#/components/schemas/AnalyticsQuery'
+        - type: object
+          required: [sections]
+          properties:
+            sections:
+              type: array
+              minItems: 1
+              items: { type: string, enum: [overview, domains, timeseries] }
+              description: The subset of sections to populate. Unrequested sections are omitted from the response.
+    AnalyticsPagedQuery:
+      unevaluatedProperties: false
+      allOf:
+        - $ref: '#/components/schemas/AnalyticsQuery'
+        - type: object
+          properties:
+            pageIndex: { type: integer, minimum: 0, default: 1 }
+            pageSize: { type: integer, minimum: 0, maximum: 200, default: 50 }
+    AnalyticsOverview:
+      unevaluatedProperties: false
+      allOf:
+        - $ref: '#/components/schemas/AnalyticsBase'
+        - type: object
+          properties:
+            overview: { $ref: '#/components/schemas/AnalyticsSummary' }
+            domains:
+              type: array
+              items: { $ref: '#/components/schemas/AnalyticsDomain' }
+            points:
+              type: array
+              items: { $ref: '#/components/schemas/AnalyticsPoint' }
+    AnalyticsOverviewEnvelope:
+      unevaluatedProperties: false
+      allOf:
+        - $ref: '#/components/schemas/EnvelopeBase'
+        - type: object
+          required: [data]
+          properties:
+            data: { $ref: '#/components/schemas/AnalyticsOverview' }
+    AnalyticsSubjectView:
+      type: object
+      additionalProperties: false
+      required: [subjectType, website, hosts, overview, timeseries]
+      description: One subject's configuration and analytics read model. website is null when subjectType is domain; hosts carries a single entry in that case.
+      properties:
+        subjectType: { type: string, enum: [domain, website] }
+        website: { oneOf: [{ $ref: '#/components/schemas/WebsiteUpsertResult' }, { type: 'null' }] }
+        hosts: { type: array, items: { $ref: '#/components/schemas/ResourceHost' } }
+        overview: { $ref: '#/components/schemas/AnalyticsSubjectOverview' }
+        timeseries: { $ref: '#/components/schemas/AnalyticsSubjectTimeseries' }
+    NullableAnalyticsSubjectViewEnvelope:
+      allOf: [{ $ref: '#/components/schemas/EnvelopeBase' }, { type: object, required: [data], properties: { data: { oneOf: [{ $ref: '#/components/schemas/AnalyticsSubjectView' }, { type: 'null' }] } } }]
+    AnalyticsSummary:
+      allOf:
+        - $ref: '#/components/schemas/AnalyticsBase'
+        - type: object
+          additionalProperties: false
+          required: [currentInFlight, dataLagSeconds, hasData, isPartial, activeHostCount, kpis, statusBreakdown, durationBuckets, errorBreakdown, userAgents, topDomains, modes]
+          properties:
+            currentInFlight: { type: integer, format: int64 }
+            dataLagSeconds: { type: integer, format: int64 }
+            hasData: { type: boolean }
+            isPartial: { type: boolean }
+            activeHostCount: { type: integer }
+            kpis: { $ref: '#/components/schemas/AnalyticsKpis' }
+            statusBreakdown: { type: array, items: { $ref: '#/components/schemas/MetricItem' } }
+            durationBuckets: { type: array, items: { $ref: '#/components/schemas/MetricItem' } }
+            errorBreakdown: { type: array, items: { $ref: '#/components/schemas/MetricItem' } }
+            userAgents: { $ref: '#/components/schemas/AnalyticsUserAgents' }
+            topDomains: { type: array, items: { $ref: '#/components/schemas/AnalyticsDomain' } }
+            modes: { $ref: '#/components/schemas/AnalyticsModeBreakdown' }
+    AnalyticsDomains:
+      allOf:
+        - $ref: '#/components/schemas/AnalyticsBase'
+        - type: object
+          additionalProperties: false
+          required: [domains]
+          properties:
+            domains: { type: array, items: { $ref: '#/components/schemas/AnalyticsDomain' } }
+    AnalyticsTimeseries:
+      allOf:
+        - $ref: '#/components/schemas/AnalyticsBase'
+        - type: object
+          additionalProperties: false
+          required: [domain, points]
+          properties:
+            domain: { type: string }
+            points: { type: array, items: { $ref: '#/components/schemas/AnalyticsPoint' } }
+    AnalyticsContributionPoint:
+      type: object
+      additionalProperties: false
+      required: [period, hostName, requestCounts, isPartial]
+      properties:
+        period: { type: integer, format: int64 }
+        hostName: { type: string }
+        requestCounts: { type: integer, format: int64 }
+        isPartial: { type: boolean }
+    AnalyticsHostRanking:
+      type: object
+      additionalProperties: false
+      required: [hostName, requestCounts, inboundBytes, outboundBytes, totalBytes, share]
+      properties:
+        hostName: { type: string }
+        requestCounts: { type: integer, format: int64 }
+        inboundBytes: { type: integer, format: int64 }
+        outboundBytes: { type: integer, format: int64 }
+        totalBytes: { type: integer, format: int64 }
+        share: { type: number }
+    AnalyticsContributions:
+      allOf:
+        - $ref: '#/components/schemas/AnalyticsBase'
+        - type: object
+          additionalProperties: false
+          required: [summary, rankings, timeline]
+          properties:
+            summary:
+              type: object
+              additionalProperties: false
+              required: [totalRequests, activeHostCount, topHostName, topHostRequestCounts]
+              properties:
+                totalRequests: { type: integer, format: int64 }
+                activeHostCount: { type: integer }
+                topHostName: { type: string }
+                topHostRequestCounts: { type: integer, format: int64 }
+            rankings: { type: array, items: { $ref: '#/components/schemas/AnalyticsHostRanking' } }
+            timeline: { type: array, items: { $ref: '#/components/schemas/AnalyticsContributionPoint' } }
+    AnalyticsDetail:
+      type: object
+      additionalProperties: false
+      required: [id, hostName, period, requestCounts, inboundBytes, outboundBytes, totalBytes, errorRequests, errorRate, avgDurationMs, p95Ms, isPartial]
+      properties:
+        id: { type: string }
+        hostName: { type: string }
+        period: { type: integer, format: int64 }
+        requestCounts: { type: integer, format: int64 }
+        inboundBytes: { type: integer, format: int64 }
+        outboundBytes: { type: integer, format: int64 }
+        totalBytes: { type: integer, format: int64 }
+        errorRequests: { type: integer, format: int64 }
+        errorRate: { type: number }
+        avgDurationMs: { type: number }
+        p95Ms: { type: [number, 'null'] }
+        isPartial: { type: boolean }
+    AnalyticsDetails:
+      allOf:
+        - $ref: '#/components/schemas/AnalyticsBase'
+        - type: object
+          additionalProperties: false
+          required: [records, paging]
+          properties:
+            records: { type: array, items: { $ref: '#/components/schemas/AnalyticsDetail' } }
+            paging: { $ref: '#/components/schemas/Paging' }
+    AnalyticsDomainsEnvelope:
+      allOf: [{ $ref: '#/components/schemas/EnvelopeBase' }, { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/AnalyticsDomains' } } }]
+    AnalyticsTimeseriesEnvelope:
+      allOf: [{ $ref: '#/components/schemas/EnvelopeBase' }, { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/AnalyticsTimeseries' } } }]
+    AnalyticsContributionsEnvelope:
+      allOf: [{ $ref: '#/components/schemas/EnvelopeBase' }, { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/AnalyticsContributions' } } }]
+    AnalyticsDetailsEnvelope:
+      allOf: [{ $ref: '#/components/schemas/EnvelopeBase' }, { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/AnalyticsDetails' } } }]
+    DatabaseCapability:
+      type: object
+      additionalProperties: false
+      required: [enabled, installed, queryable, reason]
+      properties:
+        enabled: { type: boolean }
+        installed: { type: boolean }
+        queryable: { type: boolean }
+        reason: { type: string }
+    DatabasePerformance:
+      type: object
+      additionalProperties: false
+      required: [asOf, health, pool, database, activity, io, tables, capabilities, topSql]
+      properties:
+        asOf: { type: integer, format: int64 }
+        health:
+          type: object
+          additionalProperties: false
+          required: [level, reasons]
+          properties:
+            level: { type: string, enum: [healthy, warning, critical] }
+            reasons: { type: array, items: { type: string } }
+        pool:
+          type: object
+          additionalProperties: false
+          required: [total, acquired, idle, constructing, max, usageRate]
+          properties:
+            total: { type: integer, format: int64 }
+            acquired: { type: integer, format: int64 }
+            idle: { type: integer, format: int64 }
+            constructing: { type: integer, format: int64 }
+            max: { type: integer, format: int64 }
+            usageRate: { type: number }
+        database:
+          type: object
+          additionalProperties: false
+          required: [name, connections, commits, rollbacks, blocksRead, blocksHit, cacheHitRate, tempFiles, tempBytes, deadlocks, blockReadMs, blockWriteMs, statsResetAt]
+          properties:
+            name: { type: string }
+            connections: { type: integer, format: int64 }
+            commits: { type: integer, format: int64 }
+            rollbacks: { type: integer, format: int64 }
+            blocksRead: { type: integer, format: int64 }
+            blocksHit: { type: integer, format: int64 }
+            cacheHitRate: { type: number }
+            tempFiles: { type: integer, format: int64 }
+            tempBytes: { type: integer, format: int64 }
+            deadlocks: { type: integer, format: int64 }
+            blockReadMs: { type: number }
+            blockWriteMs: { type: number }
+            statsResetAt: { type: integer, format: int64 }
+        activity:
+          type: object
+          additionalProperties: false
+          required: [active, idle, idleInTransaction, lockWaits, ungrantedLocks, maxLockWaitSeconds]
+          properties:
+            active: { type: integer, format: int64 }
+            idle: { type: integer, format: int64 }
+            idleInTransaction: { type: integer, format: int64 }
+            lockWaits: { type: integer, format: int64 }
+            ungrantedLocks: { type: integer, format: int64 }
+            maxLockWaitSeconds: { type: number }
+        io:
+          type: object
+          additionalProperties: false
+          required: [available]
+          properties:
+            available: { type: boolean }
+            reads: { type: integer, format: int64 }
+            writes: { type: integer, format: int64 }
+            extends: { type: integer, format: int64 }
+            fsyncs: { type: integer, format: int64 }
+            evictions: { type: integer, format: int64 }
+            reuses: { type: integer, format: int64 }
+            readMs: { type: number }
+            writeMs: { type: number }
+        tables:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [name, liveTuples, deadTuples, deadTupleRatio, sizeBytes, lastAutovacuumAt, lastAutoanalyzeAt]
+            properties:
+              name: { type: string }
+              liveTuples: { type: integer, format: int64 }
+              deadTuples: { type: integer, format: int64 }
+              deadTupleRatio: { type: number }
+              sizeBytes: { type: integer, format: int64 }
+              lastAutovacuumAt: { type: integer, format: int64 }
+              lastAutoanalyzeAt: { type: integer, format: int64 }
+        capabilities:
+          type: object
+          additionalProperties: false
+          required: [pgStatStatements, pgStatIO, trackIOTiming]
+          properties:
+            pgStatStatements: { $ref: '#/components/schemas/DatabaseCapability' }
+            pgStatIO: { $ref: '#/components/schemas/DatabaseCapability' }
+            trackIOTiming: { $ref: '#/components/schemas/DatabaseCapability' }
+        topSql:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [queryId, query, calls, totalPlanMs, totalExecMs, meanPlanMs, meanExecMs, sharedBlocksRead, sharedBlocksHit, tempBlocksRead, tempBlocksWritten]
+            properties:
+              queryId: { type: string }
+              query: { type: string }
+              calls: { type: integer, format: int64 }
+              totalPlanMs: { type: number }
+              totalExecMs: { type: number }
+              meanPlanMs: { type: number }
+              meanExecMs: { type: number }
+              sharedBlocksRead: { type: integer, format: int64 }
+              sharedBlocksHit: { type: integer, format: int64 }
+              tempBlocksRead: { type: integer, format: int64 }
+              tempBlocksWritten: { type: integer, format: int64 }
+    DatabasePerformanceEnvelope:
+      allOf: [{ $ref: '#/components/schemas/EnvelopeBase' }, { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/DatabasePerformance' } } }]
+    DiagnosticsOverview:
+      type: object
+      additionalProperties: false
+      required: [asOf, health, runtime]
+      properties:
+        asOf: { type: integer, format: int64 }
+        health:
+          type: object
+          additionalProperties: false
+          required: [level, reasons, totalNodes, activeNodes, staleNodes, drainingNodes, latestHeartbeat]
+          properties:
+            level: { type: string, enum: [healthy, warning, critical] }
+            reasons: { type: array, items: { type: string } }
+            totalNodes: { type: integer }
+            activeNodes: { type: integer }
+            staleNodes: { type: integer }
+            drainingNodes: { type: integer }
+            latestHeartbeat: { type: integer, format: int64 }
+        runtime:
+          type: object
+          additionalProperties: false
+          required: [asOf, heapAllocBytes, heapInuseBytes, residentBytes, goroutines, activeRequests, queues]
+          properties:
+            asOf: { type: integer, format: int64 }
+            heapAllocBytes: { type: integer, format: int64 }
+            heapInuseBytes: { type: integer, format: int64 }
+            residentBytes: { type: integer, format: int64 }
+            goroutines: { type: integer }
+            activeRequests: { type: integer, format: int64 }
+            queues:
+              type: object
+              additionalProperties:
+                type: object
+                required: [depth, batchDepth, dropped]
+                properties:
+                  depth: { type: integer, format: int64 }
+                  batchDepth: { type: integer, format: int64 }
+                  dropped: { type: integer, format: int64 }
+    DiagnosticsOverviewEnvelope:
+      allOf: [{ $ref: '#/components/schemas/EnvelopeBase' }, { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/DiagnosticsOverview' } } }]
+    ResourceCertificate:
+      type: object
+      additionalProperties: false
+      required: [fingerprint, notBefore, notAfter, isActive]
+      properties:
+        fingerprint: { type: string }
+        notBefore: { type: integer, format: int64 }
+        notAfter: { type: integer, format: int64 }
+        isActive: { type: boolean }
+    ResourceWebsiteReference:
+      type: object
+      additionalProperties: false
+      required: [id, name]
+      properties:
+        id: { $ref: '#/components/schemas/Int64String' }
+        name: { type: string }
+    ResourceHost:
+      type: object
+      additionalProperties: false
+      required: [host, managementStatus, domainConfig, websites, certificate, lastActivity]
+      properties:
+        host: { type: string }
+        managementStatus: { type: string, enum: [managed, unmanaged] }
+        domainConfig:
+          oneOf: [{ $ref: '#/components/schemas/WebDomainListItem' }, { type: 'null' }]
+        websites: { type: array, items: { $ref: '#/components/schemas/ResourceWebsiteReference' } }
+        certificate:
+          oneOf: [{ $ref: '#/components/schemas/ResourceCertificate' }, { type: 'null' }]
+        lastActivity: { type: integer, format: int64 }
+    ResourceCatalog:
+      type: object
+      additionalProperties: false
+      required: [records, paging, managedTotal, unmanagedTotal]
+      properties:
+        records: { type: array, items: { $ref: '#/components/schemas/ResourceHost' } }
+        paging: { $ref: '#/components/schemas/Paging' }
+        managedTotal: { type: integer }
+        unmanagedTotal: { type: integer }
+    AnalyticsSubjectOverview:
+      type: object
+      additionalProperties: false
+      required: [asOf, from, to, grain, dataLagSeconds, hasData, isPartial, kpis, errorBreakdown, statusBreakdown, durationBuckets, userAgents, coverage, source]
+      properties:
+        asOf: { type: integer, format: int64 }
+        from: { type: integer, format: int64 }
+        to: { type: integer, format: int64 }
+        grain: { type: string, enum: [minute, hour, day] }
+        dataLagSeconds: { type: integer, format: int64 }
+        hasData: { type: boolean }
+        isPartial: { type: boolean }
+        kpis: { $ref: '#/components/schemas/AnalyticsKpis' }
+        errorBreakdown: { type: array, items: { $ref: '#/components/schemas/MetricItem' } }
+        statusBreakdown: { type: array, items: { $ref: '#/components/schemas/MetricItem' } }
+        durationBuckets: { type: array, items: { $ref: '#/components/schemas/MetricItem' } }
+        userAgents: { $ref: '#/components/schemas/AnalyticsUserAgents' }
+        coverage: { $ref: '#/components/schemas/AnalyticsCoverage' }
+        source: { type: string }
+    AnalyticsSubjectTimeseries:
+      type: object
+      additionalProperties: false
+      required: [asOf, from, to, grain, domains, points]
+      properties:
+        asOf: { type: integer, format: int64 }
+        from: { type: integer, format: int64 }
+        to: { type: integer, format: int64 }
+        grain: { type: string, enum: [minute, hour, day] }
+        domains: { type: array, items: { type: string } }
+        points: { type: array, items: { $ref: '#/components/schemas/AnalyticsPoint' } }
+    ResourceCatalogEnvelope:
+      allOf: [{ $ref: '#/components/schemas/EnvelopeBase' }, { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/ResourceCatalog' } } }]
+    SmtpSettingUpsertRequest:
+      type: object
+      additionalProperties: false
+      description: SMTP values are validated when enabled is true.
+      properties:
+        enabled: { type: boolean, default: false }
+        host: { type: [string, 'null'], default: null }
+        port: { type: integer, default: 0 }
+        useSsl: { type: boolean, default: false }
+        userName: { type: [string, 'null'], default: null }
+        password: { type: [string, 'null'], default: null }
+        fromEmail: { type: [string, 'null'], default: null }
+        fromName: { type: [string, 'null'], default: null }
+    SmtpSettingResponse:
+      type: object
+      additionalProperties: false
+      required: [enabled, host, port, useSsl, userName, password, fromEmail, fromName, updateTs]
+      properties:
+        enabled: { type: boolean }
+        host: { type: [string, 'null'] }
+        port: { type: integer }
+        useSsl: { type: boolean }
+        userName: { type: [string, 'null'] }
+        password: { type: [string, 'null'] }
+        fromEmail: { type: [string, 'null'] }
+        fromName: { type: [string, 'null'] }
+        updateTs: { $ref: '#/components/schemas/Int64String' }
+    SmtpSettingEnvelope:
+      unevaluatedProperties: false
+      allOf:
+        - $ref: '#/components/schemas/EnvelopeBase'
+        - type: object
+          required: [data]
+          properties:
+            data: { $ref: '#/components/schemas/SmtpSettingResponse' }
+    SmtpTestSendRequest:
+      type: object
+      additionalProperties: false
+      description: email is required.
+      properties:
+        email: { type: [string, 'null'], default: null }
+    RuntimeSetting:
+      type: object
+      additionalProperties: false
+      required: [config, revision, updatedAt, applyMode]
+      properties:
+        config:
+          type: object
+          additionalProperties: true
+        revision: { $ref: '#/components/schemas/Int64String' }
+        updatedAt: { oneOf: [{ $ref: '#/components/schemas/EpochSeconds' }, { type: 'null' }] }
+        applyMode: { type: string, enum: [reload, restart] }
+    RuntimeSettingEnvelope:
+      unevaluatedProperties: false
+      allOf:
+        - $ref: '#/components/schemas/EnvelopeBase'
+        - type: object
+          required: [data]
+          properties:
+            data: { oneOf: [{ $ref: '#/components/schemas/RuntimeSetting' }, { type: 'null' }] }
+    RuntimeSettingUpsertRequest:
+      type: object
+      additionalProperties: false
+      required: [config, restart]
+      properties:
+        config:
+          type: object
+          additionalProperties: true
+        expectedRevision:
+          oneOf: [{ $ref: '#/components/schemas/Int64String' }, { type: 'null' }]
+        restart: { type: boolean, default: true }
+    RuntimeSettingStatus:
+      type: object
+      additionalProperties: false
+      required: [revision, pendingRestart, nodes, applyMode]
+      properties:
+        revision: { $ref: '#/components/schemas/Int64String' }
+        pendingRestart: { type: boolean }
+        nodes: { type: array, items: { $ref: '#/components/schemas/GatewayNode' } }
+        applyMode: { type: string, enum: [reload, restart] }
+    RuntimeSettingStatusEnvelope:
+      unevaluatedProperties: false
+      allOf:
+        - $ref: '#/components/schemas/EnvelopeBase'
+        - type: object
+          required: [data]
+          properties:
+            data: { $ref: '#/components/schemas/RuntimeSettingStatus' }
+    RuntimeAccessContext:
+      type: object
+      additionalProperties: false
+      required: [clientIP, allowedCIDRs, clientAllowed]
+      properties:
+        clientIP: { type: string }
+        allowedCIDRs: { type: array, items: { type: string } }
+        clientAllowed: { type: boolean }
+    RuntimeAccessContextEnvelope:
+      unevaluatedProperties: false
+      allOf:
+        - $ref: '#/components/schemas/EnvelopeBase'
+        - type: object
+          required: [data]
+          properties:
+            data: { $ref: '#/components/schemas/RuntimeAccessContext' }
+    APICredential:
+      type: object
+      additionalProperties: false
+      required: [id, name, purpose, tokenPrefix, status, createdAt, updatedAt, revokedAt]
+      properties:
+        id: { $ref: '#/components/schemas/Int64String' }
+        name: { type: string }
+        purpose: { type: string }
+        tokenPrefix: { type: string }
+        status: { type: string, enum: [active, revoked] }
+        createdAt: { $ref: '#/components/schemas/EpochSeconds' }
+        updatedAt: { $ref: '#/components/schemas/EpochSeconds' }
+        revokedAt: { oneOf: [{ $ref: '#/components/schemas/EpochSeconds' }, { type: 'null' }] }
+    APICredentialCreateRequest:
+      type: object
+      additionalProperties: false
+      required: [name, purpose]
+      properties:
+        name: { type: string, minLength: 1 }
+        purpose: { type: string, minLength: 1 }
+    APICredentialSecret:
+      allOf:
+        - $ref: '#/components/schemas/APICredential'
+        - type: object
+          required: [token]
+          properties:
+            token: { type: string }
+    APICredentialEnvelope:
+      unevaluatedProperties: false
+      allOf:
+        - $ref: '#/components/schemas/EnvelopeBase'
+        - type: object
+          required: [data]
+          properties:
+            data: { $ref: '#/components/schemas/APICredential' }
+    APICredentialSecretEnvelope:
+      unevaluatedProperties: false
+      allOf:
+        - $ref: '#/components/schemas/EnvelopeBase'
+        - type: object
+          required: [data]
+          properties:
+            data: { $ref: '#/components/schemas/APICredentialSecret' }
+    APICredentialListEnvelope:
+      unevaluatedProperties: false
+      allOf:
+        - $ref: '#/components/schemas/EnvelopeBase'
+        - type: object
+          required: [data]
+          properties:
+            data:
+              type: array
+              items: { $ref: '#/components/schemas/APICredential' }
+    GatewayNodeStatus:
+      type: string
+      enum: [active, draining, disabled]
+    GatewayNode:
+      type: object
+      additionalProperties: false
+      required: [nodeId, machineFingerprint, displayName, status, nodeNumber, stateReason, softwareVersion, gitSha, appliedRevision, reloadGeneration, observedReloadGeneration, restartGeneration, observedRestartGeneration, lastSnapshotAt, lastSnapshotError, lastHeartbeatAt, stale, drainStartedAt, disabledAt, createdAt, updatedAt]
+      properties:
+        nodeId: { type: string, format: uuid }
+        machineFingerprint: { type: string, pattern: '^[0-9a-f]{64}$' }
+        displayName: { type: string }
+        status: { $ref: '#/components/schemas/GatewayNodeStatus' }
+        nodeNumber: { type: [integer, 'null'], minimum: 0, maximum: 1023 }
+        stateReason: { type: string }
+        softwareVersion: { type: string }
+        gitSha: { type: string }
+        appliedRevision: { $ref: '#/components/schemas/Int64String' }
+        reloadGeneration: { $ref: '#/components/schemas/Int64String' }
+        observedReloadGeneration: { $ref: '#/components/schemas/Int64String' }
+        restartGeneration: { $ref: '#/components/schemas/Int64String' }
+        observedRestartGeneration: { $ref: '#/components/schemas/Int64String' }
+        lastSnapshotAt: { oneOf: [{ $ref: '#/components/schemas/EpochSeconds' }, { type: 'null' }] }
+        lastSnapshotError: { type: string }
+        lastHeartbeatAt: { oneOf: [{ $ref: '#/components/schemas/EpochSeconds' }, { type: 'null' }] }
+        stale: { type: boolean }
+        drainStartedAt: { oneOf: [{ $ref: '#/components/schemas/EpochSeconds' }, { type: 'null' }] }
+        disabledAt: { oneOf: [{ $ref: '#/components/schemas/EpochSeconds' }, { type: 'null' }] }
+        createdAt: { $ref: '#/components/schemas/EpochSeconds' }
+        updatedAt: { $ref: '#/components/schemas/EpochSeconds' }
+    GatewayNodeSearchRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        pageIndex: { type: integer, minimum: 0, default: 1 }
+        pageSize: { type: integer, minimum: 0, maximum: 200, default: 50 }
+        status:
+          oneOf: [{ $ref: '#/components/schemas/GatewayNodeStatus' }, { type: 'null' }]
+        keyword: { type: [string, 'null'], default: '' }
+    GatewayNodeDeleteRequest:
+      type: object
+      additionalProperties: false
+      required: [nodeId]
+      properties:
+        nodeId: { type: string, format: uuid }
+    GatewayNodeDisableRequest:
+      type: object
+      additionalProperties: false
+      required: [nodeId, reason]
+      properties:
+        nodeId: { type: string, format: uuid }
+        reason: { type: string, maxLength: 500 }
+    GatewayNodeReloadRequest:
+      type: object
+      additionalProperties: false
+      required: [nodeId]
+      properties:
+        nodeId: { type: string, format: uuid }
+    GatewayNodeReloadResult:
+      type: object
+      additionalProperties: false
+      required: [nodeId, reloadGeneration]
+      properties:
+        nodeId: { type: string, format: uuid }
+        reloadGeneration: { $ref: '#/components/schemas/Int64String' }
+    GatewayNodePage:
+      type: object
+      additionalProperties: false
+      required: [records, paging]
+      properties:
+        records: { type: array, items: { $ref: '#/components/schemas/GatewayNode' } }
+        paging: { $ref: '#/components/schemas/Paging' }
+    GatewayNodePagedEnvelope:
+      unevaluatedProperties: false
+      allOf:
+        - $ref: '#/components/schemas/EnvelopeBase'
+        - type: object
+          required: [data]
+          properties:
+            data: { $ref: '#/components/schemas/GatewayNodePage' }
+    GatewayNodeEnvelope:
+      unevaluatedProperties: false
+      allOf:
+        - $ref: '#/components/schemas/EnvelopeBase'
+        - type: object
+          required: [data]
+          properties:
+            data: { $ref: '#/components/schemas/GatewayNode' }
+    NullableGatewayNodeEnvelope:
+      unevaluatedProperties: false
+      allOf:
+        - $ref: '#/components/schemas/EnvelopeBase'
+        - type: object
+          required: [data]
+          properties:
+            data:
+              oneOf: [{ $ref: '#/components/schemas/GatewayNode' }, { type: 'null' }]
+    GatewayNodeReloadEnvelope:
+      unevaluatedProperties: false
+      allOf:
+        - $ref: '#/components/schemas/EnvelopeBase'
+        - type: object
+          required: [data]
+          properties:
+            data: { $ref: '#/components/schemas/GatewayNodeReloadResult' }
+    GatewayNodeRestartResult:
+      type: object
+      additionalProperties: false
+      required: [nodeId, restartGeneration]
+      properties:
+        nodeId: { type: string, format: uuid }
+        restartGeneration: { $ref: '#/components/schemas/Int64String' }
+    GatewayNodeRestartEnvelope:
+      unevaluatedProperties: false
+      allOf:
+        - $ref: '#/components/schemas/EnvelopeBase'
+        - type: object
+          required: [data]
+          properties:
+            data: { $ref: '#/components/schemas/GatewayNodeRestartResult' }
+
+    NodeRegistrationRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        nodeId: { type: string, format: uuid }
+        machineFingerprint: { type: string, pattern: '^[0-9a-f]{64}$' }
+        displayName: { type: string, default: '' }
+        softwareVersion: { type: string, default: '' }
+        gitSHA: { type: string, default: '' }
+    NodeHeartbeatRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        nodeId: { type: string, format: uuid }
+        appliedRevision: { type: integer, format: int64, default: 0 }
+        reloadGeneration: { type: integer, format: int64, default: 0 }
+        observedReloadGeneration: { type: integer, format: int64, default: 0 }
+        restartGeneration: { type: integer, format: int64, default: 0 }
+        observedRestartGeneration: { type: integer, format: int64, default: 0 }
+        lastSnapshotError: { type: string, default: '' }
+    NodeSummary:
+      type: object
+      additionalProperties: false
+      required: [nodeId, status, nodeNumber, stateReason, restartGeneration, observedRestartGeneration]
+      properties:
+        nodeId: { type: string, format: uuid }
+        status: { $ref: '#/components/schemas/GatewayNodeStatus' }
+        nodeNumber: { type: [integer, 'null'], minimum: 0, maximum: 1023 }
+        stateReason: { type: string }
+        restartGeneration: { type: integer, format: int64 }
+        observedRestartGeneration: { type: integer, format: int64 }
+    NodeSummaryEnvelope:
+      allOf: [{ $ref: '#/components/schemas/EnvelopeBase' }, { type: object, required: [data], properties: { data: { $ref: '#/components/schemas/NodeSummary' } } }]

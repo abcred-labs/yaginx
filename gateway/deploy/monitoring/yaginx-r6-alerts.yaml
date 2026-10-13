@@ -1,0 +1,63 @@
+groups:
+  - name: yaginx-r6-recording
+    rules:
+      - record: yaginx:proxy_error_ratio5m
+        expr: |
+          sum by (job, instance) (rate(yaginx_proxy_requests_total{status_class=~"5xx|6xx"}[5m]))
+          /
+          clamp_min(sum by (job, instance) (rate(yaginx_proxy_requests_total[5m])), 1)
+      - record: yaginx:proxy_p95_seconds5m
+        expr: |
+          histogram_quantile(0.95, sum by (job, instance, le) (rate(yaginx_proxy_request_duration_seconds_bucket[5m])))
+      - record: yaginx:config_revision_gap
+        expr: |
+          abs(
+            yaginx_config_revision{source="database"}
+            - on (job, instance) yaginx_config_revision{source="applied"}
+          )
+
+  - name: yaginx-r6-alerts
+    rules:
+      - alert: YaginxManagementTargetDown
+        expr: up{job="yaginx-management"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: Yaginx management listener is unreachable
+      - alert: YaginxNotReady
+        expr: probe_success{job="yaginx-management-ready"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: Yaginx ready endpoint is not healthy
+          description: Configure this probe against the CIDR-restricted /health/ready endpoint.
+      - alert: YaginxConfigRevisionDrift
+        expr: yaginx:config_revision_gap > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Yaginx applied configuration revision is behind the database
+      - alert: YaginxTelemetryDropped
+        expr: sum by (job, instance, queue) (increase(yaginx_queue_dropped_total[5m])) > 0
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: Yaginx telemetry dropped events
+      - alert: YaginxCertificateExpiry
+        expr: sum by (job, instance) (yaginx_certificate_count{state="active",expiry_range=~"expired|under_7d"}) > 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: Yaginx has an expired or soon-expiring active certificate
+      - alert: YaginxHeartbeatStale
+        expr: yaginx_node_heartbeat_age_seconds > 45
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: Yaginx node heartbeat exceeds the configured stale threshold

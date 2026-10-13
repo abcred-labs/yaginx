@@ -1,0 +1,59 @@
+{
+  "version": 1,
+  "matrixLine": 12,
+  "name": "listener-proxy-https-v1-default-route",
+  "source": "dotnet",
+  "listener": {
+    "port": 19443,
+    "transport": "tcp"
+  },
+  "config": {
+    "defaultHost": "proxy-fixture.example.invalid",
+    "defaultDestination": "http://127.0.0.1:20180"
+  },
+  "client": {
+    "method": "GET",
+    "host": "proxy-fixture.example.invalid",
+    "path": "/proxy-tls-v1",
+    "status": 200,
+    "headers": {
+      "Alt-Svc": "h3=\":19443\"; ma=86400",
+      "Content-Length": "258",
+      "Content-Type": "application/json",
+      "Date": "${NOW}"
+    },
+    "body": {
+      "headers": {
+        "X-Fixture": "",
+        "X-Fixture-Forward-Proxy": "",
+        "X-Forwarded-For": "198.51.100.10",
+        "X-Forwarded-Host": "proxy-fixture.example.invalid",
+        "X-Forwarded-Prefix": "",
+        "X-Forwarded-Proto": "https"
+      },
+      "host": "127.0.0.1:20180",
+      "method": "GET",
+      "path": "/proxy-tls-v1"
+    }
+  },
+  "upstream": {
+    "attempted": true,
+    "method": "GET",
+    "host": "127.0.0.1:20180",
+    "path": "/proxy-tls-v1",
+    "status": 200,
+    "headers": {
+      "X-Fixture": "",
+      "X-Fixture-Forward-Proxy": "",
+      "X-Forwarded-For": "198.51.100.10",
+      "X-Forwarded-Host": "proxy-fixture.example.invalid",
+      "X-Forwarded-Prefix": "",
+      "X-Forwarded-Proto": "https"
+    }
+  },
+  "history": {
+    "status": 200,
+    "statusSource": "Upstream",
+    "errorCategory": ""
+  }
+}

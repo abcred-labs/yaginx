@@ -1,0 +1,24 @@
+.host-traffic-page { gap: var(--space-2); }
+.host-traffic-page__nav { max-width: 620px; }
+.host-traffic-page__toolbar { margin-bottom: 0; padding: var(--space-2); }
+.host-traffic-page__toolbar .ant-picker-range { max-width: calc(100vw - 56px); }
+.host-traffic-page__status { color: var(--app-muted); }
+/* KPI 色调靠标题前的小圆点表达；3px 色条留给「当前所在」语义 */
+.host-traffic-kpi { height: 100%; }
+.host-traffic-kpi .ant-card-body { padding: 10px 14px; }
+.host-traffic-kpi .ant-statistic { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
+.host-traffic-kpi .ant-statistic-title { display: flex; align-items: center; gap: 6px; margin-bottom: 0; white-space: nowrap; }
+.host-traffic-kpi__title { display: inline-flex; align-items: center; gap: 5px; }
+.host-traffic-kpi__title .anticon { color: var(--app-muted); font-size: 11px; }
+.host-traffic-kpi .ant-statistic-content { flex: 0 1 auto; font-size: 21px; line-height: 1.2; text-align: right; }
+.host-traffic-kpi .ant-statistic-content-value { overflow-wrap: anywhere; }
+.host-traffic-kpi .ant-statistic-title::before { width: 6px; height: 6px; flex: 0 0 auto; border-radius: 50%; background: var(--app-flow); content: ''; }
+.host-traffic-kpi--signal .ant-statistic-title::before { background: var(--app-signal); }
+.host-traffic-kpi--warning .ant-statistic-title::before { background: var(--app-warning); }
+.host-traffic-kpi--alert .ant-statistic-title::before { background: var(--app-alert); }
+.host-traffic-rank-card .ant-card-body { padding-top: var(--space-3); }
+
+@media (max-width: 767px) {
+  .host-traffic-page__nav { width: 100%; overflow-x: auto; }
+  .host-traffic-page__nav .ant-segmented-item-label { white-space: nowrap; }
+}

@@ -1,0 +1,24 @@
+.idea/
+.claude
+.codex
+.DS_Store
+
+# Local Go build outputs and release artifacts.
+/gateway/yaginx
+/gateway/*.exe
+/artifacts/
+/debian_packages/
+
+# Certificates and local secrets must not enter version control.
+*.pfx
+**/.pnpm-ci-store/
+**/app_data/
+**/.vs/
+**/node_modules/
+**/dist/
+**/build/
+**/.docusaurus/
+**/.cache/
+audit-*.json
+**/bin/
+**/obj/

@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Yaginx setup</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --canvas: #f4f7fb; --surface: #fff; --surface-muted: #eef3f9;
+      --ink: #172033; --muted: #66748a; --border: #dbe4ef;
+      --flow: #2575ff; --signal: #00a88f; --warning: #e99a2f; --alert: #d54b45;
+      --shadow: 0 12px 32px rgba(22,38,65,.08);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root { color-scheme: dark; --canvas:#0d1524; --surface:#121e31; --surface-muted:#18263b; --ink:#edf4ff; --muted:#9baac0; --border:#2a3a53; --flow:#76a8ff; --signal:#48d3bd; --warning:#f0b661; --alert:#ff918b; --shadow:0 14px 34px rgba(0,0,0,.22); }
+    }
+    * { box-sizing: border-box; }
+    html, body { min-height:100%; margin:0; }
+    body { background:var(--canvas); color:var(--ink); font:14px/1.55 "Noto Sans SC",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+    main { width:min(1180px,calc(100% - 32px)); margin:0 auto; padding:32px 0 48px; }
+    header { display:flex; align-items:flex-start; justify-content:space-between; gap:24px; padding-bottom:22px; border-bottom:1px solid var(--border); }
+    .eyebrow,.step-kicker,label { color:var(--muted); font-family:"IBM Plex Mono",monospace; font-size:11px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; }
+    .eyebrow { color:var(--flow); }
+    h1 { margin:7px 0 0; color:var(--ink); font:700 clamp(30px,4vw,46px)/1.08 "Space Grotesk","Noto Sans SC",sans-serif; letter-spacing:-.035em; }
+    .lede { max-width:720px; margin:18px 0 24px; color:var(--muted); }
+    .wizard-steps { display:grid; grid-template-columns:repeat(5,1fr); gap:8px; margin:20px 0 16px; overflow:auto; }
+    .step { min-width:140px; padding:10px 12px; border:1px solid var(--border); border-radius:10px; background:var(--surface); color:var(--muted); text-align:left; }
+    .step strong { display:block; color:inherit; font:600 14px "Space Grotesk","Noto Sans SC",sans-serif; }
+    .step span { font:11px "IBM Plex Mono",monospace; }
+    .step.active { border-color:var(--flow); color:var(--flow); box-shadow:0 0 0 2px color-mix(in srgb,var(--flow) 14%,transparent); }
+    .step.done { border-color:var(--signal); color:var(--signal); }
+    .layout { display:grid; grid-template-columns:minmax(0,1.65fr) minmax(260px,.75fr); gap:16px; align-items:start; }
+    .card { min-width:0; padding:22px; border:1px solid var(--border); border-radius:10px; background:var(--surface); box-shadow:var(--shadow); }
+    .aside { position:sticky; top:18px; }
+    .status { min-height:68px; display:flex; align-items:center; padding:12px 14px; border-left:3px solid var(--border); background:var(--surface-muted); color:var(--ink); }
+    .status.ok { border-color:var(--signal); } .status.error { border-color:var(--alert); color:var(--alert); }
+    .status.warn { border-color:var(--warning); }
+    .summary { margin-top:16px; padding:14px; border:1px solid var(--border); border-radius:8px; background:var(--surface-muted); }
+    .summary h2 { margin:0 0 8px; font:600 16px "Space Grotesk","Noto Sans SC",sans-serif; }
+    .summary p { margin:6px 0; color:var(--muted); }
+    .summary code, pre { font-family:"IBM Plex Mono",monospace; }
+    .step-panel[hidden] { display:none; }
+    .field-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:0 14px; }
+    .field { min-width:0; }
+    .field-wide { grid-column:1/-1; }
+    label { display:block; margin:15px 0 6px; }
+    label:first-child { margin-top:0; }
+    input, select { width:100%; border:1px solid var(--border); border-radius:7px; background:var(--surface-muted); color:var(--ink); padding:10px 11px; font:inherit; }
+    input:focus, select:focus { outline:2px solid color-mix(in srgb,var(--flow) 55%,transparent); outline-offset:1px; }
+    input.field-error, select.field-error { border-color:var(--alert); background:color-mix(in srgb,var(--alert) 9%,var(--surface-muted)); }
+    input.field-error:focus, select.field-error:focus { outline-color:var(--alert); }
+    .field-error-message { min-height:0; margin:5px 0 0; color:var(--alert); font-size:12px; }
+    input[type=checkbox] { width:auto; accent-color:var(--flow); }
+    .hint { margin:8px 0 0; color:var(--muted); font-size:12px; }
+    .port-check { display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin-top:18px; padding-top:16px; border-top:1px solid var(--border); }
+    .actions { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:9px; margin-top:22px; }
+    button { border:1px solid var(--flow); border-radius:7px; background:var(--flow); color:#fff; padding:9px 14px; font:600 14px "Noto Sans SC",sans-serif; cursor:pointer; }
+    button.secondary { border-color:var(--border); background:transparent; color:var(--ink); }
+    button.ghost { border-color:transparent; background:transparent; color:var(--muted); }
+    button:disabled { cursor:wait; opacity:.6; }
+    pre { max-height:360px; overflow:auto; margin:0; padding:14px; border:1px solid var(--border); border-radius:8px; background:var(--surface-muted); color:var(--ink); white-space:pre-wrap; word-break:break-word; }
+    .confirm { display:flex; align-items:flex-start; gap:9px; margin-top:16px; color:var(--muted); font-size:13px; }
+    .command-list { display:grid; gap:10px; margin-top:16px; }
+    .command-card { padding:10px; border:1px solid var(--border); border-radius:8px; background:var(--surface-muted); }
+    .command-card__label { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:6px; color:var(--muted); font:600 10px "IBM Plex Mono",monospace; letter-spacing:.06em; text-transform:uppercase; }
+    .command-card code { display:block; overflow:auto; color:var(--ink); font:12px/1.5 "IBM Plex Mono",monospace; white-space:pre-wrap; word-break:break-word; }
+    .command-card button { padding:4px 8px; font-size:11px; }
+    @media (max-width:900px) { main { padding-top:24px; } .layout { grid-template-columns:1fr; } .aside { position:static; } }
+    @media (max-width:600px) { main { width:min(100% - 20px,560px); padding-top:16px; } header { display:block; } .mark-right { margin-top:8px; } .wizard-steps { margin-right:-10px; padding-bottom:3px; } .field-grid { grid-template-columns:1fr; } .field-wide { grid-column:auto; } .actions { justify-content:stretch; } .actions button { flex:1 1 100%; } .card { padding:16px; } }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div><div class="eyebrow">YAGINX / FIRST SETUP</div><h1>Connect the gateway.</h1></div>
+      <div class="eyebrow mark-right">TEMPORARY SETUP</div>
+    </header>
+    <p class="lede">Use the one-time token from <code>journalctl -u yaginx</code>. Your DBA must create an empty PostgreSQL database first; this wizard initializes the Yaginx schema and starts the gateway.</p>
+    <nav class="wizard-steps" aria-label="Setup progress">
+      <div class="step active" data-step="0"><strong>01 Database</strong><span>Connect and inspect</span></div>
+      <div class="step" data-step="1"><strong>02 Listener options</strong><span>Check ports</span></div>
+      <div class="step" data-step="2"><strong>03 Administrator</strong><span>Create first account</span></div>
+      <div class="step" data-step="3"><strong>04 Certificate</strong><span>ACME automation</span></div>
+      <div class="step" data-step="4"><strong>05 Review</strong><span>Apply setup</span></div>
+    </nav>
+    <div class="layout">
+      <section class="card">
+        <div id="step-database" class="step-panel">
+          <div class="field-grid">
+            <div class="field field-wide"><label for="token">Setup token</label><input id="token" type="password" autocomplete="off" placeholder="Token from the service journal"><p class="hint">The token expires after 15 minutes and is invalidated after setup completes.</p></div>
+            <div class="field"><label for="host">PostgreSQL host</label><input id="host" value="127.0.0.1" autocomplete="off"></div>
+            <div class="field"><label for="port">Port</label><input id="port" type="number" value="5432" min="1" max="65535"></div>
+            <div class="field"><label for="database">Database name</label><input id="database" autocomplete="off" placeholder="yaginx"></div>
+            <div class="field"><label for="username">Username</label><input id="username" autocomplete="username"></div>
+            <div class="field"><label for="password">Password</label><input id="password" type="password" autocomplete="new-password"></div>
+            <div class="field"><label for="sslMode">SSL mode</label><select id="sslMode"><option value="disable">disable (local PostgreSQL)</option><option value="require">require</option><option value="verify-full">verify-full</option></select></div>
+          </div>
+          <p class="hint">The database role must have the DDL privileges required to initialize or migrate the selected database.</p>
+          <div class="actions"><button id="check" type="button">Check database</button></div>
+        </div>
+        <div id="step-options" class="step-panel" hidden>
+          <div class="field-grid">
+            <div class="field field-wide"><label for="bindAddress">Listener bind address</label><input id="bindAddress" value="0.0.0.0"></div>
+            <div class="field"><label for="managementPort">Management port</label><input id="managementPort" type="number" value="9090"></div>
+            <div class="field"><label for="httpPort">HTTP port</label><input id="httpPort" type="number" value="8080"></div>
+            <div class="field"><label for="proxyHttpPort">Proxy HTTP port</label><input id="proxyHttpPort" type="number" value="9080"></div>
+            <div class="field"><label for="httpsPort">HTTPS port</label><input id="httpsPort" type="number" value="8443"></div>
+            <div class="field"><label for="proxyHttpsPort">Proxy HTTPS port</label><input id="proxyHttpsPort" type="number" value="9443"></div>
+            <div class="field"><label><input id="http3Enabled" type="checkbox"> Enable HTTP/3</label></div>
+          </div>
+          <div class="port-check"><button id="checkPorts" type="button" class="secondary">Check available</button><span id="portState" class="hint">Ports have not been checked for the current values.</span></div>
+          <div class="actions"><button id="optionsBack" type="button" class="secondary">Back</button><button id="optionsNext" type="button">Continue</button></div>
+        </div>
+        <div id="step-admin" class="step-panel" hidden>
+          <div class="field-grid">
+            <div class="field field-wide"><label for="adminEmail">Administrator email</label><input id="adminEmail" type="email" autocomplete="email"></div>
+            <div class="field"><label for="adminPassword">Administrator password</label><input id="adminPassword" type="password" autocomplete="new-password"></div>
+            <div class="field"><label for="adminPasswordConfirm">Confirm password</label><input id="adminPasswordConfirm" type="password" autocomplete="new-password"></div>
+          </div>
+          <p class="hint">Use at least 5 characters. Existing databases with accounts keep their current accounts.</p>
+          <div class="actions"><button id="adminBack" type="button" class="secondary">Back</button><button id="adminNext" type="button">Continue</button></div>
+        </div>
+        <div id="step-certificate" class="step-panel" hidden>
+          <div class="field-grid">
+            <div class="field field-wide"><label for="acmeEmail">ACME email</label><input id="acmeEmail" type="email" autocomplete="email"><p class="hint">Used for ACME registration and certificate renewal notifications. Automatic certificate application and renewal are always enabled.</p></div>
+          </div>
+          <div class="actions"><button id="certificateBack" type="button" class="secondary">Back</button><button id="certificateNext" type="button">Continue</button></div>
+        </div>
+        <div id="step-review" class="step-panel" hidden>
+          <pre id="review"></pre>
+          <label class="confirm"><input id="confirm" type="checkbox"> I have reviewed the settings and understand that database schema changes will be applied.</label>
+          <div class="actions"><button id="reviewBack" type="button" class="secondary">Back</button><button id="apply" type="button" disabled>Initialize and start gateway</button></div>
+        </div>
+      </section>
+      <aside class="card aside">
+        <div id="status" class="status">Enter the database connection fields, then check PostgreSQL.</div>
+        <div class="summary"><h2 id="asideTitle">Database setup</h2><p id="asideText">Connect to the empty database prepared by your DBA. Yaginx will initialize its schema after review.</p><p id="asideTarget"></p></div>
+        <div class="summary"><h2>Operator commands</h2><div class="command-list">
+          <div class="command-card"><div class="command-card__label"><span>Get setup token</span><button type="button" class="copy-command" data-command="sudo journalctl -u yaginx -n 50 --no-pager">Copy</button></div><code>sudo journalctl -u yaginx -n 50 --no-pager</code></div>
+          <div class="command-card"><div class="command-card__label"><span>Follow setup logs</span><button type="button" class="copy-command" data-command="sudo journalctl -u yaginx -f">Copy</button></div><code>sudo journalctl -u yaginx -f</code></div>
+          <div class="command-card"><div class="command-card__label"><span>Refresh expired token</span><button type="button" class="copy-command" data-command="sudo systemctl restart yaginx&#10;sudo journalctl -u yaginx -n 50 --no-pager">Copy</button></div><code>sudo systemctl restart yaginx
+sudo journalctl -u yaginx -n 50 --no-pager</code></div>
+          <div class="command-card"><div class="command-card__label"><span>Service status</span><button type="button" class="copy-command" data-command="sudo systemctl status yaginx --no-pager">Copy</button></div><code>sudo systemctl status yaginx --no-pager</code></div>
+        </div></div>
+        <p class="hint">Keep TCP/9090 restricted to the administrator IP. Never paste the setup token or database password into tickets or shell history.</p>
+      </aside>
+    </div>
+  </main>
+  <script>
+    const $ = id => document.getElementById(id);
+    const state = $('status'), apply = $('apply'), confirm = $('confirm');
+    let currentStep = 0, detected = '', existingAccount = false, databaseChecked = false, portsChecked = false;
+    const panels = ['step-database','step-options','step-admin','step-certificate','step-review'];
+    const labels = ['Database setup','Listener options','Administrator','Certificate','Review and apply'];
+    function show(message, kind = '') { state.className = 'status ' + kind; state.textContent = message; }
+    function payload(action) { return { host:$('host').value, port:Number($('port').value), database:$('database').value, username:$('username').value, password:$('password').value, sslMode:$('sslMode').value, bindAddress:$('bindAddress').value, managementPort:Number($('managementPort').value), httpPort:Number($('httpPort').value), proxyHttpPort:Number($('proxyHttpPort').value), httpsPort:Number($('httpsPort').value), proxyHttpsPort:Number($('proxyHttpsPort').value), http3Enabled:$('http3Enabled').checked, acmeEmail:$('acmeEmail').value, adminEmail:$('adminEmail').value, adminPassword:$('adminPassword').value, adminPasswordConfirm:$('adminPasswordConfirm').value, action, confirm:confirm.checked }; }
+    async function call(url, body) { const response = await fetch(url,{method:'POST',headers:{'Content-Type':'application/json','X-Yaginx-Setup-Token':$('token').value.trim()},body:JSON.stringify(body)}); const data = await response.json().catch(()=>({ok:false,message:'Invalid server response'})); if (!response.ok || !data.ok) { const error=new Error(data.message || 'Request failed'); error.fields=data.fields || []; throw error; } return data; }
+    function updateSteps() { document.querySelectorAll('.step').forEach((el,i)=>{el.classList.toggle('active',i===currentStep);el.classList.toggle('done',i<currentStep);}); panels.forEach((id,i)=>$(id).hidden=i!==currentStep); $('asideTitle').textContent=labels[currentStep]; $('asideTarget').textContent=currentStep > 0 && $('database').value ? $('host').value + ':' + $('port').value + '/' + $('database').value : ''; }
+    function clearPortErrors() { document.querySelectorAll('#step-options input').forEach(input=>{input.classList.remove('field-error');input.removeAttribute('aria-invalid');const error=$(input.id+'Error');if(error)error.remove();}); }
+    function applyPortErrors(fields, message) { clearPortErrors(); const first=fields && fields.length ? fields[0] : null; (fields || []).forEach((id)=>{const input=$(id);if(!input)return;input.classList.add('field-error');input.setAttribute('aria-invalid','true');const error=document.createElement('div');error.id=id+'Error';error.className='field-error-message';error.textContent=message;input.parentElement.appendChild(error);}); if(first) $(first).focus(); }
+    function invalidatePorts() { portsChecked=false; $('portState').textContent='Ports have not been checked for the current values.'; $('portState').style.color=''; }
+    async function checkPorts() { const button=$('checkPorts'), next=$('optionsNext'); clearPortErrors(); button.disabled=true; next.disabled=true; $('portState').textContent='Checking listener ports…'; try { const result=await call('/api/setup/ports',payload('')); portsChecked=true; $('portState').textContent='All configured listener ports are available.'; $('portState').style.color='var(--signal)'; show('Listener ports are available.','ok'); return true; } catch(error) { portsChecked=false; $('portState').textContent=error.message; $('portState').style.color='var(--alert)'; const fields=error.fields || []; applyPortErrors(fields,error.message); show(error.message,'error'); return false; } finally { button.disabled=false; next.disabled=false; } }
+    $('check').onclick=async()=>{ $('check').disabled=true; show('Checking PostgreSQL…'); try { const data=await call('/api/setup/check',payload('')); detected=data.state; existingAccount=!!data.accountExists; databaseChecked=true; if(!$('acmeEmail').value && $('adminEmail').value) $('acmeEmail').value=$('adminEmail').value; show(data.message+' ['+data.state+']','ok'); currentStep=1; updateSteps(); } catch(error) { databaseChecked=false; show(error.message,'error'); } finally { $('check').disabled=false; } };
+    $('checkPorts').onclick=checkPorts;
+    $('optionsNext').onclick=async()=>{ if(await checkPorts()){ currentStep=2; updateSteps(); show('Listener ports are available.','ok'); } };
+    $('optionsBack').onclick=()=>{currentStep=0;updateSteps();};
+    $('adminBack').onclick=()=>{currentStep=1;updateSteps();};
+    $('adminNext').onclick=()=>{ const p=payload(''); if(!existingAccount && (!p.adminEmail || p.adminPassword.length<5 || p.adminPassword!==p.adminPasswordConfirm)){show('Enter a valid administrator email and matching password of at least 5 characters.','error');return;} if(!$('acmeEmail').value && p.adminEmail) $('acmeEmail').value=p.adminEmail; currentStep=3;updateSteps();show('Configure automatic certificate applications.','warn');};
+    $('certificateBack').onclick=()=>{currentStep=2;updateSteps();};
+    $('certificateNext').onclick=()=>{ const p=payload(''); if(p.acmeEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(p.acmeEmail)){show('Enter a valid ACME email address.','error');$('acmeEmail').focus();return;} $('review').textContent=JSON.stringify({database:p.host+':'+p.port+'/'+p.database,action:detected==='uninitialized'?'initialize':'migrate',bindAddress:p.bindAddress,ports:{management:p.managementPort,http:p.httpPort,proxyHttp:p.proxyHttpPort,https:p.httpsPort,proxyHttps:p.proxyHttpsPort},http3:p.http3Enabled,acme:{enabled:true,email:p.acmeEmail||'(existing or default)'},adminEmail:existingAccount?'(existing account)':p.adminEmail},null,2); apply.textContent=detected==='uninitialized'?'Initialize and start gateway':'Migrate and start gateway'; currentStep=4;updateSteps();show('Review the settings before applying.','warn');};
+    $('reviewBack').onclick=()=>{currentStep=3;updateSteps();};
+    document.querySelectorAll('#step-options input').forEach(el=>el.addEventListener('input',()=>{invalidatePorts();const error=$(el.id+'Error');if(error){el.classList.remove('field-error');el.removeAttribute('aria-invalid');error.remove();}}));
+    $('http3Enabled').addEventListener('change',invalidatePorts);
+    confirm.onchange=()=>{apply.disabled=!confirm.checked;};
+    apply.onclick=async()=>{if(!detected||!confirm.checked)return;apply.disabled=true;show('Applying database change and saving configuration…');try{const action=detected==='uninitialized'?'initialize':'migrate';const data=await call('/api/setup/apply',payload(action));show('Configuration saved. Waiting for gateway readiness…','ok');const url=data.managementURL||('http://'+(location.hostname||'127.0.0.1')+':'+Number($('managementPort').value));for(let i=0;i<60;i++){try{const response=await fetch(url+'/health/ready',{cache:'no-store'});const health=await response.json();if(response.ok&&health.ready===true){location.href=url+'/';return;}show('Gateway is starting: '+((health.reasons||[]).join(', ')||'waiting for listeners')+'…');}catch(_){show('Gateway is restarting…');}await new Promise(resolve=>setTimeout(resolve,2000));}show('Gateway did not become ready. Check journalctl -u yaginx.','error');}catch(error){show(error.message,'error');apply.disabled=false;}};
+    document.querySelectorAll('.copy-command').forEach(button=>button.addEventListener('click',async()=>{const command=button.dataset.command;try{await navigator.clipboard.writeText(command);button.textContent='Copied';setTimeout(()=>button.textContent='Copy',1200);}catch(_){const area=document.createElement('textarea');area.value=command;document.body.appendChild(area);area.select();document.execCommand('copy');area.remove();button.textContent='Copied';setTimeout(()=>button.textContent='Copy',1200);}}));
+    updateSteps();
+  </script>
+</body>
+</html>

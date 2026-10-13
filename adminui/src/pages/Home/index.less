@@ -1,0 +1,76 @@
+.dashboard-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.dashboard-panels { display: flex; flex-direction: column; gap: var(--space-3); }
+.dashboard-panels .ant-card { border-color: var(--app-border); }
+.dashboard-health-status { margin-bottom: var(--space-3); }
+.dashboard-health-grid { margin-top: var(--space-2); }
+.dashboard-chip-list { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-3); min-height: 76px; align-content: flex-start; }
+.dashboard-chip-list .ant-tag { cursor: pointer; margin-inline-end: 0; }
+.dashboard-domain-row { display: flex; justify-content: space-between; padding-inline: 0; border-bottom: 1px solid var(--app-border); border-radius: 0; }
+.dashboard-domain-row span:last-child { color: var(--app-muted); font-family: 'IBM Plex Mono', monospace; }
+
+/* 概览页状态条：和侧边栏一样靠 1px 描边 + 状态点表达，不用渐变和动效 */
+.dashboard-hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--app-border);
+  border-radius: var(--radius-md);
+  background: var(--app-surface);
+  color: var(--app-ink);
+}
+
+.dashboard-hero__title {
+  margin: var(--space-1) 0 var(--space-1) !important;
+  color: var(--app-ink) !important;
+  font-family: 'Space Grotesk', 'Noto Sans SC', sans-serif;
+  font-size: 18px !important;
+  font-weight: 650 !important;
+  letter-spacing: -.02em;
+}
+
+.dashboard-hero__desc {
+  max-width: 720px;
+  margin-bottom: 0 !important;
+  color: var(--app-muted) !important;
+  font-size: 13px;
+}
+
+.dashboard-hero__actions {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.dashboard-hero__eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--app-muted);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.dashboard-hero__eyebrow::before {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--app-signal);
+  content: '';
+}
+
+@media (max-width: 768px) {
+  .dashboard-hero {
+    padding: var(--space-4);
+  }
+}

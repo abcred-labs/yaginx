@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "matrixLine": 28,
+  "name": "priority-no-route-404",
+  "source": "dotnet",
+  "listener": {
+    "port": 18080,
+    "transport": "tcp"
+  },
+  "config": {},
+  "client": {
+    "method": "GET",
+    "host": "no-route-fixture.example.invalid",
+    "path": "/no-route",
+    "status": 404,
+    "headers": {
+      "Content-Length": "0",
+      "Date": "${NOW}"
+    },
+    "body": ""
+  },
+  "upstream": {
+    "attempted": false
+  },
+  "history": {
+    "status": 404,
+    "statusSource": "YaginxPipeline",
+    "errorCategory": ""
+  }
+}

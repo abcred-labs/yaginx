@@ -1,0 +1,7 @@
+The bundled WOFF2 files are distributed under the SIL Open Font License, Version 1.1.
+
+IBM Plex Mono Copyright 2017 IBM Corp.
+Noto Sans SC Copyright 2022 The Noto Project Authors.
+Space Grotesk Copyright 2020 Florian Karsten.
+
+Full license text: https://scripts.sil.org/OFL

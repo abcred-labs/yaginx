@@ -1,0 +1,16 @@
+#!/bin/sh
+set -eu
+install -d -o root -g root -m 0700 /var/lib/yaginx /var/log/yaginx
+if [ -f /etc/yaginx/config.json ]; then
+    chown root:root /etc/yaginx/config.json
+    chmod 0600 /etc/yaginx/config.json
+fi
+systemctl daemon-reload || true
+
+# Start the setup flow on a new host so an operator can finish installation
+# remotely. During upgrades, preserve the administrator's existing enabled and
+# running state instead of changing service lifecycle as a side effect.
+if [ "${1:-}" = configure ] && [ -d /run/systemd/system ] && [ -z "${2:-}" ]; then
+    systemctl enable --now yaginx || echo "Unable to start yaginx; run systemctl enable --now yaginx and inspect journalctl -u yaginx" >&2
+    echo "For remote setup, restrict TCP/9090 to your administrator IP; open http://<server>:9090/ and obtain the token with journalctl -u yaginx."
+fi

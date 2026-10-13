@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "matrixLine": 23,
+  "name": "acme-challenge-missing-falls-through",
+  "source": "dotnet",
+  "listener": {
+    "port": 18080,
+    "transport": "tcp"
+  },
+  "config": {
+    "acmeChallengePath": "/.well-known/acme-challenge/{token}",
+    "challengePresent": false
+  },
+  "client": {
+    "method": "GET",
+    "host": "127.0.0.1:18080",
+    "path": "/.well-known/acme-challenge/r0-20260726-missing",
+    "status": 404,
+    "headers": {
+      "Content-Length": "0",
+      "Date": "${NOW}"
+    },
+    "body": ""
+  },
+  "upstream": {
+    "attempted": false
+  },
+  "history": {
+    "status": 404,
+    "statusSource": "YaginxProxy",
+    "errorCategory": ""
+  }
+}

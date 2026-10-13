@@ -1,0 +1,5 @@
+.git
+artifacts
+*.exe
+*.test
+coverage.out

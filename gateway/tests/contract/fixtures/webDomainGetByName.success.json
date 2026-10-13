@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "operationId": "webDomainGetByName",
+  "scenario": "success",
+  "request": {
+    "method": "GET",
+    "path": "/api/web_domain/get_by_name?name=w0-no-such-domain.invalid",
+    "headers": {
+      "Authorization": "${REDACTED_AUTHORIZATION}"
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Act-Trace-Id": "${RANDOM_ID}",
+      "Content-Type": "application/json",
+      "Date": "${NOW}",
+      "Duration": "${RUNTIME_METADATA}",
+      "Handler-Node": "${RUNTIME_METADATA}",
+      "Vary": "Accept-Encoding"
+    },
+    "body": {
+      "code": 200,
+      "data": null,
+      "errMsg": null,
+      "msg": null,
+      "tid": "${TID}"
+    }
+  },
+  "source": "dotnet"
+}

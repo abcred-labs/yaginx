@@ -1,0 +1,590 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://yaginx.local/contracts/runtime-config.schema.json",
+  "title": "Yaginx Gateway Runtime Configuration",
+  "description": "Authoritative schema for /etc/yaginx/config.json. Defaults are materialized before validation. Database connectivity is configured inline; shared JWT material is stored in PostgreSQL.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["configVersion"],
+  "properties": {
+    "configVersion": {
+      "const": 1,
+      "default": 1
+    },
+    "database": {
+      "$ref": "#/$defs/database"
+    },
+    "security": {
+      "$ref": "#/$defs/security"
+    },
+    "node": {
+      "$ref": "#/$defs/node"
+    },
+    "ports": {
+      "$ref": "#/$defs/ports"
+    },
+    "management": {
+      "$ref": "#/$defs/management"
+    },
+    "listeners": {
+      "$ref": "#/$defs/listeners"
+    },
+    "admin": {
+      "$ref": "#/$defs/admin"
+    },
+    "proxy": {
+      "$ref": "#/$defs/proxy"
+    },
+    "ipLookup": {
+      "$ref": "#/$defs/ipLookup"
+    },
+    "configSync": {
+      "$ref": "#/$defs/configSync"
+    },
+    "acme": {
+      "$ref": "#/$defs/acme"
+    },
+    "trafficAggregation": {
+      "$ref": "#/$defs/trafficAggregation"
+    },
+    "requestHistory": {
+      "$ref": "#/$defs/requestHistory"
+    },
+    "resourceReports": {
+      "$ref": "#/$defs/resourceReports"
+    },
+    "observability": {
+      "$ref": "#/$defs/observability"
+    },
+    "upgrade": {
+      "$ref": "#/$defs/upgrade"
+    }
+  },
+  "$defs": {
+    "duration": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)(ms|s|m|h)$"
+    },
+    "absolutePath": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^/"
+    },
+    "cidr": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 64
+    },
+    "bindAddress": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 255
+    },
+    "database": {
+      "type": "object",
+      "additionalProperties": false,
+      "default": {},
+      "required": ["dsn"],
+      "properties": {
+        "dsn": {
+          "type": "string",
+          "minLength": 1,
+          "description": "PostgreSQL URI or keyword DSN used by all runtime commands."
+        },
+        "minimumServerMajor": {
+          "const": 15,
+          "default": 15
+        },
+        "maxConnections": {
+          "type": "integer",
+          "minimum": 4,
+          "maximum": 512,
+          "default": 8,
+          "x-env": "YAGINX_DATABASE_MAX_CONNECTIONS"
+        },
+        "minConnections": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 64,
+          "default": 1,
+          "x-env": "YAGINX_DATABASE_MIN_CONNECTIONS"
+        },
+        "connectTimeout": {
+          "$ref": "#/$defs/duration",
+          "default": "10s"
+        },
+        "statementTimeout": {
+          "$ref": "#/$defs/duration",
+          "default": "15s"
+        },
+        "healthQueryTimeout": {
+          "$ref": "#/$defs/duration",
+          "default": "2s"
+        },
+        "maxConnectionLifetime": {
+          "$ref": "#/$defs/duration",
+          "default": "30m"
+        },
+        "maxConnectionIdleTime": {
+          "$ref": "#/$defs/duration",
+          "default": "5m"
+        }
+      }
+    },
+    "security": {
+      "type": "object",
+      "additionalProperties": false,
+      "default": {},
+      "properties": {
+        "jwtIssuer": {
+          "const": "Yaginx Proxy Server",
+          "default": "Yaginx Proxy Server"
+        },
+        "jwtAudience": {
+          "const": "Yaingx Clients",
+          "default": "Yaingx Clients"
+        },
+        "sessionSeconds": {
+          "type": "integer",
+          "minimum": 300,
+          "maximum": 3600,
+          "default": 600
+        },
+        "clockSkewSeconds": {
+          "const": 30,
+          "default": 30
+        },
+        "idleTimeoutSeconds": {
+          "type": "integer",
+          "minimum": 600,
+          "maximum": 86400,
+          "default": 7200
+        },
+        "absoluteSeconds": {
+          "type": "integer",
+          "minimum": 3600,
+          "maximum": 604800,
+          "default": 43200
+        },
+        "rememberIdleSeconds": {
+          "type": "integer",
+          "minimum": 3600,
+          "maximum": 2592000,
+          "default": 1209600
+        },
+        "rememberAbsoluteSeconds": {
+          "type": "integer",
+          "minimum": 3600,
+          "maximum": 7776000,
+          "default": 2592000
+        }
+      }
+    },
+    "node": {
+      "type": "object",
+      "additionalProperties": false,
+      "default": {},
+      "properties": {
+        "identityFile": {
+          "$ref": "#/$defs/absolutePath",
+          "default": "/var/lib/yaginx/node/identity.json",
+          "x-env": "YAGINX_NODE_IDENTITY_FILE"
+        },
+        "snapshotFile": {
+          "$ref": "#/$defs/absolutePath",
+          "default": "/var/lib/yaginx/runtime/snapshot.bin",
+          "x-env": "YAGINX_SNAPSHOT_FILE"
+        },
+        "heartbeatInterval": {
+          "$ref": "#/$defs/duration",
+          "default": "15s"
+        },
+        "heartbeatStaleAfter": {
+          "$ref": "#/$defs/duration",
+          "default": "45s"
+        },
+        "shutdownGracePeriod": {
+          "$ref": "#/$defs/duration",
+          "default": "30s"
+        },
+        "drainTimeout": {
+          "$ref": "#/$defs/duration",
+          "default": "5m"
+        }
+      }
+    },
+    "ports": {
+      "type": "object",
+      "additionalProperties": false,
+      "default": {},
+      "properties": {
+        "bindAddress": { "$ref": "#/$defs/bindAddress", "default": "0.0.0.0", "description": "Shared bind address for business, HTTP/3, and management listeners." },
+        "http": { "type": "integer", "minimum": 1, "maximum": 65535, "default": 8080, "x-env": "YAGINX_HTTP_PORT" },
+        "proxyHttp": { "type": "integer", "minimum": 1, "maximum": 65535, "default": 9080, "x-env": "YAGINX_PROXY_HTTP_PORT" },
+        "https": { "type": "integer", "minimum": 1, "maximum": 65535, "default": 8443, "x-env": "YAGINX_HTTPS_PORT" },
+        "proxyHttps": { "type": "integer", "minimum": 1, "maximum": 65535, "default": 9443, "x-env": "YAGINX_PROXY_HTTPS_PORT" },
+        "management": { "type": "integer", "minimum": 1, "maximum": 65535, "default": 9090, "x-env": "YAGINX_MANAGEMENT_PORT", "description": "AdminUI, management API, health, and metrics TCP port." }
+      }
+    },
+    "listeners": {
+      "type": "object",
+      "additionalProperties": false,
+      "default": {},
+      "properties": {
+        "http3": {
+          "type": "object",
+          "additionalProperties": false,
+          "default": {},
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": true,
+              "x-env": "YAGINX_HTTP3_ENABLED"
+            },
+            "maxIdleTimeout": {
+              "$ref": "#/$defs/duration",
+              "default": "30s"
+            }
+          }
+        },
+        "proxyProtocol": {
+          "type": "object",
+          "additionalProperties": false,
+          "default": {},
+          "properties": {
+            "headerTimeout": {
+              "$ref": "#/$defs/duration",
+              "default": "30s"
+            },
+            "trustedCIDRs": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/cidr" },
+              "minItems": 1,
+              "uniqueItems": true,
+              "default": ["127.0.0.1/32", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "100.64.0.0/10"],
+              "x-env": "YAGINX_PROXY_TRUSTED_CIDRS",
+              "description": "Only explicitly configured HAProxy source addresses should be trusted in production."
+            },
+            "requiredOnProxyListeners": {
+              "const": true,
+              "default": true
+            }
+          }
+        }
+      }
+    },
+    "admin": {
+      "type": "object",
+      "additionalProperties": false,
+      "default": {},
+      "description": "AdminUI and management API are served only by ports.bindAddress:ports.management; business listeners return 404 for this base path.",
+      "properties": {
+        "basePath": {
+          "const": "/",
+          "default": "/"
+        },
+        "uiDirectory": {
+          "$ref": "#/$defs/absolutePath",
+          "default": "/usr/share/yaginx/adminui",
+          "x-env": "YAGINX_ADMIN_UI_DIR"
+        },
+        "apiBodyMaxBytes": {
+          "type": "integer",
+          "minimum": 1024,
+          "maximum": 16777216,
+          "default": 1048576
+        },
+        "indexCacheControl": {
+          "const": "no-cache, no-store, must-revalidate",
+          "default": "no-cache, no-store, must-revalidate"
+        },
+        "hashedAssetCacheControl": {
+          "const": "public, max-age=31536000, immutable",
+          "default": "public, max-age=31536000, immutable"
+        }
+      }
+    },
+    "proxy": {
+      "type": "object",
+      "additionalProperties": false,
+      "default": {},
+      "properties": {
+        "activityTimeout": {
+          "$ref": "#/$defs/duration",
+          "default": "5m"
+        },
+        "responseHeaderTimeout": {
+          "$ref": "#/$defs/duration",
+          "default": "30s"
+        },
+        "maxConcurrentRequests": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65536,
+          "default": 256
+        },
+        "maxRequestBodyBytes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "default": 0,
+          "description": "Zero disables the proxy request-body limit. Non-zero values are byte limits."
+        },
+        "maxRequestHeaderBytes": {
+          "type": "integer",
+          "minimum": 8192,
+          "maximum": 1048576,
+          "default": 65536
+        },
+        "maxIdleConnections": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65536,
+          "default": 128
+        },
+        "maxIdleConnectionsPerHost": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4096,
+          "default": 16
+        },
+        "idleConnectionTimeout": {
+          "$ref": "#/$defs/duration",
+          "default": "90s"
+        },
+        "expectContinueTimeout": {
+          "$ref": "#/$defs/duration",
+          "default": "1s"
+        },
+        "upstreamExpectContinue": {
+          "type": "object",
+          "additionalProperties": false,
+          "default": {},
+          "properties": {
+            "enabled": { "type": "boolean", "default": true },
+            "minContentLengthBytes": { "type": "integer", "minimum": 0, "default": 1048576 },
+            "includedHosts": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 },
+              "uniqueItems": true,
+              "default": ["ai.abc.red"]
+            },
+            "includedPathPrefixes": {
+              "type": "array",
+              "items": { "type": "string", "pattern": "^/" },
+              "uniqueItems": true,
+              "default": ["/v1/images/edits", "/api/image-gen", "/api/chat/images/edits"]
+            }
+          }
+        },
+        "ipBlacklistCIDRs": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/cidr" },
+          "uniqueItems": true,
+          "default": []
+        }
+      }
+    },
+    "ipLookup": {
+      "type": "object",
+      "additionalProperties": false,
+      "default": {},
+      "properties": {
+        "profileURL": {
+          "type": "string",
+          "format": "uri",
+          "default": "https://tools.abc.red/api/v1/ip/profile"
+        },
+        "timeout": {
+          "$ref": "#/$defs/duration",
+          "default": "3s"
+        }
+      }
+    },
+    "configSync": {
+      "type": "object",
+      "additionalProperties": false,
+      "default": {},
+      "properties": {
+        "channel": { "const": "yaginx_config_changed", "default": "yaginx_config_changed" },
+        "revisionPollInterval": { "$ref": "#/$defs/duration", "default": "30s" },
+        "notifyDebounce": { "$ref": "#/$defs/duration", "default": "100ms" },
+        "reconnectInitialBackoff": { "$ref": "#/$defs/duration", "default": "250ms" },
+        "reconnectMaximumBackoff": { "$ref": "#/$defs/duration", "default": "30s" },
+        "eventRetention": { "$ref": "#/$defs/duration", "default": "24h" },
+        "inactiveNodeAfter": { "$ref": "#/$defs/duration", "default": "168h" },
+        "incrementalBatchSize": { "type": "integer", "minimum": 1, "maximum": 10000, "default": 500 }
+      }
+    },
+    "acme": {
+      "type": "object",
+      "additionalProperties": false,
+      "default": {},
+      "properties": {
+        "enabled": { "type": "boolean", "default": true, "x-env": "YAGINX_ACME_ENABLED" },
+        "directoryURL": { "type": "string", "format": "uri", "default": "https://acme-v02.api.letsencrypt.org/directory" },
+        "email": { "type": "string", "format": "email", "default": "operator@example.com" },
+        "keyType": { "const": "EC256", "default": "EC256" },
+        "challengeType": { "const": "http-01", "default": "http-01" },
+        "orderMode": { "const": "single-domain", "default": "single-domain" },
+        "scanIntervalMinimum": { "$ref": "#/$defs/duration", "default": "30s" },
+        "scanIntervalMaximum": { "$ref": "#/$defs/duration", "default": "120s" },
+        "renewBefore": { "$ref": "#/$defs/duration", "default": "168h" },
+        "lockRetryBase": { "$ref": "#/$defs/duration", "default": "60s" },
+        "lockRetryJitterMaximum": { "$ref": "#/$defs/duration", "default": "15s" },
+        "temporaryRetryMaximum": { "$ref": "#/$defs/duration", "default": "6h" },
+        "keyValueEndpointURL": { "type": "string", "default": "", "description": "Optional remote Yaginx management endpoint; omitted uses this node's management listener." },
+        "keyValueSetPath": { "const": "/api/key_value/set", "default": "/api/key_value/set" },
+        "keyValueGetPath": { "const": "/api/key_value/get", "default": "/api/key_value/get" },
+        "keyValueRequestTimeout": { "$ref": "#/$defs/duration", "default": "10s" },
+        "followRedirects": { "const": false, "default": false },
+        "keyValueServer": {
+          "type": "object",
+          "additionalProperties": false,
+          "default": {},
+          "properties": {
+            "enabled": { "type": "boolean", "default": true }
+          }
+        }
+      }
+    },
+    "trafficAggregation": {
+      "type": "object",
+      "additionalProperties": false,
+      "default": {},
+      "properties": {
+        "enabled": { "type": "boolean", "default": true },
+        "flushInterval": { "$ref": "#/$defs/duration", "default": "15s" },
+        "queueCapacity": { "type": "integer", "minimum": 1000, "maximum": 1000000, "default": 10000 },
+        "maxQueueBytes": { "type": "integer", "minimum": 1048576, "maximum": 1073741824, "default": 8388608 },
+        "batchSize": { "type": "integer", "minimum": 1, "maximum": 10000, "default": 500 },
+        "enableUAParsing": { "type": "boolean", "default": false },
+        "uaCacheSize": { "type": "integer", "minimum": 0, "maximum": 1000000, "default": 2000 },
+        "retentionDays": { "type": "integer", "minimum": 1, "maximum": 3650, "default": 90 },
+        "updateCurrentPeriod": { "type": "boolean", "default": true },
+        "excludedPathPrefixes": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^/" },
+          "default": []
+        }
+      }
+    },
+    "requestHistory": {
+      "type": "object",
+      "additionalProperties": false,
+      "default": {},
+      "properties": {
+        "enabled": { "type": "boolean", "default": true },
+        "recordMode": { "enum": ["ErrorsOnly", "AllMetadata"], "default": "ErrorsOnly" },
+        "successSamplingRate": { "type": "number", "minimum": 0, "maximum": 1, "default": 0 },
+        "retentionHours": { "type": "integer", "minimum": 1, "maximum": 8760, "default": 168 },
+        "bodyCaptureMaxBytes": { "type": "integer", "minimum": 0, "maximum": 10485760, "default": 8192 },
+        "maxHeaderBytes": { "type": "integer", "minimum": 0, "maximum": 1048576, "default": 8192 },
+        "queueCapacity": { "type": "integer", "minimum": 1, "maximum": 1000000, "default": 5000 },
+        "maxQueueBytes": { "type": "integer", "minimum": 1048576, "maximum": 1073741824, "default": 16777216 },
+        "fullQueueBehavior": { "const": "DropWrite", "default": "DropWrite" },
+        "flushInterval": { "$ref": "#/$defs/duration", "default": "5s" },
+        "batchSize": { "type": "integer", "minimum": 1, "maximum": 10000, "default": 250 },
+        "maxFlushRetryCount": { "type": "integer", "minimum": 0, "maximum": 20, "default": 1 },
+        "retentionDeleteBatchSize": { "type": "integer", "minimum": 1, "maximum": 100000, "default": 5000 },
+        "excludedPathPrefixes": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^/" },
+          "default": []
+        },
+        "bodyCaptureContentTypes": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "default": ["text/", "application/json", "application/xml", "+json", "+xml"]
+        }
+      }
+    },
+    "resourceReports": {
+      "type": "object",
+      "additionalProperties": false,
+      "default": {},
+      "properties": {
+        "enabled": { "type": "boolean", "default": true },
+        "minutelyDelay": { "$ref": "#/$defs/duration", "default": "10s" },
+        "hourlyDelay": { "$ref": "#/$defs/duration", "default": "1m" },
+        "dailyDelay": { "$ref": "#/$defs/duration", "default": "5m" },
+        "minutelyReconciliationLookback": { "$ref": "#/$defs/duration", "default": "10m" },
+        "reconciliationLookback": { "$ref": "#/$defs/duration", "default": "48h" },
+        "materializationStatementTimeout": { "$ref": "#/$defs/duration", "default": "2m" },
+        "contributionRetention": { "$ref": "#/$defs/duration", "default": "744h" },
+        "monitorInfoRetention": { "$ref": "#/$defs/duration", "default": "48h" },
+        "reportRetentionDays": { "type": "integer", "minimum": 90, "maximum": 3650, "default": 365 },
+        "minutelyRetentionDays": { "type": "integer", "minimum": 1, "maximum": 3650, "default": 30 },
+        "hourlyRetentionDays": { "type": "integer", "minimum": 30, "maximum": 3650, "default": 365 },
+        "dailyRetentionDays": { "type": "integer", "minimum": 90, "maximum": 3650, "default": 730 },
+        "leaderLockNamespace": { "const": "yaginx:resource-report", "default": "yaginx:resource-report" }
+      }
+    },
+    "observability": {
+      "type": "object",
+      "additionalProperties": false,
+      "default": {},
+      "properties": {
+        "logLevel": { "enum": ["debug", "info", "warn", "error"], "default": "info", "x-env": "YAGINX_LOG_LEVEL" },
+        "logFormat": { "enum": ["json", "text"], "default": "json", "x-env": "YAGINX_LOG_FORMAT" },
+        "metricsPath": { "const": "/metrics", "default": "/metrics" },
+        "livePath": { "const": "/health/live", "default": "/health/live" },
+        "readyPath": { "const": "/health/ready", "default": "/health/ready" },
+        "otlp": {
+          "type": "object",
+          "additionalProperties": false,
+          "default": {},
+          "properties": {
+            "enabled": { "type": "boolean", "default": false },
+            "endpoint": { "type": "string", "default": "", "description": "Absolute http(s) collector URL. Required when enabled; for http/protobuf this is the exact /v1/traces endpoint." },
+            "protocol": { "enum": ["grpc", "http/protobuf"], "default": "grpc" },
+            "insecure": { "type": "boolean", "default": false },
+            "sampleRatio": { "type": "number", "minimum": 0, "maximum": 1, "default": 0.01 },
+            "exportTimeout": { "$ref": "#/$defs/duration", "default": "5s" }
+          }
+        }
+      }
+    },
+    "management": {
+      "type": "object",
+      "additionalProperties": false,
+      "default": {},
+      "properties": {
+        "allowedCIDRs": {
+          "description": "Source CIDRs permitted to reach this node management listener.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/cidr" },
+          "minItems": 1,
+          "uniqueItems": true,
+          "default": ["127.0.0.1/32", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "100.64.0.0/10"]
+        }
+      }
+    },
+    "upgrade": {
+      "type": "object",
+      "additionalProperties": false,
+      "default": {},
+      "properties": {
+        "manifestURL": { "type": "string", "format": "uri", "default": "https://github.com/abcred-labs/yaginx/releases/latest/download/latest-release.json", "x-env": "YAGINX_UPGRADE_MANIFEST_URL" },
+        "component": { "const": "yaginx", "default": "yaginx" },
+        "packageName": { "const": "yaginx", "default": "yaginx" },
+        "stateDirectory": { "$ref": "#/$defs/absolutePath", "default": "/var/lib/yaginx/upgrade" },
+        "lockFile": { "$ref": "#/$defs/absolutePath", "default": "/run/yaginx/upgrade.lock" },
+        "downloadTimeout": { "$ref": "#/$defs/duration", "default": "10m" },
+        "readinessTimeout": { "$ref": "#/$defs/duration", "default": "90s" },
+        "enabled": { "type": "boolean", "default": false },
+        "minPublishedAge": { "$ref": "#/$defs/duration", "default": "24h" },
+        "checkInterval": { "const": "6h", "default": "6h" },
+        "supportedOS": { "const": "linux", "default": "linux" },
+        "supportedArchitectures": {
+          "type": "array",
+          "items": { "const": "amd64" },
+          "minItems": 1,
+          "maxItems": 1,
+          "uniqueItems": true,
+          "default": ["amd64"]
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "name": "yaginx-contract-lint",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "check-mermaid": "node check-mermaid.mjs ../../../planning/go-rewrite"
+  },
+  "devDependencies": {
+    "dompurify": "^3.4.17",
+    "jsdom": "26.1.0",
+    "mermaid": "^12.2.0"
+  }
+}

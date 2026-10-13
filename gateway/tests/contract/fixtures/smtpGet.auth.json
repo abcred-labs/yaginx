@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "operationId": "smtpGet",
+  "scenario": "auth",
+  "request": {
+    "method": "GET",
+    "path": "/api/system_setting/smtp"
+  },
+  "response": {
+    "status": 401,
+    "headers": {
+      "Act-Trace-Id": "${RANDOM_ID}",
+      "Content-Type": "application/json",
+      "Date": "${NOW}",
+      "Duration": "${RUNTIME_METADATA}",
+      "Handler-Node": "${RUNTIME_METADATA}",
+      "Vary": "Accept-Encoding"
+    },
+    "body": {
+      "code": 401,
+      "data": {
+        "requestId": "${RANDOM_ID}"
+      },
+      "errMsg": "${RUNTIME_METADATA}",
+      "msg": "授权认证失败",
+      "tid": "${TID}"
+    }
+  },
+  "source": "dotnet"
+}

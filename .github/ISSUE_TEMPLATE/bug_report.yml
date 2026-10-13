@@ -1,0 +1,19 @@
+name: Bug report
+description: Report a reproducible problem without sharing private data.
+body:
+  - type: markdown
+    attributes:
+      value: Do not include credentials, private keys, production data, or internal hostnames.
+  - type: input
+    id: version
+    attributes:
+      label: Version
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: Include the smallest public configuration and exact commands.
+    validations:
+      required: true

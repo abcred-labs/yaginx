@@ -1,0 +1,26 @@
+version: 2
+updates:
+  - package-ecosystem: gomod
+    directory: /gateway
+    schedule:
+      interval: weekly
+  - package-ecosystem: npm
+    directory: /adminui
+    schedule:
+      interval: weekly
+  - package-ecosystem: npm
+    directory: /yaginx-docs-site
+    schedule:
+      interval: weekly
+  - package-ecosystem: npm
+    directory: /gateway/tools/contract-lint
+    schedule:
+      interval: weekly
+  - package-ecosystem: docker
+    directory: /gateway/deploy/docker
+    schedule:
+      interval: monthly
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

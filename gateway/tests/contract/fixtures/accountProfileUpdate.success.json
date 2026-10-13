@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "operationId": "accountProfileUpdate",
+  "scenario": "success",
+  "request": {
+    "method": "POST",
+    "path": "/api/account/update_profile",
+    "headers": {
+      "Authorization": "${REDACTED_AUTHORIZATION}",
+      "Content-Type": "application/json"
+    },
+    "body": {
+      "oldPassword": "${REDACTED_OLDPASSWORD}"
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Act-Trace-Id": "${RANDOM_ID}",
+      "Content-Type": "application/json",
+      "Date": "${NOW}",
+      "Duration": "${RUNTIME_METADATA}",
+      "Handler-Node": "${RUNTIME_METADATA}",
+      "Vary": "Accept-Encoding"
+    },
+    "body": {
+      "code": 200,
+      "data": true,
+      "errMsg": null,
+      "msg": null,
+      "tid": "${TID}"
+    }
+  },
+  "source": "dotnet"
+}

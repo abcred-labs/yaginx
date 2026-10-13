@@ -1,0 +1,61 @@
+{
+  "version": 1,
+  "matrixLine": 86,
+  "name": "transform-request-header-set",
+  "source": "dotnet",
+  "listener": {
+    "port": 18080,
+    "transport": "tcp"
+  },
+  "config": {
+    "defaultHost": "proxy-transform-request-header-fixture.example.invalid",
+    "proxyTransforms": {
+      "RequestHeader": "X-Fixture",
+      "Set": "transformed"
+    }
+  },
+  "client": {
+    "method": "GET",
+    "host": "proxy-transform-request-header-fixture.example.invalid",
+    "path": "/original",
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json",
+      "Date": "${NOW}",
+      "Vary": "Accept-Encoding"
+    },
+    "body": {
+      "headers": {
+        "X-Fixture": "transformed",
+        "X-Fixture-Forward-Proxy": "",
+        "X-Forwarded-For": "127.0.0.1",
+        "X-Forwarded-Host": "proxy-transform-request-header-fixture.example.invalid",
+        "X-Forwarded-Prefix": "",
+        "X-Forwarded-Proto": "http"
+      },
+      "host": "127.0.0.1:20180",
+      "method": "GET",
+      "path": "/original"
+    }
+  },
+  "upstream": {
+    "attempted": true,
+    "method": "GET",
+    "host": "127.0.0.1:20180",
+    "path": "/original",
+    "status": 200,
+    "headers": {
+      "X-Fixture": "transformed",
+      "X-Fixture-Forward-Proxy": "",
+      "X-Forwarded-For": "127.0.0.1",
+      "X-Forwarded-Host": "proxy-transform-request-header-fixture.example.invalid",
+      "X-Forwarded-Prefix": "",
+      "X-Forwarded-Proto": "http"
+    }
+  },
+  "history": {
+    "status": 200,
+    "statusSource": "Upstream",
+    "errorCategory": ""
+  }
+}

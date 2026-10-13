@@ -1,0 +1,10 @@
+[Unit]
+Description=Run Yaginx automatic upgrade checks
+
+[Timer]
+OnBootSec=10m
+OnUnitActiveSec=6h
+Persistent=true
+
+[Install]
+WantedBy=timers.target

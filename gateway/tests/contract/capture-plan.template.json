@@ -1,0 +1,105 @@
+{
+  "setup": [
+    {
+      "name": "login",
+      "method": "POST",
+      "path": "/api/account/login",
+      "body": {
+        "email": "${ENV:YAGINX_FIXTURE_EMAIL}",
+        "password": "${ENV:YAGINX_FIXTURE_PASSWORD}"
+      },
+      "extract": {
+        "token": "/data/token"
+      }
+    }
+  ],
+  "cases": [
+    {
+      "operationId": "accountLogin",
+      "scenario": "success",
+      "method": "POST",
+      "path": "/api/account/login",
+      "body": {
+        "email": "${ENV:YAGINX_FIXTURE_EMAIL}",
+        "password": "${ENV:YAGINX_FIXTURE_PASSWORD}"
+      }
+    },
+    {
+      "operationId": "accountLogin",
+      "scenario": "business_error",
+      "method": "POST",
+      "path": "/api/account/login",
+      "body": {
+        "email": "${ENV:YAGINX_FIXTURE_EMAIL}",
+        "password": "${ENV:YAGINX_FIXTURE_WRONG_PASSWORD}"
+      }
+    },
+    { "operationId": "passwordRecoveryStart", "scenario": "parameter_error", "method": "POST", "path": "/api/account/password_recovery/start", "body": {} },
+    { "operationId": "passwordRecoveryVerifyEmail", "scenario": "parameter_error", "method": "POST", "path": "/api/account/password_recovery/verify_email", "body": {} },
+    { "operationId": "passwordRecoveryReset", "scenario": "parameter_error", "method": "POST", "path": "/api/account/password_recovery/reset", "body": {} },
+    { "operationId": "accountRefreshToken", "scenario": "auth", "method": "GET", "path": "/api/account/refresh_token" },
+    { "operationId": "accountRegister", "scenario": "auth", "method": "POST", "path": "/api/account/register", "body": {} },
+    { "operationId": "accountProfileGet", "scenario": "auth", "method": "GET", "path": "/api/account/profile" },
+    { "operationId": "accountProfileUpdate", "scenario": "auth", "method": "POST", "path": "/api/account/update_profile", "body": {} },
+    { "operationId": "websiteUpsert", "scenario": "auth", "method": "POST", "path": "/api/website/upsert", "body": {} },
+    { "operationId": "websiteRuleRefresh", "scenario": "auth", "method": "POST", "path": "/api/website/rule/refresh" },
+    { "operationId": "websiteDelete", "scenario": "auth", "method": "DELETE", "path": "/api/website/delete?id=0" },
+    { "operationId": "websiteSearchGet", "scenario": "auth", "method": "GET", "path": "/api/website/search" },
+    { "operationId": "websiteSearchPost", "scenario": "auth", "method": "POST", "path": "/api/website/search", "body": {} },
+    { "operationId": "websiteGet", "scenario": "auth", "method": "GET", "path": "/api/website/get?id=0" },
+    { "operationId": "websiteGetByName", "scenario": "auth", "method": "GET", "path": "/api/website/get_by_name?name=missing" },
+    { "operationId": "webDomainUpsert", "scenario": "auth", "method": "POST", "path": "/api/web_domain/upsert", "body": {} },
+    { "operationId": "webDomainDelete", "scenario": "auth", "method": "DELETE", "path": "/api/web_domain/delete?id=0" },
+    { "operationId": "webDomainSearchGet", "scenario": "auth", "method": "GET", "path": "/api/web_domain/search" },
+    { "operationId": "webDomainSearchPost", "scenario": "auth", "method": "POST", "path": "/api/web_domain/search", "body": {} },
+    { "operationId": "webDomainGet", "scenario": "auth", "method": "GET", "path": "/api/web_domain/get?id=0" },
+    { "operationId": "webDomainGetByName", "scenario": "auth", "method": "GET", "path": "/api/web_domain/get_by_name?name=missing" },
+    { "operationId": "hostTrafficSearchGet", "scenario": "auth", "method": "GET", "path": "/api/host_traffic/search" },
+    { "operationId": "hostTrafficSearchPost", "scenario": "auth", "method": "POST", "path": "/api/host_traffic/search", "body": {} },
+    { "operationId": "hostTrafficSearchRange", "scenario": "auth", "method": "POST", "path": "/api/host_traffic/search_range", "body": {} },
+    { "operationId": "hostTrafficChartSummary", "scenario": "auth", "method": "POST", "path": "/api/host_traffic/chart_summary", "body": {} },
+    { "operationId": "observabilityContributions", "scenario": "auth", "method": "GET", "path": "/api/observability/contributions" },
+    { "operationId": "observabilityDashboard", "scenario": "auth", "method": "GET", "path": "/api/observability/dashboard?sections=overview,timeseries" },
+    { "operationId": "observabilityDetails", "scenario": "auth", "method": "GET", "path": "/api/observability/details" },
+    { "operationId": "requestHistorySearch", "scenario": "auth", "method": "POST", "path": "/api/request_history/search", "body": {} },
+    { "operationId": "systemErrorsSearch", "scenario": "auth", "method": "POST", "path": "/api/system_errors/search", "body": {} },
+    { "operationId": "requestHistoryGet", "scenario": "auth", "method": "GET", "path": "/api/request_history/get?id=0" },
+    { "operationId": "resourceReportSearch", "scenario": "auth", "method": "POST", "path": "/api/resource/report/search", "body": {} },
+    { "operationId": "resourceReportAllData", "scenario": "auth", "method": "GET", "path": "/api/resource/report/all_report_data?cycleType=1" },
+    { "operationId": "resourceReportTypeData", "scenario": "auth", "method": "GET", "path": "/api/resource/report/type_report_data?cycleType=1&type=Browser" },
+    { "operationId": "resourceReportDashboardSummary", "scenario": "auth", "method": "GET", "path": "/api/resource/report/dashboard_summary" },
+    { "operationId": "resourceReportResourceData", "scenario": "auth", "method": "GET", "path": "/api/resource/report/resource_report_data?resourceUuid=missing&cycleType=1" },
+    { "operationId": "smtpGet", "scenario": "auth", "method": "GET", "path": "/api/system_setting/smtp" },
+    { "operationId": "smtpUpsert", "scenario": "auth", "method": "POST", "path": "/api/system_setting/smtp", "body": {} },
+    { "operationId": "smtpTestSend", "scenario": "auth", "method": "POST", "path": "/api/system_setting/smtp/test_send", "body": {} },
+    { "operationId": "accountRefreshToken", "scenario": "success", "method": "GET", "path": "/api/account/refresh_token", "headers": { "Authorization": "Bearer ${token}" } },
+    { "operationId": "accountProfileGet", "scenario": "success", "method": "GET", "path": "/api/account/profile", "headers": { "Authorization": "Bearer ${token}" } },
+    { "operationId": "accountProfileUpdate", "scenario": "success", "method": "POST", "path": "/api/account/update_profile", "headers": { "Authorization": "Bearer ${token}" }, "body": { "oldPassword": "${ENV:YAGINX_FIXTURE_PASSWORD}" } },
+    { "operationId": "websiteRuleRefresh", "scenario": "success", "method": "POST", "path": "/api/website/rule/refresh", "headers": { "Authorization": "Bearer ${token}" } },
+    { "operationId": "websiteSearchGet", "scenario": "success", "method": "GET", "path": "/api/website/search", "headers": { "Authorization": "Bearer ${token}" } },
+    { "operationId": "websiteSearchPost", "scenario": "success", "method": "POST", "path": "/api/website/search", "headers": { "Authorization": "Bearer ${token}" }, "body": {} },
+    { "operationId": "websiteGet", "scenario": "success", "method": "GET", "path": "/api/website/get?id=0", "headers": { "Authorization": "Bearer ${token}" } },
+    { "operationId": "websiteGetByName", "scenario": "success", "method": "GET", "path": "/api/website/get_by_name?name=w0-no-such-site", "headers": { "Authorization": "Bearer ${token}" } },
+    { "operationId": "webDomainSearchGet", "scenario": "success", "method": "GET", "path": "/api/web_domain/search", "headers": { "Authorization": "Bearer ${token}" } },
+    { "operationId": "webDomainSearchPost", "scenario": "success", "method": "POST", "path": "/api/web_domain/search", "headers": { "Authorization": "Bearer ${token}" }, "body": {} },
+    { "operationId": "webDomainGet", "scenario": "success", "method": "GET", "path": "/api/web_domain/get?id=0", "headers": { "Authorization": "Bearer ${token}" } },
+    { "operationId": "webDomainGetByName", "scenario": "success", "method": "GET", "path": "/api/web_domain/get_by_name?name=w0-no-such-domain.invalid", "headers": { "Authorization": "Bearer ${token}" } },
+    { "operationId": "hostTrafficSearchPost", "scenario": "success", "method": "POST", "path": "/api/host_traffic/search", "headers": { "Authorization": "Bearer ${token}" }, "body": { "pageIndex": 1, "pageSize": 1 } },
+    { "operationId": "hostTrafficSearchRange", "scenario": "success", "method": "POST", "path": "/api/host_traffic/search_range", "headers": { "Authorization": "Bearer ${token}" }, "body": { "pageIndex": 1, "pageSize": 1, "hostName": "w0-no-such-host.invalid" } },
+    { "operationId": "hostTrafficChartSummary", "scenario": "success", "method": "POST", "path": "/api/host_traffic/chart_summary", "headers": { "Authorization": "Bearer ${token}" }, "body": { "hostName": "w0-no-such-host.invalid" } },
+    { "operationId": "requestHistorySearch", "scenario": "success", "method": "POST", "path": "/api/request_history/search", "headers": { "Authorization": "Bearer ${token}" }, "body": { "pageIndex": 1, "pageSize": 1, "host": "w0-no-such-host.invalid" } },
+    { "operationId": "resourceReportSearch", "scenario": "success", "method": "POST", "path": "/api/resource/report/search", "headers": { "Authorization": "Bearer ${token}" }, "body": { "resourceUuid": "w0-no-such-host.invalid", "cycleType": 1, "beginTime": 0, "endTime": 0 } },
+    { "operationId": "websiteUpsert", "scenario": "success", "method": "POST", "path": "/api/website/upsert", "headers": { "Authorization": "Bearer ${token}" }, "body": { "id": "907260000000001", "name": "w0-fixture-r0-20260726", "hosts": [], "proxyRules": [], "proxyTransforms": [], "simpleResponses": [] } },
+    { "operationId": "websiteDelete", "scenario": "success", "method": "DELETE", "path": "/api/website/delete?id=907260000000004", "headers": { "Authorization": "Bearer ${token}" } },
+    { "operationId": "webDomainUpsert", "scenario": "success", "method": "POST", "path": "/api/web_domain/upsert", "headers": { "Authorization": "Bearer ${token}" }, "body": { "id": "907260000000002", "name": "w0-fixture-r0-20260726.example.invalid", "autoRequestCertificate": false, "isVerified": false, "freeCertMessage": "" } },
+    { "operationId": "webDomainDelete", "scenario": "success", "method": "DELETE", "path": "/api/web_domain/delete?id=907260000000005", "headers": { "Authorization": "Bearer ${token}" } },
+    { "operationId": "accountRegister", "scenario": "success", "method": "POST", "path": "/api/account/register", "headers": { "Authorization": "Bearer ${token}" }, "body": { "email": "${ENV:YAGINX_FIXTURE_REGISTER_EMAIL}", "password": "${ENV:YAGINX_FIXTURE_PASSWORD}" } }
+    ,{ "operationId": "hostTrafficSearchGet", "scenario": "success", "method": "GET", "path": "/api/host_traffic/search", "headers": { "Authorization": "Bearer ${token}" }, "body": { "pageIndex": 1, "pageSize": 1 } }
+    ,{ "operationId": "requestHistoryGet", "scenario": "success", "method": "GET", "path": "/api/request_history/get?id=907260000000003", "headers": { "Authorization": "Bearer ${token}" } }
+    ,{ "operationId": "resourceReportTypeData", "scenario": "success", "method": "GET", "path": "/api/resource/report/type_report_data?cycleType=5&type=Browser&period=0&hostName=w0-fixture-r0-20260726", "headers": { "Authorization": "Bearer ${token}" } }
+    ,{ "operationId": "resourceReportDashboardSummary", "scenario": "success", "method": "GET", "path": "/api/resource/report/dashboard_summary?cycleType=5&period=0&hostName=w0-fixture-r0-20260726", "headers": { "Authorization": "Bearer ${token}" } }
+    ,{ "operationId": "resourceReportResourceData", "scenario": "success", "method": "GET", "path": "/api/resource/report/resource_report_data?resourceUuid=w0-fixture-r0-20260726&cycleType=5", "headers": { "Authorization": "Bearer ${token}" } }
+    ,{ "operationId": "resourceReportAllData", "scenario": "success", "method": "GET", "path": "/api/resource/report/all_report_data?cycleType=5&period=0&hostName=w0-fixture-r0-20260726", "headers": { "Authorization": "Bearer ${token}" }, "normalize": [ { "location": "response.body", "pointer": "/data/0/time", "value": "${NOW}" }, { "location": "response.body", "pointer": "/data/0/bucketStartAt", "value": "${NOW}" } ] }
+    ,{ "operationId": "passwordRecoveryStart", "scenario": "success", "method": "POST", "path": "/api/account/password_recovery/start", "body": { "accountEmail": "${ENV:YAGINX_FIXTURE_EMAIL}" }, "normalize": [ { "location": "response.body", "pointer": "/data/recoveryId", "value": "${RANDOM_ID}" } ] }
+  ]
+}

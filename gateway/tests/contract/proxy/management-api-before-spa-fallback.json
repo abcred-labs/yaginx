@@ -1,0 +1,42 @@
+{
+  "version": 1,
+  "matrixLine": 21,
+  "name": "management-api-before-spa-fallback",
+  "source": "contract",
+  "approvalId": "v2-management-api-before-spa-fallback",
+  "listener": {
+    "port": 18080,
+    "transport": "tcp"
+  },
+  "config": {
+    "managementPath": "/yaginx_console/api/",
+    "staticPath": "/yaginx_console/"
+  },
+  "client": {
+    "method": "GET",
+    "host": "127.0.0.1:18080",
+    "path": "/yaginx_console/api/account/refresh_token",
+    "status": 401,
+    "headers": {
+      "Act-Trace-Id": "${RANDOM_ID}",
+      "Content-Type": "application/json"
+    },
+    "body": {
+      "code": 401,
+      "data": {
+        "requestId": "${RANDOM_ID}"
+      },
+      "errMsg": "${RUNTIME_METADATA}",
+      "msg": "授权认证失败",
+      "tid": "${TID}"
+    }
+  },
+  "upstream": {
+    "attempted": false
+  },
+  "history": {
+    "status": 401,
+    "statusSource": "Management",
+    "errorCategory": ""
+  }
+}

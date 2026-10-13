@@ -1,0 +1,48 @@
+{
+  "configVersion": 1,
+  "database": {
+    "dsn": "postgres://yaginx:CHANGE_ME@127.0.0.1:5432/yaginx?sslmode=disable",
+    "maxConnections": 8,
+    "minConnections": 1
+  },
+  "proxy": {
+    "activityTimeout": "5m",
+    "responseHeaderTimeout": "30s",
+    "maxConcurrentRequests": 256,
+    "maxRequestHeaderBytes": 65536,
+    "maxRequestBodyBytes": 0,
+    "maxIdleConnections": 128,
+    "maxIdleConnectionsPerHost": 16
+  },
+  "trafficAggregation": {
+    "maxQueueBytes": 8388608,
+    "batchSize": 500,
+    "enableUAParsing": false,
+    "uaCacheSize": 2000
+  },
+  "requestHistory": {
+    "enabled": true,
+    "recordMode": "ErrorsOnly",
+    "successSamplingRate": 0,
+    "bodyCaptureMaxBytes": 8192,
+    "maxHeaderBytes": 8192,
+    "maxQueueBytes": 16777216,
+    "batchSize": 250,
+    "maxFlushRetryCount": 1,
+    "retentionHours": 48
+  },
+  "ports": {
+    "bindAddress": "127.0.0.1",
+    "http": 28080,
+    "proxyHttp": 29080,
+    "https": 28443,
+    "proxyHttps": 29443,
+    "management": 29090
+  },
+  "acme": {
+    "email": "operator@example.com",
+    "directoryURL": "https://acme-v02.api.letsencrypt.org/directory",
+    "renewBefore": "168h",
+    "keyValueEndpointURL": ""
+  }
+}

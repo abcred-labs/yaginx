@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "operationId": "websiteDelete",
+  "scenario": "auth",
+  "request": {
+    "method": "DELETE",
+    "path": "/api/website/delete?id=0"
+  },
+  "response": {
+    "status": 401,
+    "headers": {
+      "Act-Trace-Id": "${RANDOM_ID}",
+      "Content-Type": "application/json",
+      "Date": "${NOW}",
+      "Duration": "${RUNTIME_METADATA}",
+      "Handler-Node": "${RUNTIME_METADATA}",
+      "Vary": "Accept-Encoding"
+    },
+    "body": {
+      "code": 401,
+      "data": {
+        "requestId": "${RANDOM_ID}"
+      },
+      "errMsg": "地址http://127.0.0.1:18080/yaginx_console/api/website/delete?id=0授权认证失败, 请检查Authorization并传入有效的认证信息",
+      "msg": "授权认证失败",
+      "tid": "${TID}"
+    }
+  },
+  "source": "dotnet"
+}

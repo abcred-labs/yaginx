@@ -1,0 +1,64 @@
+{
+  "version": 1,
+  "matrixLine": 147,
+  "name": "streaming-chunked-request-body",
+  "source": "dotnet",
+  "listener": {
+    "port": 18080,
+    "transport": "tcp"
+  },
+  "config": {
+    "defaultHost": "proxy-stream-chunked-fixture.example.invalid",
+    "requestTransferEncoding": "chunked"
+  },
+  "client": {
+    "method": "POST",
+    "host": "proxy-stream-chunked-fixture.example.invalid",
+    "path": "/chunked",
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json",
+      "Date": "${NOW}",
+      "Vary": "Accept-Encoding"
+    },
+    "body": {
+      "bodyBytes": 32768,
+      "bodySha256": "a89d1b767408d32cf96d5b0e872015720a9814e6b6966a3fca87f0d89a204635",
+      "headers": {
+        "Forwarded": "",
+        "X-Fixture": "",
+        "X-Fixture-Forward-Proxy": "",
+        "X-Forwarded-For": "127.0.0.1",
+        "X-Forwarded-Host": "proxy-stream-chunked-fixture.example.invalid",
+        "X-Forwarded-Prefix": "",
+        "X-Forwarded-Proto": "http"
+      },
+      "host": "127.0.0.1:20180",
+      "method": "POST",
+      "path": "/chunked"
+    }
+  },
+  "upstream": {
+    "attempted": true,
+    "method": "POST",
+    "host": "127.0.0.1:20180",
+    "path": "/chunked",
+    "status": 200,
+    "headers": {
+      "Forwarded": "",
+      "X-Fixture": "",
+      "X-Fixture-Forward-Proxy": "",
+      "X-Forwarded-For": "127.0.0.1",
+      "X-Forwarded-Host": "proxy-stream-chunked-fixture.example.invalid",
+      "X-Forwarded-Prefix": "",
+      "X-Forwarded-Proto": "http"
+    },
+    "bodyBytes": 32768,
+    "bodySha256": "a89d1b767408d32cf96d5b0e872015720a9814e6b6966a3fca87f0d89a204635"
+  },
+  "history": {
+    "status": 200,
+    "statusSource": "Upstream",
+    "errorCategory": ""
+  }
+}

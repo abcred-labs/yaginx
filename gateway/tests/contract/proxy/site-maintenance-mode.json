@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "matrixLine": 197,
+  "name": "site-maintenance-mode",
+  "source": "contract",
+  "approvalId": "r0-proxy-site-maintenance-mode",
+  "listener": {
+    "port": 8080,
+    "transport": "tcp"
+  },
+  "config": {
+    "defaultHost": "maintenance-fixture.example.invalid",
+    "isMaintenanceMode": true
+  },
+  "client": {
+    "method": "GET",
+    "host": "maintenance-fixture.example.invalid",
+    "path": "/maintenance",
+    "status": 503,
+    "headers": {
+      "Content-Type": "text/plain; charset=utf-8"
+    },
+    "body": "当前站点正在维护，暂时停止访问。"
+  },
+  "upstream": {
+    "attempted": false
+  },
+  "history": {
+    "status": 503,
+    "statusSource": "YaginxPipeline",
+    "errorCategory": "SiteMaintenance"
+  }
+}

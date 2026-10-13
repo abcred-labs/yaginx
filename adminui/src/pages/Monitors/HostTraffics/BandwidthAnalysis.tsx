@@ -1,0 +1,137 @@
+import { SPACE } from "@/utils/spacing";
+import { overviewSection, getAnalyticsOverview, type IAnalyticsDomain, type IAnalyticsOverview, type IAnalyticsPoint } from "@/api/analytics";
+import { chartPalette, useAppearance } from "@/appearance";
+import EChartPanel from "@/componets/charts/EChartPanel";
+import { formatBytes, formatPercent } from "@/utils/formatters";
+import { Alert, Button, Col, Row } from "antd";
+import React, { useEffect, useState } from "react";
+import { HostTrafficPage } from "./HostTrafficPage";
+import { buildBandwidthRankOption, buildBandwidthTrendOption } from "./chartOptions";
+import { HostTrafficKpiCards, useHostTrafficFilters, useHostTrafficRefresh, useHostTrafficWorkspace } from "./dashboard";
+import { trafficGrainLabel } from "./shared";
+
+const BandwidthAnalysis: React.FC = () => {
+  const { effectiveTheme } = useAppearance();
+  const colors = chartPalette(effectiveTheme);
+  const { filters, setFilters } = useHostTrafficFilters();
+  const { autoRefreshSeconds, autoRefreshEnabled, setAutoRefreshSeconds, setAutoRefreshEnabled } = useHostTrafficWorkspace();
+  const { refreshToken, refresh } = useHostTrafficRefresh(autoRefreshEnabled, autoRefreshSeconds);
+  const [loading, setLoading] = useState(true);
+  const [overview, setOverview] = useState<IAnalyticsOverview>();
+  const [domains, setDomains] = useState<IAnalyticsDomain[]>([]);
+  const [points, setPoints] = useState<IAnalyticsPoint[]>([]);
+  const [error, setError] = useState<string>();
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setLoading(true);
+    setError(undefined);
+    const params = { from: filters.from, to: filters.to, domain: filters.hostName || undefined };
+    getAnalyticsOverview(params, ["overview", "domains", "timeseries"], { ignoreGlobalError: true, signal: controller.signal })
+      .then((response) => {
+        const summary = response.data ? overviewSection(response.data) : undefined;
+        if (controller.signal.aborted) {
+          return;
+        }
+        if (response.code !== 200 || !summary) {
+          setError("流量消耗加载失败，请重试。");
+          setOverview(undefined);
+          setDomains([]);
+          setPoints([]);
+          return;
+        }
+        setOverview(summary);
+        setDomains(response.data?.domains ?? []);
+        setPoints(response.data?.points ?? []);
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) {
+          setError("流量消耗加载失败，请检查网络后重试。");
+          setOverview(undefined);
+          setDomains([]);
+          setPoints([]);
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+    return () => {
+      controller.abort();
+    };
+  }, [filters, refreshToken]);
+
+  const rankings = domains.map((domain) => ({
+    hostName: domain.domain,
+    requestCounts: domain.requests,
+    inboundBytes: domain.inboundBytes,
+    outboundBytes: domain.outboundBytes,
+    totalBytes: domain.inboundBytes + domain.outboundBytes,
+    share: (overview?.kpis.inboundBytes ?? 0) + (overview?.kpis.outboundBytes ?? 0)
+      ? (domain.inboundBytes + domain.outboundBytes) / ((overview?.kpis.inboundBytes ?? 0) + (overview?.kpis.outboundBytes ?? 0))
+      : 0
+  }));
+  rankings.sort((left, right) => right.totalBytes - left.totalBytes || left.hostName.localeCompare(right.hostName));
+  const topHost = rankings[0];
+  const hasData = points.some((point) => point.inboundBytes > 0 || point.outboundBytes > 0);
+  const grain = overview?.grain ?? "minute";
+
+  return (
+    <HostTrafficPage
+      title="流量消耗"
+      description="按实际收发字节分析带宽来源，避免请求量掩盖大响应体或上传流量。"
+      filters={filters}
+      onFiltersChange={setFilters}
+      onRefresh={refresh}
+      autoRefreshSeconds={autoRefreshSeconds}
+      autoRefreshEnabled={autoRefreshEnabled}
+      onAutoRefreshSecondsChange={setAutoRefreshSeconds}
+      onAutoRefreshEnabledChange={setAutoRefreshEnabled}
+      grain={overview?.grain}
+      coverageState={overview?.coverage.state}
+    >
+      <HostTrafficKpiCards
+        loading={loading}
+        items={[
+          { title: "总流量", value: formatBytes((overview?.kpis.inboundBytes ?? 0) + (overview?.kpis.outboundBytes ?? 0)), detail: "流入与流出之和", tone: "flow" },
+          { title: "流入流量", value: formatBytes(overview?.kpis.inboundBytes), detail: "客户端至代理", tone: "signal" },
+          { title: "流出流量", value: formatBytes(overview?.kpis.outboundBytes), detail: "代理至客户端", tone: "warning" },
+          {
+            title: "最大流量 Host",
+            value: topHost?.hostName || "—",
+            detail: `${formatBytes(topHost?.totalBytes)} · ${formatPercent(topHost?.share)}`,
+            tone: "alert"
+          }
+        ]}
+      />
+      {error ? <Alert type="error" showIcon message={error} action={<Button size="small" onClick={refresh}>重试</Button>} /> : null}
+      <Row gutter={[SPACE.space3, SPACE.space3]}>
+        <Col xs={24} xl={14}>
+          <EChartPanel
+            title="入/出流量趋势"
+            hint={`按${trafficGrainLabel(grain)}聚合，适合识别上传突增和大响应时段。`}
+            loading={loading}
+            isEmpty={!hasData}
+            option={hasData ? buildBandwidthTrendOption(points, grain, colors) : undefined}
+            height={350}
+            emptyHeight={180}
+            emptyDescription="当前筛选范围内暂无流量记录"
+          />
+        </Col>
+        <Col xs={24} xl={10}>
+          <EChartPanel
+            title="Top 10 流量消耗"
+            hint="按总字节数排序，流入和流出分段显示。"
+            loading={loading}
+            isEmpty={rankings.length === 0}
+            option={rankings.length ? buildBandwidthRankOption(rankings, colors) : undefined}
+            height={350}
+            emptyHeight={180}
+            emptyDescription="当前筛选范围内暂无流量排行"
+          />
+        </Col>
+      </Row>
+    </HostTrafficPage>
+  );
+};
+
+export default BandwidthAnalysis;

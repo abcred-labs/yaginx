@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "matrixLine": 114,
+  "name": "cors-options-does-not-call-upstream",
+  "source": "dotnet",
+  "listener": {
+    "port": 18080,
+    "transport": "tcp"
+  },
+  "config": {
+    "defaultHost": "proxy-fixture.example.invalid",
+    "defaultDestination": "http://127.0.0.1:20180"
+  },
+  "client": {
+    "method": "OPTIONS",
+    "host": "proxy-fixture.example.invalid",
+    "path": "/cors-options",
+    "status": 200,
+    "headers": {
+      "Access-Control-Allow-Credentials": "true",
+      "Access-Control-Allow-Methods": "POST",
+      "Access-Control-Allow-Origin": "https://cors-fixture.example.invalid",
+      "Content-Length": "0",
+      "Date": "${NOW}"
+    },
+    "body": ""
+  },
+  "upstream": {
+    "attempted": false
+  },
+  "history": {
+    "status": 200,
+    "statusSource": "CorsPreflight",
+    "errorCategory": ""
+  }
+}
