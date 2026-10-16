@@ -55,13 +55,20 @@ ACME certificates after the cutover.
 
 - Keep the repository private while running CI and the release candidate.
 - Require all protected `main` checks and CODEOWNERS review.
-- Set `ghcr.io/abcred-labs/yaginx` to **Public** in the package settings and verify anonymously:
+- Confirm `ghcr.io/abcred-labs/yaginx` is **Public** in the package settings and verify anonymously. GHCR first returns a normal Bearer challenge; acquire the pull token anonymously, then request the manifest:
 
 ```powershell
-$h = @{Accept='application/vnd.docker.distribution.manifest.v2+json'}
-Invoke-WebRequest `
-  -Uri https://ghcr.io/v2/abcred-labs/yaginx/manifests/0.1.0 `
+$token = (Invoke-RestMethod `
+  -Uri 'https://ghcr.io/token?service=ghcr.io&scope=repository:abcred-labs/yaginx:pull').token
+$h = @{
+  Authorization = "Bearer $token"
+  Accept = 'application/vnd.docker.distribution.manifest.v2+json'
+}
+$response = Invoke-WebRequest `
+  -Uri https://ghcr.io/v2/abcred-labs/yaginx/manifests/0.1.1 `
   -Headers $h -UseBasicParsing
+if ($response.StatusCode -ne 200) { throw "GHCR manifest verification failed" }
+$response.Headers['Docker-Content-Digest']
 ```
 
 - Verify anonymous Release downloads, SHA-256 checksums, SBOM, installer HTTPS/version/architecture checks, and a clean Docker pull by digest.
@@ -70,13 +77,13 @@ Invoke-WebRequest `
 
 - Confirm the repository has no private domains, credentials, certificates, customer data, or private dependency sources.
 - Confirm migration tests and the synthetic .NET fixture pass in CI.
-- Confirm the old private repository is backed up and made read-only.
+- Confirm the old private repository is backed up and made read-only. Keep it as a recovery archive; do not use it as a release source.
 - Change the GitHub repository visibility to Public only after the package, Release, CI, and security gates are green.
 - Create the version tag and GitHub Release. Published migration files are append-only and must never be rewritten.
 
 ## Phase 6 — first seven days
 
 - Monitor Secret Scanning, Push Protection, Dependabot, Actions, Release downloads, and GHCR pulls daily.
-- Validate anonymous clone/install on a clean machine.
+- Validate anonymous clone/install on a clean machine, including a digest-pinned GHCR pull and a basic health check.
 - Record migration and installation feedback and ship a patch release for confirmed public-environment defects.
 - Keep private integrations disabled unless explicitly configured by the operator.
