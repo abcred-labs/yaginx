@@ -29,20 +29,20 @@
     "react-error-boundary": "4.0.11",
     "react-router-dom": "^6.30.6",
     "snakecase-keys": "^5.4.4",
-    "uuid": "^11.1.1"
+    "uuid": "^14.0.3"
   },
   "devDependencies": {
     "@ant-design/icons": "5.3.7",
     "@loadable/component": "^5.15.2",
     "@types/loadable__component": "^5.13.4",
-    "@types/node": "^22.20.5",
+    "@types/node": "^26.6.5",
     "@types/qs": "^6.9.7",
     "@types/react": "18.3.3",
     "@types/react-dom": "18.3.0",
-    "@typescript-eslint/eslint-plugin": "^7.13.1",
-    "@typescript-eslint/parser": "^7.13.1",
+    "@typescript-eslint/eslint-plugin": "^8.71.1",
+    "@typescript-eslint/parser": "^8.71.1",
     "@vitejs/plugin-react-swc": "^4.3.3",
-    "dayjs": "^1.11.5",
+    "dayjs": "^1.11.23",
     "eslint": "^8.57.0",
     "eslint-plugin-react-hooks": "^4.6.2",
     "eslint-plugin-react-refresh": "^0.4.7",
@@ -56,7 +56,7 @@
     "vite": "^7.1.7",
     "vite-plugin-imp": "^2.4.0",
     "vitest": "^5.0.4",
-    "zustand": "^4.4.2"
+    "zustand": "^5.0.15"
   },
   "main": "index.js",
   "license": "GPL-3.0-only",
