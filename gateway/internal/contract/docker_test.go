@@ -16,7 +16,7 @@ func TestGatewayDockerfilePackagesPrebuiltBinaryWithoutRemoteFrontend(t *testing
 		t.Fatal(err)
 	}
 	text := string(body)
-	for _, want := range []string{"alpine:3.22.0", "ARG BINARY_PATH", "COPY ${BINARY_PATH} /usr/bin/yaginx", "ca-certificates", "tzdata", "/var/lib/yaginx", "adminui/dist/", "EXPOSE 8443/udp", "adduser", "USER yaginx:yaginx"} {
+	for _, want := range []string{"alpine:3.24.2", "ARG BINARY_PATH", "COPY ${BINARY_PATH} /usr/bin/yaginx", "ca-certificates", "tzdata", "/var/lib/yaginx", "adminui/dist/", "EXPOSE 8443/udp", "adduser", "USER yaginx:yaginx"} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("Dockerfile missing %q", want)
 		}
