@@ -23,7 +23,7 @@ jobs:
           --health-cmd="pg_isready -U yaginx_test -d yaginx_test"
           --health-interval=5s --health-timeout=5s --health-retries=20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-go@v5
         with:
           go-version: '1.25.x'
@@ -44,7 +44,7 @@ jobs:
           go run ./cmd/contractcheck
           go run ./cmd/proxycheck
       - name: Set up pnpm for integration
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
         with:
           version: 9.15.4
       - uses: actions/setup-node@v4
@@ -69,8 +69,8 @@ jobs:
       run:
         working-directory: adminui
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
         with:
           version: 9.15.4
       - uses: actions/setup-node@v4
@@ -89,8 +89,8 @@ jobs:
       run:
         working-directory: yaginx-docs-site
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
         with:
           version: 8.15.9
       - uses: actions/setup-node@v4
@@ -108,7 +108,7 @@ jobs:
       run:
         working-directory: gateway/tools/contract-lint
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -120,12 +120,12 @@ jobs:
   security:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - name: Secret scan
         run: docker run --rm -v "${{ github.workspace }}:/repo" zricethezav/gitleaks:v8.28.0 detect --source=/repo --no-banner --redact
-      - uses: anchore/scan-action@v6
+      - uses: anchore/scan-action@v7
         with:
           path: .
           fail-build: false
@@ -136,7 +136,7 @@ jobs:
           path: .
           format: spdx-json
           output-file: sbom.ci.spdx.json
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: ci-sbom
           path: sbom.ci.spdx.json
@@ -145,7 +145,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [go, adminui]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-go@v5
         with:
           go-version: '1.25.x'
@@ -153,7 +153,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           version: 9.15.4
       - run: pnpm install --frozen-lockfile
@@ -162,5 +162,6 @@ jobs:
         working-directory: adminui
       - run: mkdir -p artifacts/ci && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -buildvcs=false -o artifacts/ci/yaginx-linux-amd64 ./cmd/yaginx
         working-directory: gateway
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v4
       - run: docker build --build-arg BINARY_PATH=gateway/artifacts/ci/yaginx-linux-amd64 -f gateway/deploy/docker/Dockerfile -t yaginx:ci .
+
