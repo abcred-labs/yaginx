@@ -6,6 +6,12 @@ This is an evidence report, not an R5 completion declaration. Local functional
 RC implementation is complete; R5 is `BLOCKED` in the roadmap until its
 external Manual Testing Items are satisfied.
 
+The public `main` branch now runs a tag-triggered release gate before building
+release assets. That gate repeats the Go, PostgreSQL integration, contract,
+Admin UI and documentation checks; it closes automated regression coverage but
+does not claim that the external Debian, ACME, performance or production
+traffic exercises have been performed.
+
 ## Passed evidence
 
 | Area | Command / environment | Result |
@@ -41,9 +47,9 @@ external Manual Testing Items are satisfied.
 | Snapshot reload isolation | `go test ./internal/proxy -run TestRuntimeRetainsSnapshotForInFlightRequest -count=1` | PASS; an in-flight request completes against its entry snapshot while the next request uses the atomically swapped revision. |
 | Proxy history classification | `go test ./internal/proxy ./internal/repository -count=1` and PostgreSQL management integration | PASS; no destination, upstream error and refused upstream map to 603/604 or upstream history classifications without changing client HTTP semantics; list/detail retain the React history fields |
 | Proxy error primitives | `go test ./internal/proxy -run 'TestRuntimeClassifies(CanceledRequestContext|UpstreamResponseHeaderTimeout|RequestBodyReadFailure|RawUpstreamHeaderAndBodyFailures|PipelineExceptionAndInvalidTransport|UnknownRoundTripError)|TestResponseCaptureClassifiesClientWriteFailure' -count=1` | PASS; Runtime maps actual canceled contexts to 601, response-header timeout to 602, raw upstream close-before-headers to 605, client request body read failure to 607, declared-length truncated body to 606, client write failure to 608, recovered pipeline/transport exceptions to 609 and an injected non-network round-trip error to 610 without wrapping WebSocket `101` upgrade streams. |
-| Container | Superseded by the current Hub-based `gateway/deploy/docker/Dockerfile` pipeline | Manual Testing Item: rebuild and verify CA/tzdata/adminui/non-root runtime layout |
-| Release assets | Superseded by the current GitHub Actions GitHub Releases release path | Manual Testing Item: verify versioned deb/checksum/SBOM/installer upload and manifest-last ordering |
-| Debian package | Superseded by the current `deploy/build-deb.sh` package layout | Manual Testing Item: verify adminui, conffile, `0600 root:root` config ownership, and all three systemd units |
+| Container | Superseded by the current Hub-based `gateway/deploy/docker/Dockerfile` pipeline | Automated release gate builds the image; manual Linux runtime inspection remains required for CA/tzdata/adminui/non-root layout |
+| Release assets | Superseded by the current GitHub Actions GitHub Releases release path | Automated release gate verifies the build before publication; anonymous download, checksum, SBOM, installer and manifest-last inspection remains manual |
+| Debian package | Superseded by the current `deploy/build-deb.sh` package layout | Automated package build is covered; manual validation remains for adminui, conffile, `0600 root:root` config ownership and all systemd units |
 | Fresh Debian installation and service | Superseded by the current package | Manual Testing Item: verify first-install config bootstrap and non-root ready health |
 | Upgrade logic | Superseded by remote `upgrade --check`/install implementation | Manual Testing Item: verify shared flock, strict download, readiness and automatic rollback on real systemd |
 

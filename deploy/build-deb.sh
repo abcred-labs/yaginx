@@ -41,8 +41,7 @@ find "$pkg/usr/share/yaginx/adminui" -type f -exec chmod 0644 {} +
 install -m 0600 "$root/gateway/config/yaginx.example.json" "$pkg/etc/yaginx/config.json"
 install -m 0644 "$root/gateway/deploy/deb/conffiles" "$pkg/DEBIAN/conffiles"
 install -m 0644 "$root/gateway/deploy/systemd/yaginx.service" "$pkg/lib/systemd/system/yaginx.service"
-install -m 0644 "$root/gateway/deploy/systemd/yaginx-upgrade.service" "$pkg/lib/systemd/system/yaginx-upgrade.service"
-install -m 0644 "$root/gateway/deploy/systemd/yaginx-upgrade.timer" "$pkg/lib/systemd/system/yaginx-upgrade.timer"
+install -m 0755 "$root/gateway/deploy/deb/preinst" "$pkg/DEBIAN/preinst"
 install -m 0755 "$root/gateway/deploy/deb/postinst" "$pkg/DEBIAN/postinst"
 install -m 0755 "$root/gateway/deploy/deb/postrm" "$pkg/DEBIAN/postrm"
 cat > "$pkg/DEBIAN/control" <<EOF

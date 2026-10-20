@@ -117,6 +117,9 @@ func runServe(ctx context.Context, args []string, stdout, stderr io.Writer) int 
 		}
 	}
 	if runtimeSetting != nil {
+		for _, warning := range runtimeSetting.Warnings {
+			fmt.Fprintf(stderr, "configuration warning: %s\n", warning)
+		}
 		if err := config.ApplySharedRuntime(runtimeSetting.Config, cfg.Values); err != nil {
 			fmt.Fprintf(stderr, "validate shared runtime settings: %v\n", err)
 			return 1

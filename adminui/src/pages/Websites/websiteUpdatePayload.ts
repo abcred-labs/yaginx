@@ -41,6 +41,7 @@ export const websiteUpdatePayload = (id: Int64, values: WebsiteUpdateValues): We
     ...current,
     id,
     ...(values.ipAccessCIDRs !== undefined ? { ipAccessCIDRs } : {}),
+    responseHeaderTimeout: values.responseHeaderTimeout?.trim() || undefined,
     ...(values.upstreamPools !== undefined || legacyDestination ? { upstreamPools } : {}),
     ...(values.proxyRules !== undefined || legacyDestination ? { proxyRules } : {}),
     ...(values.requestHistory ? { requestHistory: values.requestHistory.mode === 'all'

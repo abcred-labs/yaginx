@@ -2,7 +2,7 @@ package core
 
 import "fmt"
 
-const BaseVersion = "1.0"
+const BaseVersion = "1.1"
 
 var (
 	Version   = BaseVersion + ".0"

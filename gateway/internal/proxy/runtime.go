@@ -52,6 +52,9 @@ type Site struct {
 	UpstreamPools                     map[string]UpstreamPool
 	RequestHistoryMode                string
 	RequestHistorySuccessSamplingRate *float64
+	// ResponseHeaderTimeout overrides proxy.responseHeaderTimeout for this site.
+	// Zero inherits the global runtime setting.
+	ResponseHeaderTimeout time.Duration
 }
 
 type UpstreamPool struct {
@@ -209,6 +212,8 @@ type Runtime struct {
 	snapshot          atomic.Pointer[Snapshot]
 	transport         *http.Transport
 	transportFactory  func(proxyURL string, allowUnsafeTLS bool) (http.RoundTripper, error)
+	derivedMu         sync.Mutex
+	derived           map[transportKey]*derivedTransport
 	ACMEChallenge     func(string) (string, error)
 	Record            func(event.Event)
 	RecordAggregation func(event.AggregationEvent)
@@ -291,6 +296,31 @@ func NewConfigured(initial *Snapshot, settings Settings) (*Runtime, error) {
 func (r *Runtime) Replace(next *Snapshot) {
 	if next != nil {
 		r.snapshot.Store(next)
+		r.pruneDerivedTransports()
+	}
+}
+
+// derivedTransportIdleTTL is how long an unused derived transport is kept.
+const derivedTransportIdleTTL = 10 * time.Minute
+
+type derivedTransport struct {
+	transport *http.Transport
+	lastUsed  time.Time
+}
+
+// pruneDerivedTransports closes and drops derived transports not used recently,
+// so edited or deleted sites do not keep idle upstream connections alive while
+// active ones keep their pools across snapshot reloads. In-flight requests
+// finish on the old transport.
+func (r *Runtime) pruneDerivedTransports() {
+	cutoff := time.Now().Add(-derivedTransportIdleTTL)
+	r.derivedMu.Lock()
+	defer r.derivedMu.Unlock()
+	for key, entry := range r.derived {
+		if entry.lastUsed.Before(cutoff) {
+			entry.transport.CloseIdleConnections()
+			delete(r.derived, key)
+		}
 	}
 }
 func (r *Runtime) Snapshot() *Snapshot { return r.snapshot.Load() }
@@ -587,7 +617,7 @@ func (r *Runtime) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		}
 		applyForwardedHeaders(out, req, transforms)
 	}
-	transport, err := r.transportFor(webProxy, allowUnsafeTLS)
+	transport, err := r.transportFor(webProxy, allowUnsafeTLS, site.ResponseHeaderTimeout)
 	if err != nil {
 		captured.classify(609, "YaginxPipeline", "ProxyPipelineException")
 		w.Header().Set("Content-Length", "0")
@@ -1035,14 +1065,56 @@ func looksLikeURL(value string) bool {
 	return err == nil && parsed.Scheme != "" && parsed.Host != ""
 }
 
-func (r *Runtime) transportFor(proxyURL string, allowUnsafeTLS bool) (http.RoundTripper, error) {
+// transportKey identifies a derived transport. Derived transports are cached so
+// per-site overrides keep upstream connection reuse instead of cloning (and
+// discarding) a connection pool on every request.
+type transportKey struct {
+	proxyURL              string
+	allowUnsafeTLS        bool
+	responseHeaderTimeout time.Duration
+}
+
+// transportFor returns the shared transport, or a cached clone when the request
+// needs a forward proxy, relaxed TLS verification, or a site-specific response
+// header timeout. A zero responseHeaderTimeout inherits the global setting.
+func (r *Runtime) transportFor(proxyURL string, allowUnsafeTLS bool, responseHeaderTimeout time.Duration) (http.RoundTripper, error) {
 	if r.transportFactory != nil {
+		// Test seam: injected round trippers own their timeouts, so the per-site
+		// override is intentionally not applied here.
 		return r.transportFactory(proxyURL, allowUnsafeTLS)
 	}
-	if proxyURL == "" && !allowUnsafeTLS {
+	if r.transport == nil {
+		return nil, fmt.Errorf("proxy transport is not initialised")
+	}
+	if responseHeaderTimeout == r.transport.ResponseHeaderTimeout {
+		responseHeaderTimeout = 0
+	}
+	if proxyURL == "" && !allowUnsafeTLS && responseHeaderTimeout == 0 {
 		return r.transport, nil
 	}
+	key := transportKey{proxyURL, allowUnsafeTLS, responseHeaderTimeout}
+	r.derivedMu.Lock()
+	defer r.derivedMu.Unlock()
+	if cached, ok := r.derived[key]; ok {
+		cached.lastUsed = time.Now()
+		return cached.transport, nil
+	}
+	transport, err := r.deriveTransport(proxyURL, allowUnsafeTLS, responseHeaderTimeout)
+	if err != nil {
+		return nil, err
+	}
+	if r.derived == nil {
+		r.derived = make(map[transportKey]*derivedTransport)
+	}
+	r.derived[key] = &derivedTransport{transport: transport, lastUsed: time.Now()}
+	return transport, nil
+}
+
+func (r *Runtime) deriveTransport(proxyURL string, allowUnsafeTLS bool, responseHeaderTimeout time.Duration) (*http.Transport, error) {
 	transport := r.transport.Clone()
+	if responseHeaderTimeout > 0 {
+		transport.ResponseHeaderTimeout = responseHeaderTimeout
+	}
 	if proxyURL != "" {
 		parsed, err := url.Parse(proxyURL)
 		if err != nil || parsed.Scheme == "" || parsed.Host == "" {

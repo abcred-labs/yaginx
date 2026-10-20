@@ -65,15 +65,6 @@ func TestCheckRejectsInvalidRequestedVersion(t *testing.T) {
 	}
 }
 
-func TestInstallRejectsYoungAutomaticRelease(t *testing.T) {
-	server := newServer(t, "0.1.2", time.Now().Add(-time.Hour), "")
-	defer server.Close()
-	runner := testRunner(server, "0.1.1")
-	if err := runner.Install(context.Background(), Config{ManifestURL: server.URL + "/latest-release.json", MinPublishedAge: 24 * time.Hour, DownloadTimeout: time.Minute}, true, io.Discard); err != nil {
-		t.Fatal(err)
-	}
-}
-
 func TestCheckRejectsDowngradeAndInvalidMetadata(t *testing.T) {
 	server := newServer(t, "0.1.0", time.Now().Add(-25*time.Hour), "")
 	defer server.Close()
@@ -88,17 +79,36 @@ func TestCheckRejectsDowngradeAndInvalidMetadata(t *testing.T) {
 }
 
 func TestInstallUsesSharedLockPolicy(t *testing.T) {
-	runner := testRunner(newServer(t, "0.1.2", time.Now().Add(-25*time.Hour), ""), "0.1.1")
+	server := newServer(t, "0.1.2", time.Now().Add(-time.Hour), "")
+	defer server.Close()
+	runner := testRunner(server, "0.1.1")
 	runner.Lock = func(_ string, _ func() error) error { return ErrLockBusy }
-	if err := runner.Install(context.Background(), DefaultConfig(), false, io.Discard); !errors.Is(err, ErrLockBusy) {
+	var out bytes.Buffer
+	if err := runner.Install(context.Background(), DefaultConfig(), &out); !errors.Is(err, ErrLockBusy) {
 		t.Fatalf("manual install error = %v, want ErrLockBusy", err)
 	}
-	var out bytes.Buffer
-	if err := runner.Install(context.Background(), DefaultConfig(), true, &out); err != nil {
-		t.Fatalf("automatic install error = %v", err)
+	if !strings.Contains(out.String(), ErrLockBusy.Error()) {
+		t.Fatalf("lock conflict was not reported: %s", out.String())
 	}
-	if !strings.Contains(out.String(), "another upgrade") {
-		t.Fatalf("automatic lock output = %q", out.String())
+}
+
+func TestInstallSameVersionAndDowngradeNeverInstall(t *testing.T) {
+	for _, version := range []string{"0.1.1", "0.1.0"} {
+		t.Run(version, func(t *testing.T) {
+			server := newServer(t, version, time.Now().Add(-time.Minute), "")
+			defer server.Close()
+			runner := testRunner(server, "0.1.1")
+			runner.Command = func(_ context.Context, name string, _ ...string) ([]byte, error) {
+				if name != "dpkg-query" {
+					t.Fatalf("unexpected side effect: %s", name)
+				}
+				return []byte("0.1.1"), nil
+			}
+			err := runner.Install(context.Background(), Config{ManifestURL: server.URL + "/latest-release.json"}, io.Discard)
+			if version == "0.1.1" && err != nil || version == "0.1.0" && (err == nil || !strings.Contains(err.Error(), "downgrade")) {
+				t.Fatalf("version=%s error=%v", version, err)
+			}
+		})
 	}
 }
 
@@ -158,7 +168,7 @@ func TestInstallRestartsActiveServiceOnceAfterInstalling(t *testing.T) {
 	if err := runner.Install(context.Background(), Config{
 		ManifestURL: server.URL + "/latest-release.json", LockFile: state + "/upgrade.lock", StateDirectory: state,
 		DownloadTimeout: time.Minute, ReadyURL: server.URL + "/health/ready", ReadyTimeout: time.Second,
-	}, false, io.Discard); err != nil {
+	}, io.Discard); err != nil {
 		t.Fatal(err)
 	}
 
@@ -169,6 +179,60 @@ func TestInstallRestartsActiveServiceOnceAfterInstalling(t *testing.T) {
 	restartIndex := indexCommand(calls, "systemctl restart yaginx")
 	if installIndex < 0 || restartIndex < 0 || installIndex > restartIndex {
 		t.Fatalf("restart must follow package install: %#v", calls)
+	}
+}
+
+func TestInstallSkipPreflightStillVerifiesTargetReadiness(t *testing.T) {
+	for _, healthyTarget := range []bool{true, false} {
+		t.Run(fmt.Sprintf("healthy-target=%t", healthyTarget), func(t *testing.T) {
+			installed := "0.1.1"
+			server := newInstallServer(t, "0.1.1", "0.1.2", &installed)
+			defer server.Close()
+			runner := testRunner(server, "0.1.1")
+			runner.ReleaseRootURL = server.URL
+			client := runner.Client
+			var healthRequests []string
+			runner.Client = upgradeHTTPDoerFunc(func(request *http.Request) (*http.Response, error) {
+				if request.URL.Path == "/health/ready" {
+					healthRequests = append(healthRequests, installed)
+					if installed == "0.1.2" && !healthyTarget {
+						return &http.Response{StatusCode: http.StatusServiceUnavailable, Body: io.NopCloser(strings.NewReader(`{"ready":false,"reasons":["not_ready"]}`))}, nil
+					}
+				}
+				return client.Do(request)
+			})
+			installs := 0
+			runner.Command = func(_ context.Context, name string, _ ...string) ([]byte, error) {
+				if name == "dpkg-query" {
+					return []byte("0.1.1"), nil
+				}
+				if name == "dpkg" {
+					installs++
+					if installs == 1 {
+						installed = "0.1.2"
+					} else {
+						installed = "0.1.1"
+					}
+				}
+				return nil, nil
+			}
+			state := t.TempDir()
+			err := runner.InstallWithOptions(context.Background(), Config{
+				ManifestURL: server.URL + "/latest-release.json", StateDirectory: state,
+				LockFile: filepath.Join(state, "lock"), ReadyURL: server.URL + "/health/ready",
+				DownloadTimeout: time.Minute, ReadyTimeout: time.Nanosecond,
+			}, InstallOptions{SkipPreflightHealth: true}, io.Discard)
+			if len(healthRequests) == 0 || healthRequests[0] != "0.1.2" {
+				t.Fatalf("preflight was not skipped or target was not checked: %v", healthRequests)
+			}
+			if healthyTarget {
+				if err != nil || installs != 1 {
+					t.Fatalf("healthy target failed: installs=%d err=%v", installs, err)
+				}
+			} else if err == nil || !strings.Contains(err.Error(), "was rolled back") || installs != 2 || installed != "0.1.1" {
+				t.Fatalf("unhealthy target was not rolled back: installs=%d installed=%s err=%v", installs, installed, err)
+			}
+		})
 	}
 }
 
@@ -206,7 +270,7 @@ func TestInstallSkipsRestartWhenServiceIsInactive(t *testing.T) {
 	if err := runner.Install(context.Background(), Config{
 		ManifestURL: server.URL + "/latest-release.json", LockFile: state + "/upgrade.lock", StateDirectory: state,
 		DownloadTimeout: time.Minute, ReadyURL: server.URL + "/health/ready", ReadyTimeout: time.Second,
-	}, false, &output); err != nil {
+	}, &output); err != nil {
 		t.Fatal(err)
 	}
 
@@ -234,7 +298,7 @@ func TestInstallNoRestartSkipsSystemdAndReadiness(t *testing.T) {
 		}
 		return nil, fmt.Errorf("unexpected command %s %v", name, args)
 	}
-	if err := runner.InstallWithOptions(context.Background(), Config{ManifestURL: server.URL + "/latest-release.json", LockFile: filepath.Join(state, "lock"), StateDirectory: state, DownloadTimeout: time.Minute}, false, InstallOptions{NoRestart: true}, io.Discard); err != nil {
+	if err := runner.InstallWithOptions(context.Background(), Config{ManifestURL: server.URL + "/latest-release.json", LockFile: filepath.Join(state, "lock"), StateDirectory: state, DownloadTimeout: time.Minute}, InstallOptions{NoRestart: true}, io.Discard); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -255,8 +319,44 @@ func TestInstallPackageOnlySkipsSystemdAndReadiness(t *testing.T) {
 		}
 		return nil, fmt.Errorf("unexpected command %s %v", name, args)
 	}
-	if err := runner.InstallWithOptions(context.Background(), Config{ManifestURL: server.URL + "/latest-release.json", LockFile: filepath.Join(state, "lock"), StateDirectory: state, DownloadTimeout: time.Minute}, false, InstallOptions{PackageOnly: true}, io.Discard); err != nil {
+	if err := runner.InstallWithOptions(context.Background(), Config{ManifestURL: server.URL + "/latest-release.json", LockFile: filepath.Join(state, "lock"), StateDirectory: state, DownloadTimeout: time.Minute}, InstallOptions{PackageOnly: true}, io.Discard); err != nil {
 		t.Fatal(err)
+	}
+}
+
+type upgradeHTTPDoerFunc func(*http.Request) (*http.Response, error)
+
+func (f upgradeHTTPDoerFunc) Do(request *http.Request) (*http.Response, error) { return f(request) }
+
+func TestInstallRejectsCorruptPackageBeforeDpkg(t *testing.T) {
+	server := newInstallServer(t, "0.1.1", "0.1.2", new(string))
+	defer server.Close()
+	runner := testRunner(server, "0.1.1")
+	runner.ReleaseRootURL = server.URL
+	client := runner.Client
+	runner.Client = upgradeHTTPDoerFunc(func(request *http.Request) (*http.Response, error) {
+		response, err := client.Do(request)
+		if err == nil && request.URL.Path == "/yaginx_0.1.2_amd64.deb" {
+			response.Body.Close()
+			response.Body = io.NopCloser(strings.NewReader("bad-deb"))
+			response.ContentLength = int64(len("bad-deb"))
+		}
+		return response, err
+	})
+	runner.Command = func(_ context.Context, name string, args ...string) ([]byte, error) {
+		if name == "dpkg-query" {
+			return []byte("0.1.1"), nil
+		}
+		t.Fatalf("corrupt package must not be installed: %s %v", name, args)
+		return nil, nil
+	}
+	state := t.TempDir()
+	err := runner.InstallWithOptions(context.Background(), Config{
+		ManifestURL: server.URL + "/latest-release.json", StateDirectory: state,
+		LockFile: filepath.Join(state, "lock"), DownloadTimeout: time.Minute,
+	}, InstallOptions{PackageOnly: true}, io.Discard)
+	if err == nil || !strings.Contains(err.Error(), "SHA-256") {
+		t.Fatalf("corrupt package error=%v", err)
 	}
 }
 
@@ -294,7 +394,7 @@ func TestInstallMigratesDatabaseBeforeRestart(t *testing.T) {
 	err := runner.InstallWithOptions(context.Background(), Config{
 		ManifestURL: server.URL + "/latest-release.json", LockFile: state + "/upgrade.lock", StateDirectory: state,
 		DownloadTimeout: time.Minute, ReadyURL: server.URL + "/health/ready", ReadyTimeout: time.Second,
-	}, false, InstallOptions{MigrateDatabase: true}, io.Discard)
+	}, InstallOptions{MigrateDatabase: true}, io.Discard)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -340,7 +440,7 @@ func TestInstallRollsBackPackageWithoutRestartWhenDatabaseMigrationFails(t *test
 	err := runner.InstallWithOptions(context.Background(), Config{
 		ManifestURL: server.URL + "/latest-release.json", LockFile: state + "/upgrade.lock", StateDirectory: state,
 		DownloadTimeout: time.Minute, ReadyURL: server.URL + "/health/ready", ReadyTimeout: time.Second,
-	}, false, InstallOptions{MigrateDatabase: true}, io.Discard)
+	}, InstallOptions{MigrateDatabase: true}, io.Discard)
 	if err == nil || !strings.Contains(err.Error(), "database may be partially migrated") {
 		t.Fatalf("error = %v, want migration warning", err)
 	}
@@ -410,7 +510,7 @@ func TestInstallRollsBackWhenTargetNeverBecomesReady(t *testing.T) {
 	}
 	state := t.TempDir()
 	runner.LogFile = filepath.Join(state, "upgrade.log")
-	err := runner.Install(context.Background(), Config{ManifestURL: server.URL + "/latest-release.json", LockFile: state + "/upgrade.lock", StateDirectory: state, DownloadTimeout: time.Minute, ReadyURL: server.URL + "/health/ready", ReadyTimeout: time.Nanosecond}, false, io.Discard)
+	err := runner.Install(context.Background(), Config{ManifestURL: server.URL + "/latest-release.json", LockFile: state + "/upgrade.lock", StateDirectory: state, DownloadTimeout: time.Minute, ReadyURL: server.URL + "/health/ready", ReadyTimeout: time.Nanosecond}, io.Discard)
 	if err == nil || !strings.Contains(err.Error(), "snapshot_unavailable") || !strings.Contains(err.Error(), "rolled back") {
 		t.Fatalf("install error = %v, want rollback result", err)
 	}
@@ -445,6 +545,20 @@ func TestReadyIncludesNon200Diagnostics(t *testing.T) {
 	}
 }
 
+func TestRestartReadinessRejectsChangedKnownNodeIdentity(t *testing.T) {
+	installed := "0.1.2"
+	server := newInstallServer(t, "0.1.1", installed, &installed)
+	defer server.Close()
+	runner := testRunner(server, "0.1.1")
+	runner.Command = func(context.Context, string, ...string) ([]byte, error) { return nil, nil }
+	err := runner.restartAndWait(context.Background(), Config{
+		ReadyURL: server.URL + "/health/ready", ReadyTimeout: time.Nanosecond,
+	}, installed, "original-node", nil)
+	if err == nil || !strings.Contains(err.Error(), `node_id="node-1"`) {
+		t.Fatalf("changed node identity was accepted: %v", err)
+	}
+}
+
 func TestJournalTimestampUsesJournalctlFormat(t *testing.T) {
 	value := time.Date(2026, 9, 14, 12, 21, 3, 0, time.FixedZone("CST", 8*60*60))
 	if got, want := journalTimestamp(value), "2026-09-14 04:21:03 UTC"; got != want {
@@ -462,7 +576,7 @@ func newInstallServer(t *testing.T, currentVersion, targetVersion string, instal
 		switch request.URL.Path {
 		case "/latest-release.json":
 			digest := sha256.Sum256(newPackage)
-			fmt.Fprintf(w, `{"component":"yaginx","version":"%s","packageUrl":"%s/yaginx_%s_amd64.deb","sha256":"%x","publishedAtUtc":"%s","architecture":"amd64","gitSha":"test"}`, targetVersion, root, targetVersion, digest, time.Now().Add(-25*time.Hour).UTC().Format(time.RFC3339))
+			fmt.Fprintf(w, `{"component":"yaginx","version":"%s","packageUrl":"%s/yaginx_%s_amd64.deb","sha256":"%x","publishedAtUtc":"%s","architecture":"amd64","gitSha":"test"}`, targetVersion, root, targetVersion, digest, time.Now().Add(-time.Minute).UTC().Format(time.RFC3339))
 		case "/checksums-" + currentVersion + ".txt":
 			digest := sha256.Sum256(oldPackage)
 			fmt.Fprintf(w, "%x  yaginx_%s_amd64.deb\n", digest, currentVersion)
