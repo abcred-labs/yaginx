@@ -1,4 +1,5 @@
 import type { Int64, WebsiteUpsertInput } from "@/api/website";
+import { normalizeProxyTransforms } from "./proxyTransforms";
 
 export type WebsiteUpdateValues = WebsiteUpsertInput;
 
@@ -42,6 +43,7 @@ export const websiteUpdatePayload = (id: Int64, values: WebsiteUpdateValues): We
     id,
     ...(values.ipAccessCIDRs !== undefined ? { ipAccessCIDRs } : {}),
     responseHeaderTimeout: values.responseHeaderTimeout?.trim() || undefined,
+    ...(values.proxyTransforms !== undefined && values.proxyTransforms !== null ? { proxyTransforms: normalizeProxyTransforms(values.proxyTransforms) } : {}),
     ...(values.upstreamPools !== undefined || legacyDestination ? { upstreamPools } : {}),
     ...(values.proxyRules !== undefined || legacyDestination ? { proxyRules } : {}),
     ...(values.requestHistory ? { requestHistory: values.requestHistory.mode === 'all'

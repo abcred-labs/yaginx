@@ -1174,6 +1174,80 @@ func TestOptionalBoolSnapshotRoundTripUsesScalarContract(t *testing.T) {
 	}
 }
 
+func TestHeaderTransformOperations(t *testing.T) {
+	var removeEmpty Transform
+	if err := json.Unmarshal([]byte(`{"RequestHeader":"Authorization","Remove":""}`), &removeEmpty); err != nil {
+		t.Fatal(err)
+	}
+	if removeEmpty.Remove == nil {
+		t.Fatalf("an empty Remove value must still select the remove operation: %#v", removeEmpty)
+	}
+	cases := []struct {
+		name      string
+		transform Transform
+		wantReq   string
+		wantResp  string
+	}{
+		{"set", Transform{RequestHeader: "X-Test", ResponseHeader: "X-Test", Set: "new"}, "new", "new"},
+		{"append", Transform{RequestHeader: "X-Test", ResponseHeader: "X-Test", Append: "extra"}, "orig,extra", "orig,extra"},
+		{"remove", Transform{RequestHeader: "X-Test", ResponseHeader: "X-Test", Remove: new(string)}, "", ""},
+		{"remove wins over set", Transform{RequestHeader: "X-Test", ResponseHeader: "X-Test", Set: "new", Remove: new(string)}, "", ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("X-Test", "orig")
+				_, _ = w.Write([]byte(strings.Join(r.Header.Values("X-Test"), ",")))
+			}))
+			defer upstream.Close()
+			r := New(&Snapshot{Sites: []Site{{Hosts: []string{"example.test"}, Destination: upstream.URL, Transforms: tc.transform}}})
+			request := httptest.NewRequest(http.MethodGet, "http://example.test/x", nil)
+			request.Header.Set("X-Test", "orig")
+			response := httptest.NewRecorder()
+			r.ServeHTTP(response, request)
+			if got := response.Body.String(); got != tc.wantReq {
+				t.Fatalf("upstream saw X-Test=%q want %q", got, tc.wantReq)
+			}
+			if got := strings.Join(response.Header().Values("X-Test"), ","); got != tc.wantResp {
+				t.Fatalf("response X-Test=%q want %q", got, tc.wantResp)
+			}
+		})
+	}
+}
+
+func TestResponseLocationHostRewrite(t *testing.T) {
+	cases := []struct {
+		name, pattern, set, location string
+		status                       int
+		want                         string
+	}{
+		{"matching 307 keeps path and signed query", "blob.example", "mirror.test", "https://blob.example/a/b?sig=x&se=1", 307, "https://mirror.test/a/b?sig=x&se=1"},
+		{"case-insensitive and port replaced", "Blob.Example", "mirror.test:8443", "https://BLOB.example:443/p", 302, "https://mirror.test:8443/p"},
+		{"wildcard suffix", "*.example", "mirror.test", "https://x.blob.example/p", 301, "https://mirror.test/p"},
+		{"wildcard does not match apex", "*.example", "mirror.test", "https://example/p", 301, "https://example/p"},
+		{"other host untouched", "blob.example", "mirror.test", "https://other.example/p", 307, "https://other.example/p"},
+		{"relative location untouched", "blob.example", "mirror.test", "/local", 307, "/local"},
+		{"non-redirect status untouched", "blob.example", "mirror.test", "https://blob.example/p", 200, "https://blob.example/p"},
+		{"invalid replacement ignored", "blob.example", "mirror.test/evil", "https://blob.example/p", 307, "https://blob.example/p"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Location", tc.location)
+				w.WriteHeader(tc.status)
+			}))
+			defer upstream.Close()
+			transform := Transform{ResponseLocationHost: tc.pattern, Set: tc.set}
+			r := New(&Snapshot{Sites: []Site{{Hosts: []string{"example.test"}, Destination: upstream.URL, Transforms: transform}}})
+			response := httptest.NewRecorder()
+			r.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "http://example.test/x", nil))
+			if got := response.Header().Get("Location"); got != tc.want {
+				t.Fatalf("Location=%q want %q", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestResponseTrailerTransform(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Add("Trailer", "X-Upstream-Trailer")
