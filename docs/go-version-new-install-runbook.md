@@ -33,6 +33,15 @@ runuser -u postgres -- psql -Atqc 'SHOW server_version;'
 
 ## 2. 官方安装脚本
 
+按服务器所在网络选择下载来源：
+
+| 网络 | 下载来源 | 环境变量 |
+| --- | --- | --- |
+| 全球 | `https://github.com`、`https://release-assets.githubusercontent.com` | 无需设置 |
+| 中国大陆 | `https://github-mirror.abc.red`、`https://gh-release-assets.abc.red` | `YAGINX_GITHUB_MIRROR`、`YAGINX_RELEASE_ASSETS_MIRROR` |
+
+### 2.1 全球
+
 安装最新公开发布包：
 
 ```bash
@@ -47,16 +56,35 @@ less install-yaginx.sh
 bash install-yaginx.sh
 ```
 
+### 2.2 中国大陆
+
+通过镜像下载脚本、manifest 和 `.deb`（以 root 执行）：
+
+```bash
+export YAGINX_GITHUB_MIRROR=https://github-mirror.abc.red
+export YAGINX_RELEASE_ASSETS_MIRROR=https://gh-release-assets.abc.red
+curl -fsSLO "$YAGINX_GITHUB_MIRROR/abcred-labs/yaginx/releases/latest/download/install-yaginx.sh"
+less install-yaginx.sh
+bash install-yaginx.sh
+```
+
+使用 `sudo` 时环境变量默认会被清除，需改为 `sudo env YAGINX_GITHUB_MIRROR=... YAGINX_RELEASE_ASSETS_MIRROR=... bash install-yaginx.sh`。救援包脚本 `install-yaginx-core.sh` 使用相同的环境变量。
+
+### 2.3 脚本行为
+
 `deploy/install-yaginx.sh` 的行为如下：
 
 1. 拒绝非 root、非 Debian 和非 amd64 主机。
 2. 确保 `curl`、`jq` 可用；缺少时通过 APT 安装。
-3. 仅通过 TLS 1.2 以上 HTTPS 获取 `latest-release.json`，禁止重定向。
+3. 仅通过 TLS 1.2 以上 HTTPS 获取 `latest-release.json`；GitHub Release 下载地址会 302 跳转到资源存储，因此脚本逐跳跟随最多 6 次重定向，且每个重定向目标都必须是 HTTPS。下载失败会重试 5 次，任何失败都会打印失败的行号和命令。
 4. 使用 `jq` 验证 manifest 的 `component`、SemVer `version`、`architecture`、`gitSha`、发布时间、64 位 SHA-256 和包 URL。
 5. 仅接受 `https://github.com/abcred-labs/yaginx/releases/download/v<version>/yaginx_<version>_amd64.deb` 形式的不可变包 URL。
 6. 下载 `.deb` 后以 manifest 的 SHA-256 校验，再通过 `/run/yaginx/upgrade.lock` 的 `flock` 串行执行 `dpkg -i`。
 7. 临时下载目录会在脚本退出时删除；`dpkg --force-confdef --force-confold` 保留已有 `/etc/yaginx/config.json`。
 8. 首次安装时会先安装独立的 `yaginx-core` 救援包；若该包已安装则不会更新它。
+9. 可通过环境变量指定镜像（均必须为 `https://`，中国大陆用法见 2.2）。包 URL 仍按 GitHub 原始地址校验，并以 manifest 的 SHA-256 保证完整性：
+   - `YAGINX_GITHUB_MIRROR`（如 `https://github-mirror.abc.red`）：替换 `https://github.com`，包括请求地址和重定向到 `github.com` 的地址。
+   - `YAGINX_RELEASE_ASSETS_MIRROR`（如 `https://gh-release-assets.abc.red`）：替换重定向到 `https://release-assets.githubusercontent.com` 的地址，保留路径与签名参数。
 
 `deploy/install-yaginx.sh` 和直接 `dpkg -i` 仅用于首次安装、离线安装或受控包部署；它们不会重启一个已运行的 `yaginx.service`。在线升级使用 `sudo yaginx upgrade`：当服务原本处于运行状态时，该命令会在安装完成后执行一次 `systemctl restart yaginx`，等待 `/health/ready` 返回新版本；失败时自动安装旧包、重启旧服务并验证回滚结果。需要安装某个已发布版本时使用 `sudo yaginx upgrade --version <semver>`，检查但不安装时使用 `sudo yaginx upgrade --check --version <semver>`；指定版本会读取对应的不可变版本 manifest，且拒绝降级。对于已有 V2 schema 但仍有待执行迁移的数据库，使用 `sudo yaginx upgrade --version <semver> --migrate-database`，升级器会先安装候选包，再使用候选版本执行 `database migrate`，成功后才重启服务。迁移失败时不会重启候选服务，会尝试恢复旧包；数据库迁移不是可自动回滚事务，必须由运维确认数据库状态。因此使用普通升级命令后不需要再手动执行 `systemctl restart yaginx`。
 
@@ -352,6 +380,12 @@ curl --fail --silent --show-error http://127.0.0.1:19090/health/ready
 
 ```bash
 curl -fsSL https://github.com/abcred-labs/yaginx/releases/latest/download/install-yaginx-core.sh | bash
+```
+
+中国大陆服务器通过镜像执行：
+
+```bash
+curl -fsSL https://github-mirror.abc.red/abcred-labs/yaginx/releases/latest/download/install-yaginx-core.sh | YAGINX_GITHUB_MIRROR=https://github-mirror.abc.red YAGINX_RELEASE_ASSETS_MIRROR=https://gh-release-assets.abc.red bash
 ```
 
 ## 7. Runtime 配置参考

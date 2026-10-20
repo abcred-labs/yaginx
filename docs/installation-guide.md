@@ -68,7 +68,19 @@ sudo -u postgres psql -Atqc 'SHOW server_version_num;'
 ## 安装最新公开版本
 
 安装脚本只接受 Debian amd64，以 HTTPS 获取 GitHub Release manifest，并校验版本、架构、
-Git SHA 和 SHA-256。建议先下载并查看脚本：
+Git SHA 和 SHA-256。脚本会在缺少时安装 `curl` 和 `jq`，首次安装时同时安装 `yaginx-core`
+救援包。它会保留已有的 `/etc/yaginx/config.json`，不会自动替换生产配置。
+
+请根据服务器所在网络选择安装方式：
+
+| 网络 | 下载来源 | 需要设置的环境变量 |
+| --- | --- | --- |
+| 全球（可正常访问 GitHub） | `https://github.com`、`https://release-assets.githubusercontent.com` | 无 |
+| 中国大陆 | `https://github-mirror.abc.red`、`https://gh-release-assets.abc.red` | `YAGINX_GITHUB_MIRROR`、`YAGINX_RELEASE_ASSETS_MIRROR` |
+
+### 全球
+
+建议先下载并查看脚本：
 
 ```bash
 curl -fsSLO https://github.com/abcred-labs/yaginx/releases/latest/download/install-yaginx.sh
@@ -76,14 +88,37 @@ less install-yaginx.sh
 sudo bash install-yaginx.sh
 ```
 
-脚本会在缺少时安装 `curl` 和 `jq`，首次安装时同时安装 `yaginx-core` 救援包。它会保留
-已有的 `/etc/yaginx/config.json`，不会自动替换生产配置。
-
 也可以使用官方一行命令：
 
 ```bash
 curl -fsSL https://github.com/abcred-labs/yaginx/releases/latest/download/install-yaginx.sh | sudo bash
 ```
+
+### 中国大陆
+
+中国大陆服务器直连 GitHub 下载 `.deb` 通常很慢或被中断，应通过镜像下载：
+
+| 环境变量 | 镜像地址 | 替换的原始地址 |
+| --- | --- | --- |
+| `YAGINX_GITHUB_MIRROR` | `https://github-mirror.abc.red` | `https://github.com`（Release manifest 和包地址） |
+| `YAGINX_RELEASE_ASSETS_MIRROR` | `https://gh-release-assets.abc.red` | `https://release-assets.githubusercontent.com`（`.deb` 实际下载地址） |
+
+`sudo` 默认会清除环境变量，因此需以 root 运行，或像下面这样使用 `sudo env` 传入：
+
+```bash
+curl -fsSLO https://github-mirror.abc.red/abcred-labs/yaginx/releases/latest/download/install-yaginx.sh
+less install-yaginx.sh
+sudo env YAGINX_GITHUB_MIRROR=https://github-mirror.abc.red YAGINX_RELEASE_ASSETS_MIRROR=https://gh-release-assets.abc.red bash install-yaginx.sh
+```
+
+一行命令：
+
+```bash
+curl -fsSL https://github-mirror.abc.red/abcred-labs/yaginx/releases/latest/download/install-yaginx.sh | sudo env YAGINX_GITHUB_MIRROR=https://github-mirror.abc.red YAGINX_RELEASE_ASSETS_MIRROR=https://gh-release-assets.abc.red bash
+```
+
+镜像只负责下载加速：脚本仍按 GitHub 原始地址校验包 URL，并用 manifest 中的 SHA-256 校验
+下载的 `.deb`，镜像返回的内容被篡改会被拒绝。两个变量都必须是 `https://` 地址。
 
 生产环境应优先使用固定版本，并保存校验记录：
 
