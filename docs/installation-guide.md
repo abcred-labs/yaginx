@@ -23,6 +23,48 @@ psql --version
 sudo systemctl status postgresql --no-pager
 ```
 
+### PostgreSQL 最低版本与安装
+
+安装脚本不会安装或初始化数据库，数据库需在安装 Yaginx 前自行准备。运行时会检查
+`server_version_num`，主版本低于 15 时 `serve` 与 `doctor --check-db` 都会拒绝启动；
+该下限固定为 15，不可通过配置调整。
+
+| 系统 | 仓库自带 PostgreSQL | 是否满足 ≥ 15 |
+| --- | --- | --- |
+| Debian 12 | 15 | 满足 |
+| Debian 13 | 17 | 满足 |
+| Ubuntu 24.04 LTS | 16 | 满足 |
+| Ubuntu 22.04 LTS | 14 | 不满足，需先添加 PostgreSQL 官方 PGDG 源 |
+| Debian 11 / Ubuntu 20.04 | 13 / 12 | 不满足，不支持 |
+
+Debian 12、Debian 13、Ubuntu 24.04（使用系统仓库）：
+
+```bash
+sudo apt-get update
+sudo apt-get install -y postgresql
+sudo systemctl enable --now postgresql
+```
+
+Ubuntu 22.04（使用 PGDG 官方源安装 PostgreSQL 15）：
+
+```bash
+sudo apt-get install -y curl ca-certificates
+sudo install -d /usr/share/postgresql-common/pgdg
+sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(. /etc/os-release; echo $VERSION_CODENAME)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+sudo apt-get update
+sudo apt-get install -y postgresql-15
+sudo systemctl enable --now postgresql
+```
+
+确认版本不低于 15（输出应不小于 `150000`）：
+
+```bash
+sudo -u postgres psql -Atqc 'SHOW server_version_num;'
+```
+
+创建角色和数据库、写入 DSN 的步骤见[全新安装 Runbook](go-version-new-install-runbook.md) 第 3、4 节。
+
 ## 安装最新公开版本
 
 安装脚本只接受 Debian amd64，以 HTTPS 获取 GitHub Release manifest，并校验版本、架构、

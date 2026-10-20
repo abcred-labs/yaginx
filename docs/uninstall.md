@@ -10,6 +10,26 @@
 当前版本已移除自动升级 worker/timer。下面涉及 `yaginx-upgrade.*` 的检查与清理
 仅适用于旧包残留；卸载前先停用旧 timer 并确认 worker 已结束。
 
+## 自动卸载脚本
+
+仓库提供 `deploy/uninstall-yaginx.sh`，会检测并清理 `yaginx`、`yaginx-core` 两个
+Debian 包（任意版本）、systemd unit（含旧版 `yaginx-upgrade.*`）、手动安装的
+二进制，以及程序自动生成的文件（`/run/yaginx`、`/var/lib/yaginx/{core,upgrade,runtime}`、
+`/var/log/yaginx/upgrade.log`）。
+
+脚本使用 `dpkg --remove`，包状态会变为 `config-files`，保留的配置在重装时会被沿用；
+未由 systemd 管理的 yaginx 进程不会被停止，需手动处理。
+
+脚本**不会**删除 `/etc/yaginx` 配置、管理员 systemd drop-in、节点身份
+（`/var/lib/yaginx/node`）和 PostgreSQL 数据库/角色。
+
+```bash
+sudo bash deploy/uninstall-yaginx.sh --check   # 只检查，不修改
+sudo bash deploy/uninstall-yaginx.sh           # 卸载（-y 跳过确认）
+```
+
+以下手册为手动等价步骤，其中包含脚本不会执行的删除配置与数据步骤。
+
 ## 1. 卸载前确认
 
 先确认服务、升级 worker 和升级 timer 的状态：
