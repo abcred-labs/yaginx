@@ -87,8 +87,16 @@ type HostBinding struct {
 type Transform struct {
 	PathPrefix, PathSet, PathRemovePrefix, QueryValueParameter, Set string
 	RequestHeader, ResponseHeader, ResponseTrailer                  string
-	Forwarded, XForwarded, For, Host, Proto, Prefix, Action         string
-	RequestHeadersCopy, ResponseHeadersCopy, ResponseTrailersCopy   OptionalBool
+	// ResponseLocationHost is the host (or "*.suffix") a 30x Location must
+	// have to be rewritten; Set carries the replacement host[:port].
+	ResponseLocationHost string
+	// Append and Remove select the header operation for RequestHeader and
+	// ResponseHeader instead of Set. Remove is a pointer so that a present but
+	// empty value (the editor's key/value form) still counts as requested.
+	Append                                                        string
+	Remove                                                        *string
+	Forwarded, XForwarded, For, Host, Proto, Prefix, Action       string
+	RequestHeadersCopy, ResponseHeadersCopy, ResponseTrailersCopy OptionalBool
 }
 
 // OptionalBool accepts the legacy serialized form ("false") as well as a
@@ -610,7 +618,7 @@ func (r *Runtime) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 			out.Header = make(http.Header)
 		}
 		if transforms.RequestHeader != "" {
-			out.Header.Set(transforms.RequestHeader, transforms.Set)
+			applyHeaderTransform(out.Header, transforms.RequestHeader, transforms)
 		}
 		if r.shouldAddExpectContinue(req, out) {
 			out.Header.Set("Expect", "100-continue")
@@ -644,8 +652,11 @@ func (r *Runtime) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		if transforms.ResponseHeadersCopy.Set && !transforms.ResponseHeadersCopy.Value {
 			response.Header = make(http.Header)
 		}
+		if transforms.ResponseLocationHost != "" {
+			rewriteLocationHost(response, transforms.ResponseLocationHost, transforms.Set)
+		}
 		if transforms.ResponseHeader != "" {
-			response.Header.Set(transforms.ResponseHeader, transforms.Set)
+			applyHeaderTransform(response.Header, transforms.ResponseHeader, transforms)
 		}
 		if transforms.ResponseTrailersCopy.Set && !transforms.ResponseTrailersCopy.Value {
 			response.Trailer = nil
@@ -1025,6 +1036,54 @@ func removePrefix(path, prefix string) string {
 	}
 	return path
 }
+
+// applyHeaderTransform performs the Remove, Append or (default) Set operation
+// configured for a request or response header.
+func applyHeaderTransform(header http.Header, name string, transform Transform) {
+	switch {
+	case transform.Remove != nil:
+		header.Del(name)
+	case transform.Append != "":
+		header.Add(name, transform.Append)
+	default:
+		header.Set(name, transform.Set)
+	}
+}
+
+// rewriteLocationHost replaces the host of an absolute 30x Location when its
+// hostname matches pattern (exact, or "*.suffix"). Scheme, path and query are
+// preserved so signed redirect URLs stay valid. Relative or unparsable
+// Location values, non-redirect statuses and empty replacements are left alone.
+func rewriteLocationHost(response *http.Response, pattern, replacement string) {
+	switch response.StatusCode {
+	case http.StatusMovedPermanently, http.StatusFound, http.StatusSeeOther, http.StatusTemporaryRedirect, http.StatusPermanentRedirect:
+	default:
+		return
+	}
+	replacement = strings.TrimSpace(replacement)
+	location := response.Header.Get("Location")
+	if replacement == "" || strings.ContainsAny(replacement, "/\r\n ") || location == "" {
+		return
+	}
+	target, err := url.Parse(location)
+	if err != nil || target.Host == "" {
+		return
+	}
+	if !locationHostMatches(target.Hostname(), strings.TrimSpace(pattern)) {
+		return
+	}
+	target.Host = replacement
+	response.Header.Set("Location", target.String())
+}
+
+func locationHostMatches(host, pattern string) bool {
+	host, pattern = strings.ToLower(host), strings.ToLower(pattern)
+	if suffix, ok := strings.CutPrefix(pattern, "*."); ok {
+		return suffix != "" && strings.HasSuffix(host, "."+suffix)
+	}
+	return pattern != "" && host == pattern
+}
+
 func applyRequestTransform(path, rawQuery string, transform Transform) (string, string) {
 	if transform.PathSet != "" {
 		path = transform.PathSet

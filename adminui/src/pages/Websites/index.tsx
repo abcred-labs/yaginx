@@ -24,6 +24,7 @@ const WebsiteIndex: React.FC = () => {
         <Route path=":id/hosts" element={<Edit section="hosts" />} />
         <Route path=":id/upstreams" element={<Navigate to="../routes" replace />} />
         <Route path=":id/routes" element={<Edit section="routes" />} />
+        <Route path=":id/transforms" element={<Edit section="transforms" />} />
         <Route path=":id/responses" element={<Edit section="responses" />} />
         <Route path=":id/access" element={<Edit section="access" />} />
         <Route path=":id/history" element={<Edit section="history" />} />

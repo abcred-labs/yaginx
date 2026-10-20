@@ -86,13 +86,14 @@ PROXY Protocol 默认可信 CIDR 为 `0.0.0.0/0` 和 `::/0`，用于兼容当前
 | `PathPattern` | 路由值参数 | 按 YARP 2.3 route-value pattern 生成 path；缺少 route value 拒绝快照 |
 | `QueryValueParameter` | `Set`、`Append`、`Remove` 之一 | 设置、追加或删除固定名称的 query 参数 |
 | `QueryRouteParameter` | `Set` 或 `Append` | 把路由值写入 query 参数 |
-| `RequestHeader` | `Set`、`Append`、`Remove` 之一 | 修改上游请求头；Hop-by-hop header 禁止配置 |
+| `RequestHeader` | `Set`、`Append`、`Remove` 之一 | 修改上游请求头；`Remove` 的值可为空串，同时出现时优先级为 `Remove` > `Append` > `Set`；Hop-by-hop header 禁止配置 |
 | `RequestHeadersCopy` | `true` 或 `false` | 控制普通请求头复制，Hop-by-hop header 始终过滤 |
 | `RequestHeaderOriginalHost` | `true` 或 `false` | 控制上游 Host；`defaultDestinationHost` 在其后覆盖 |
 | `X-Forwarded` | `For`、`Host`、`Proto`、`Prefix` 的 `Set`/`Append`/`Remove` 参数 | 使用 YARP 2.3 值格式生成 forwarded headers |
 | `Forwarded` | `For`、`By`、`Host`、`Proto` 参数 | 生成 RFC 7239 `Forwarded` |
-| `ResponseHeader` | `Set`、`Append`、`Remove` 之一，允许 `When` | 在响应头提交前修改 |
+| `ResponseHeader` | `Set`、`Append`、`Remove` 之一，允许 `When` | 在响应头提交前修改；操作优先级同 `RequestHeader`（`When` 暂未实现） |
 | `ResponseHeadersCopy` | `true` 或 `false` | 控制普通上游响应头复制 |
+| `ResponseLocationHost` | 值为待匹配 host（精确或 `*.suffix`，忽略大小写），`Set` 为替换 host[:port] | 仅对 301/302/303/307/308 且 `Location` 为绝对 URL、host 命中时，替换 host；scheme、path、query 保持不变。相对 `Location`、不命中、非跳转状态码或 `Set` 为空/含 `/`、空白时原样透传；与 `ResponseHeader` 同对象时共用 `Set` |
 | `ResponseTrailer` | `Set`、`Append`、`Remove` 之一，允许 `When` | 修改 HTTP trailer |
 | `ResponseTrailersCopy` | `true` 或 `false` | 控制上游 trailer 复制 |
 

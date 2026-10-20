@@ -51,6 +51,25 @@ describe('websiteUpdatePayload', () => {
     });
   });
 
+  it('trims proxy transforms and drops blank keys', () => {
+    expect(websiteUpdatePayload('101', {
+      name: 'site',
+      proxyTransforms: [
+        { key: ' ResponseLocationHost ', value: ' blob.example ' },
+        { key: 'Set', value: 'mirror.test' },
+        { key: '  ', value: 'ignored' },
+      ],
+    }).proxyTransforms).toEqual([
+      { key: 'ResponseLocationHost', value: 'blob.example' },
+      { key: 'Set', value: 'mirror.test' },
+    ]);
+  });
+
+  it('keeps an explicitly cleared transform list and leaves an absent one alone', () => {
+    expect(websiteUpdatePayload('101', { name: 'site', proxyTransforms: [] }).proxyTransforms).toEqual([]);
+    expect('proxyTransforms' in websiteUpdatePayload('101', { name: 'site' })).toBe(false);
+  });
+
   it('drops a stale sampling rate when the mode is not all', () => {
     expect(websiteUpdatePayload('101', {
       name: 'site',

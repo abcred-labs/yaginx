@@ -3,17 +3,19 @@ import { websiteGet, websiteResponseID, websiteUpsert, webDomainRequestCertifica
 import { InfoHint, SignalTag, WorkbenchPage } from '@/componets/Workbench';
 import { websiteUpdatePayload } from './websiteUpdatePayload';
 import { TabRequestHistory } from './TabRequestHistory';
-import { Alert, Button, Card, Col, Collapse, Descriptions, Divider, Empty, Form, Input, InputNumber, Modal, Radio, Row, Select, Space, Spin, Switch, Tag, Tooltip, Typography, notification } from 'antd';
+import { hasDuplicateTransformKey, locationRewritePreset, proxyTransformKeys } from './proxyTransforms';
+import { Alert, AutoComplete, Button, Card, Col, Collapse, Descriptions, Divider, Empty, Form, Input, InputNumber, Modal, Radio, Row, Select, Space, Spin, Switch, Tag, Tooltip, Typography, notification } from 'antd';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { NavLink, useNavigate, useParams } from 'react-router-dom';
 import { SPACE } from '@/utils/spacing';
 import './workspace.less';
 
-type WorkspaceSection = 'overview' | 'hosts' | 'routes' | 'responses' | 'access' | 'history';
+type WorkspaceSection = 'overview' | 'hosts' | 'routes' | 'transforms' | 'responses' | 'access' | 'history';
 const sections: Array<{ id: WorkspaceSection; label: string; path: string; hint: string }> = [
   { id: 'overview', label: '概览', path: '', hint: '站点入口、转发与访问策略' },
   { id: 'hosts', label: '主机', path: '/hosts', hint: '此站点接收的 Host' },
   { id: 'routes', label: '转发规则', path: '/routes', hint: '匹配请求并选择转发目标' },
+  { id: 'transforms', label: '代理转换', path: '/transforms', hint: '改写路径、请求头、响应头与重定向 Location' },
   { id: 'responses', label: '静态响应', path: '/responses', hint: '无需上游的快速响应' },
   { id: 'access', label: '访问控制', path: '/access', hint: '网站级 IP 黑白名单' },
   { id: 'history', label: '请求跟踪', path: '/history', hint: '本站点的历史记录与成功采样' },
@@ -165,6 +167,22 @@ const RoutesSection = () => <div className="editor-list"><Form.List name="proxyR
   <Button type="dashed" block icon={<PlusOutlined />} onClick={() => add({ isEnabled: true, isFallback: false, targetType: 'direct' })}>添加转发规则</Button>
 </div>}</Form.List><Collapse className="website-workspace__nested-resources" items={[{ key: 'upstreams', label: '上游池资源（多节点场景）', children: <UpstreamResourcesSection /> }]} /></div>;
 
+const TransformsSection = () => {
+  const form = Form.useFormInstance<WebsiteUpsertInput>();
+  return <Form.List name="proxyTransforms">{(fields, { add, remove }) => <div className="editor-list">
+    <Alert type="info" showIcon message="代理转换作用于站点默认转发（Fallback 规则）" description="带路径匹配的转发规则不继承这里的转换。同一个站点内键名不能重复，所以 Set 由 ResponseHeader、RequestHeader、ResponseLocationHost 等共用同一个值。" />
+    <Alert type="success" showIcon message="重定向 Location 改写（ResponseLocationHost）" description={<>上游返回 301/302/303/307/308 且 Location 为绝对地址时，若其 host 等于“ResponseLocationHost”的值（支持 *.example.com），则把 host 替换为“Set”的值，scheme、路径和签名参数保持不变。示例：ResponseLocationHost = pkg-containers.githubusercontent.com，Set = blob.example.com。</>} />
+    {fields.map((field, index) => <div className="editor-row" key={field.key}><span className="editor-row__number">{String(index + 1).padStart(2, '0')}</span><Space.Compact style={{ width: '100%' }}>
+      <Form.Item name={[field.name, 'key']} noStyle rules={[{ required: true, whitespace: true, message: '请输入转换键' }, { validator: async (_, value: string) => { if (hasDuplicateTransformKey(form.getFieldValue('proxyTransforms'), value ?? '', field.name)) throw new Error('转换键不能重复'); } }]}><AutoComplete style={{ width: '40%' }} placeholder="ResponseLocationHost" options={proxyTransformKeys.map((value) => ({ value }))} filterOption={(input, option) => (option?.value ?? '').toLowerCase().includes(input.toLowerCase())} /></Form.Item>
+      <Form.Item name={[field.name, 'value']} noStyle><Input style={{ width: '60%' }} placeholder="值" /></Form.Item>
+    </Space.Compact><Button type="text" danger aria-label="删除转换" icon={<DeleteOutlined />} onClick={() => remove(field.name)} /></div>)}
+    <Space wrap>
+      <Button type="dashed" icon={<PlusOutlined />} onClick={() => add({ key: '', value: '' })}>添加转换</Button>
+      <Button type="dashed" icon={<PlusOutlined />} onClick={() => { const existing = (form.getFieldValue('proxyTransforms') ?? []) as Array<{ key?: string }>; const keys = new Set(existing.map((item) => (item.key ?? '').trim().toLowerCase())); locationRewritePreset.filter((item) => !keys.has(item.key.toLowerCase())).forEach((item) => add({ ...item })); }}>添加 Location 改写</Button>
+    </Space>
+  </div>}</Form.List>;
+};
+
 const ResponsesSection = () => <Form.List name="simpleResponses">{(fields, { add, remove }) => <div className="editor-list">
   {fields.map((field, index) => <section className="rule-editor" key={field.key}><header><div className="rule-editor__heading"><span className="signal-eyebrow">响应 {String(index + 1).padStart(2, '0')}</span><InfoHint label="静态响应" content="直接返回内容，不经过上游。" /></div><Button type="text" danger icon={<DeleteOutlined />} onClick={() => remove(field.name)}>删除</Button></header><Row gutter={[SPACE.space3, 0]}>
     <Col xs={24} md={8}><Form.Item name={[field.name, 'path']} label="路径" rules={[{ required: true, message: '请输入路径' }]}><Input placeholder="/health" /></Form.Item></Col>
@@ -315,7 +333,7 @@ export const WebsiteWorkspace: React.FC<{ section: WorkspaceSection }> = ({ sect
     }
     finally { setSaving(false); }
   };
-  const content = section === 'overview' ? <OverviewSection websiteId={id} /> : section === 'hosts' ? <HostSection /> : section === 'routes' ? <RoutesSection /> : section === 'access' ? <AccessControlSection /> : section === 'history' ? TabRequestHistory.children : section === 'responses' ? <ResponsesSection /> : <OverviewSection websiteId={id} />;
+  const content = section === 'overview' ? <OverviewSection websiteId={id} /> : section === 'hosts' ? <HostSection /> : section === 'routes' ? <RoutesSection /> : section === 'transforms' ? <TransformsSection /> : section === 'access' ? <AccessControlSection /> : section === 'history' ? TabRequestHistory.children : section === 'responses' ? <ResponsesSection /> : <OverviewSection websiteId={id} />;
   const isReady = loadState === 'ready';
   const status = loadState === 'loading' ? { tone: 'warning' as const, label: '正在加载' } : loadState === 'missing' ? { tone: 'warning' as const, label: '站点不存在' } : loadState === 'error' ? { tone: 'danger' as const, label: '加载失败' } : dirty ? { tone: 'warning' as const, label: '存在未保存变更' } : { tone: 'success' as const, label: '已同步' };
   return <WorkbenchPage eyebrow="CONFIGURATION / WEBSITE" title={websiteName || '站点工作区'} description={active.hint} backTo="/website/list" extra={<Space><SignalTag tone={status.tone}>{status.label}</SignalTag><Button disabled={saving} loading={loadState === 'loading'} onClick={() => load()}>重新加载</Button><Button type="primary" icon={<SaveOutlined />} disabled={!isReady} loading={saving} onClick={save}>保存所有变更</Button></Space>}>
