@@ -32,7 +32,7 @@
     "uuid": "^14.0.3"
   },
   "devDependencies": {
-    "@ant-design/icons": "5.3.7",
+    "@ant-design/icons": "6.3.4",
     "@loadable/component": "^5.15.2",
     "@types/loadable__component": "^5.13.4",
     "@types/node": "^26.6.5",
