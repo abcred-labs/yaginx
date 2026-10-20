@@ -65,7 +65,7 @@ func runUpgrade(args []string, stdout, stderr io.Writer) int {
 	var cfg loadedUpgradeConfig
 	var err error
 	if *packageOnly {
-		cfg.Config = upgrade.Config{ManifestURL: *manifestURL, LockFile: *lockFile, StateDirectory: *stateDirectory, DownloadTimeout: 10 * time.Minute}
+		cfg.Config = upgrade.Config{ManifestURL: *manifestURL, LockFile: *lockFile, StateDirectory: *stateDirectory, DownloadTimeout: 10 * time.Minute, GitHubMirror: os.Getenv("YAGINX_GITHUB_MIRROR"), ReleaseAssetsMirror: os.Getenv("YAGINX_RELEASE_ASSETS_MIRROR")}
 		if cfg.Config.ManifestURL == "" {
 			cfg.Config.ManifestURL = upgrade.DefaultManifestURL
 		}
@@ -178,7 +178,7 @@ func upgradeConfig(path string) (loadedUpgradeConfig, error) {
 	if err != nil {
 		return loadedUpgradeConfig{}, err
 	}
-	return loadedUpgradeConfig{Config: upgrade.Config{ManifestURL: runtime.String("upgrade", "manifestURL"), LockFile: runtime.String("upgrade", "lockFile"), StateDirectory: runtime.String("upgrade", "stateDirectory"), DownloadTimeout: timeout, ReadyTimeout: readyTimeout, ReadyURL: readyURL}, Runtime: runtime}, nil
+	return loadedUpgradeConfig{Config: upgrade.Config{ManifestURL: runtime.String("upgrade", "manifestURL"), LockFile: runtime.String("upgrade", "lockFile"), StateDirectory: runtime.String("upgrade", "stateDirectory"), DownloadTimeout: timeout, ReadyTimeout: readyTimeout, ReadyURL: readyURL, GitHubMirror: runtime.String("upgrade", "githubMirror"), ReleaseAssetsMirror: runtime.String("upgrade", "releaseAssetsMirror")}, Runtime: runtime}, nil
 }
 
 func localReadyURL(address, path string) (string, error) {

@@ -112,18 +112,111 @@ func TestInstallSameVersionAndDowngradeNeverInstall(t *testing.T) {
 	}
 }
 
-func TestCheckRejectsRedirectedManifest(t *testing.T) {
+func TestCheckFollowsHTTPSRedirectedManifest(t *testing.T) {
+	release := newServer(t, "0.1.2", time.Now().Add(-time.Hour), "")
+	defer release.Close()
 	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
-		if request.URL.Path == "/latest-release.json" {
-			http.Redirect(w, request, "/redirected.json", http.StatusFound)
-			return
-		}
-		http.NotFound(w, request)
+		http.Redirect(w, request, release.URL+"/latest-release.json", http.StatusFound)
+	}))
+	defer server.Close()
+	runner := testRunner(release, "0.1.1")
+	if _, available, err := runner.Check(context.Background(), Config{ManifestURL: server.URL + "/latest-release.json"}, io.Discard); err != nil || !available {
+		t.Fatalf("available=%t err=%v", available, err)
+	}
+}
+
+func TestCheckRejectsNonHTTPSRedirect(t *testing.T) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+		http.Redirect(w, request, "http://downgrade.example.invalid/latest-release.json", http.StatusFound)
 	}))
 	defer server.Close()
 	runner := testRunner(server, "0.1.1")
-	if _, _, err := runner.Check(context.Background(), Config{ManifestURL: server.URL + "/latest-release.json"}, io.Discard); err == nil {
-		t.Fatal("redirected manifest accepted")
+	if _, _, err := runner.Check(context.Background(), Config{ManifestURL: server.URL + "/latest-release.json"}, io.Discard); err == nil || !strings.Contains(err.Error(), "must use HTTPS") {
+		t.Fatalf("non-HTTPS redirect err=%v", err)
+	}
+}
+
+func TestCheckRejectsRedirectLoop(t *testing.T) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+		http.Redirect(w, request, "/latest-release.json", http.StatusFound)
+	}))
+	defer server.Close()
+	runner := testRunner(server, "0.1.1")
+	if _, _, err := runner.Check(context.Background(), Config{ManifestURL: server.URL + "/latest-release.json"}, io.Discard); err == nil || !strings.Contains(err.Error(), "redirect limit") {
+		t.Fatalf("redirect loop err=%v", err)
+	}
+}
+
+type recordingDoer struct {
+	requests  []string
+	responses map[string]*http.Response
+}
+
+func (d *recordingDoer) Do(request *http.Request) (*http.Response, error) {
+	d.requests = append(d.requests, request.URL.String())
+	response, ok := d.responses[request.URL.String()]
+	if !ok {
+		return &http.Response{StatusCode: http.StatusNotFound, Body: io.NopCloser(strings.NewReader("")), Request: request}, nil
+	}
+	response.Request = request
+	return response, nil
+}
+
+func TestGetRewritesGitHubAndReleaseAssetRedirectsToMirrors(t *testing.T) {
+	redirect := func(location string) *http.Response {
+		return &http.Response{StatusCode: http.StatusFound, Header: http.Header{"Location": {location}}, Body: io.NopCloser(strings.NewReader(""))}
+	}
+	doer := &recordingDoer{responses: map[string]*http.Response{
+		"https://github-mirror.example.invalid/abcred-labs/yaginx/releases/latest/download/latest-release.json": redirect("https://github.com/abcred-labs/yaginx/releases/download/v1.2.3/latest-release.json"),
+		"https://github-mirror.example.invalid/abcred-labs/yaginx/releases/download/v1.2.3/latest-release.json": redirect("https://release-assets.githubusercontent.com/github-production-release-asset/1/2?sig=abc"),
+		"https://assets-mirror.example.invalid/github-production-release-asset/1/2?sig=abc":                     {StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader("ok"))},
+	}}
+	runner := &Runner{Client: doer}
+	cfg := Config{GitHubMirror: "https://github-mirror.example.invalid/", ReleaseAssetsMirror: "https://assets-mirror.example.invalid"}
+	response, err := runner.get(context.Background(), cfg, DefaultManifestURL)
+	if err != nil {
+		t.Fatalf("get err=%v requests=%q", err, doer.requests)
+	}
+	response.Body.Close()
+	if len(doer.requests) != 3 {
+		t.Fatalf("requests=%q", doer.requests)
+	}
+}
+
+func TestGetWithoutMirrorsUsesOriginalURLs(t *testing.T) {
+	doer := &recordingDoer{responses: map[string]*http.Response{
+		DefaultManifestURL: {StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader("ok"))},
+	}}
+	response, err := (&Runner{Client: doer}).get(context.Background(), Config{}, DefaultManifestURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	response.Body.Close()
+	if len(doer.requests) != 1 || doer.requests[0] != DefaultManifestURL {
+		t.Fatalf("requests=%q", doer.requests)
+	}
+}
+
+func TestCheckUsesImmutableGitHubVersionManifest(t *testing.T) {
+	doer := &recordingDoer{responses: map[string]*http.Response{}}
+	runner := &Runner{Client: doer, GOOS: "linux", GOARCH: "amd64", Command: func(context.Context, string, ...string) ([]byte, error) { return []byte("1.2.2"), nil }}
+	_, _, _ = runner.Check(context.Background(), Config{ManifestURL: DefaultManifestURL, TargetVersion: "1.2.3", GitHubMirror: "https://github-mirror.example.invalid"}, io.Discard)
+	want := "https://github-mirror.example.invalid/abcred-labs/yaginx/releases/download/v1.2.3/release-manifest-1.2.3.json"
+	if len(doer.requests) != 1 || doer.requests[0] != want {
+		t.Fatalf("requests=%q want %q", doer.requests, want)
+	}
+}
+
+func TestValidateMirror(t *testing.T) {
+	for _, value := range []string{"", "https://mirror.example.invalid", "https://mirror.example.invalid:8443/prefix/"} {
+		if err := ValidateMirror(value); err != nil {
+			t.Fatalf("%q rejected: %v", value, err)
+		}
+	}
+	for _, value := range []string{"http://mirror.example.invalid", "mirror.example.invalid", "https://user@mirror.example.invalid", "https://mirror.example.invalid/?x=1"} {
+		if err := ValidateMirror(value); err == nil {
+			t.Fatalf("%q accepted", value)
+		}
 	}
 }
 
@@ -630,12 +723,14 @@ func newServer(t *testing.T, version string, published time.Time, checksum strin
 		fmt.Fprintf(w, `{"component":"yaginx","version":"%s","packageUrl":"https://github.com/abcred-labs/yaginx/releases/latest/download/yaginx_%s_amd64.deb","sha256":"%s","publishedAtUtc":"%s","architecture":"amd64","gitSha":"test"}`, version, version, value, published.UTC().Format(time.RFC3339))
 	}
 	mux.HandleFunc("/latest-release.json", manifest)
-	mux.HandleFunc("/manifest-1.2.3.json", manifest)
+	mux.HandleFunc("/release-manifest-1.2.3.json", manifest)
 	server = httptest.NewTLSServer(mux)
 	return server
 }
 func testRunner(server *httptest.Server, current string) *Runner {
-	return &Runner{Client: server.Client(), GOOS: "linux", GOARCH: "amd64", Geteuid: func() int { return 0 }, Now: time.Now, ReleaseRootURL: "https://github.com/abcred-labs/yaginx/releases/latest/download", Lock: func(_ string, action func() error) error { return action() }, Command: func(_ context.Context, name string, _ ...string) ([]byte, error) {
+	client := server.Client()
+	client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+	return &Runner{Client: client, GOOS: "linux", GOARCH: "amd64", Geteuid: func() int { return 0 }, Now: time.Now, ReleaseRootURL: "https://github.com/abcred-labs/yaginx/releases/latest/download", Lock: func(_ string, action func() error) error { return action() }, Command: func(_ context.Context, name string, _ ...string) ([]byte, error) {
 		if name == "dpkg-query" {
 			return []byte(current), nil
 		}

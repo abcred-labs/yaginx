@@ -567,6 +567,8 @@
       "default": {},
       "properties": {
         "manifestURL": { "type": "string", "format": "uri", "default": "https://github.com/abcred-labs/yaginx/releases/latest/download/latest-release.json", "x-env": "YAGINX_UPGRADE_MANIFEST_URL" },
+        "githubMirror": { "type": "string", "pattern": "^(https://[A-Za-z0-9.-]+(:[0-9]+)?(/[A-Za-z0-9._~/-]*)?)?$", "default": "", "description": "Optional HTTPS mirror replacing https://github.com for release downloads.", "x-env": "YAGINX_GITHUB_MIRROR" },
+        "releaseAssetsMirror": { "type": "string", "pattern": "^(https://[A-Za-z0-9.-]+(:[0-9]+)?(/[A-Za-z0-9._~/-]*)?)?$", "default": "", "description": "Optional HTTPS mirror replacing https://release-assets.githubusercontent.com in release download redirects.", "x-env": "YAGINX_RELEASE_ASSETS_MIRROR" },
         "component": { "const": "yaginx", "default": "yaginx" },
         "packageName": { "const": "yaginx", "default": "yaginx" },
         "stateDirectory": { "$ref": "#/$defs/absolutePath", "default": "/var/lib/yaginx/upgrade" },

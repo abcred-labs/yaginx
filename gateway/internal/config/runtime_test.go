@@ -368,6 +368,8 @@ func TestRuntimeAppliesEveryDeclaredEnvironmentOverride(t *testing.T) {
 		"YAGINX_LOG_FORMAT":               "text",
 		"YAGINX_MANAGEMENT_ADDRESS":       "127.0.0.2",
 		"YAGINX_UPGRADE_MANIFEST_URL":     "https://updates.example.invalid/latest",
+		"YAGINX_GITHUB_MIRROR":            "https://github-mirror.example.invalid",
+		"YAGINX_RELEASE_ASSETS_MIRROR":    "https://assets-mirror.example.invalid/prefix",
 	} {
 		t.Setenv(key, value)
 	}
@@ -396,6 +398,23 @@ func TestRuntimeAppliesEveryDeclaredEnvironmentOverride(t *testing.T) {
 	}
 	if got := runtime.Strings("listeners.proxyProtocol", "trustedCIDRs"); len(got) != 2 || got[0] != "10.0.0.0/8" || got[1] != "2001:db8::/32" {
 		t.Fatalf("trusted CIDRs = %#v", got)
+	}
+	if runtime.String("upgrade", "githubMirror") != "https://github-mirror.example.invalid" || runtime.String("upgrade", "releaseAssetsMirror") != "https://assets-mirror.example.invalid/prefix" {
+		t.Fatalf("upgrade mirrors = %#v", section(v, "upgrade"))
+	}
+}
+
+func TestRuntimeRejectsNonHTTPSUpgradeMirror(t *testing.T) {
+	t.Setenv("YAGINX_GITHUB_MIRROR", "http://github-mirror.example.invalid")
+	v := map[string]any{"configVersion": float64(1), "database": map[string]any{"dsn": "postgres://test@127.0.0.1/test?sslmode=disable"}}
+	if err := applyRuntimeDefaults(v); err != nil {
+		t.Fatal(err)
+	}
+	if err := applyRuntimeEnvironment(v); err != nil {
+		t.Fatal(err)
+	}
+	if err := validateRuntime(v); err == nil {
+		t.Fatal("non-HTTPS upgrade mirror accepted")
 	}
 }
 
