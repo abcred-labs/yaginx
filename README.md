@@ -2,15 +2,77 @@
 
 Yaginx is a Go HTTP/HTTPS gateway with a React management console and
 PostgreSQL-backed configuration, certificates, telemetry, and node state.
+It is designed for Debian/systemd deployments and also ships as a container
+image and a database-free rescue runtime.
 
-## Repository layout
+## What is included
 
-- `gateway/`: the production Go service, migrations, packages, and contract tests.
-- `adminui/`: the React management console.
-- `docs/go-version-new-install-runbook.md`: Debian installation and operational guidance.
-- `planning/go-rewrite/`: the compatibility record and the R7 runtime roadmap.
+- HTTP/1.1, HTTP/2, HTTP/3, WebSocket, SSE, streaming uploads and downloads.
+- Host and path routing, request/response transforms, CORS, maintenance mode,
+  proxy protocol, access control and ACME HTTP-01 certificates.
+- A management console with websites, domains, certificates, analytics,
+  request history, IP blacklist, node control, runtime settings and API
+  credentials.
+- PostgreSQL-backed migrations, multi-node configuration synchronization,
+  health and metrics endpoints, OpenTelemetry traces, and safe last-known-good
+  proxy snapshots during database failures.
+- Debian packages, Docker images, a `yaginx-core` rescue binary, checksums,
+  SPDX SBOMs and an administrator-run online upgrade/rollback command.
 
-## Development
+Upgrades are manual: first run `yaginx upgrade --check --version <semver>`, then
+`sudo yaginx upgrade --version <semver>` during a maintenance window. Database
+migrations require the administrator to explicitly add `--migrate-database`.
+Automatic upgrade timers and CLI controls have been removed; see the
+[migration runbook](docs/go-version-new-install-runbook.md#removing-the-legacy-upgrade-timer)
+for older installations.
+
+The public management contract is the
+[OpenAPI document](planning/go-rewrite/contracts/management-api.openapi.yaml).
+The runtime configuration contract is the
+[JSON Schema](planning/go-rewrite/contracts/runtime-config.schema.json).
+
+## Quick start
+
+Requirements: Linux amd64, PostgreSQL 15 or newer, and a DNS name that points
+to the proxy listener when ACME certificates are required. The current public
+release does not publish arm64 packages and release artifacts are not signed.
+
+1. Install a tagged Debian release using the
+   [`install-yaginx.sh`](https://github.com/abcred-labs/yaginx/releases/latest/download/install-yaginx.sh)
+   script, or build the package from source.
+2. Create an empty PostgreSQL database and application role. The setup wizard
+   is available on the management port (9090 by default) on first start.
+3. Restrict the management port to administrators, complete the wizard, and
+   approve the first node.
+4. Verify the service and database:
+
+   ```bash
+   sudo yaginx database status --config /etc/yaginx/config.json
+   sudo yaginx serve --validate --config /etc/yaginx/config.json
+   curl --fail http://127.0.0.1:9090/health/ready
+   ```
+
+The full procedure, permissions, firewall guidance and recovery commands are
+in the [installation runbook](docs/go-version-new-install-runbook.md).
+
+## Documentation
+
+- [Public documentation site](https://abcred-labs.github.io/yaginx/)
+- [Installation guide](docs/installation-guide.md)
+- [Installation and operations runbook](docs/go-version-new-install-runbook.md)
+- [Migration contract](docs/migrations.md)
+- [Public migration runbook](docs/public-migration-runbook.md)
+- [PostgreSQL operations standard](docs/postgresql-operations-standard.md)
+- [Release readiness and support matrix](docs/release-readiness.md)
+- [Release packaging and publishing](docs/release-packaging.md)
+- [Contributing](CONTRIBUTING.md) and [security policy](SECURITY.md)
+
+The management listener serves the React console at `/`, the API at `/api/...`,
+health at `/health/live` and `/health/ready`, metrics at `/metrics`, and MCP
+discovery at `/.well-known/mcp.json`. The retired `/yaginx_console/`,
+`/swagger`, `/hangfire` and `/helps` paths are not part of the Go runtime.
+
+## Development and verification
 
 ```bash
 cd gateway
@@ -18,26 +80,26 @@ go test -count=1 ./...
 go vet ./...
 go run ./cmd/contractlint
 go run ./cmd/contractcheck
+go run ./cmd/proxycheck
 
 cd ../adminui
+pnpm install --frozen-lockfile
+pnpm run api:check
+pnpm test -- --run
 pnpm run build
+
+cd ../yaginx-docs-site
+npx --yes pnpm@8.15.9 install --frozen-lockfile
+npx --yes pnpm@8.15.9 run typecheck
+npx --yes pnpm@8.15.9 run build
 ```
 
-## Deployment and migration
+The PostgreSQL integration suite, ACME/Pebble tests, systemd installation and
+upgrade drills, performance soak, and production traffic exercises require an
+isolated Linux environment. Their acceptance criteria are recorded in
+[`gateway/tests/e2e/r5-functional-rc-report.md`](gateway/tests/e2e/r5-functional-rc-report.md)
+and [`gateway/tests/e2e/r6-cutover-observation.md`](gateway/tests/e2e/r6-cutover-observation.md).
 
-The production release pipeline builds the full `yaginx` binary/package and a
-separately versioned `yaginx-core` Debian rescue package. The standard installer
-installs core only when it is absent; normal `yaginx` upgrades never replace it.
-Configure PostgreSQL 15 or later and run:
+## License
 
-```bash
-/usr/bin/yaginx database init --config /etc/yaginx/config.json
-/usr/bin/yaginx database status --config /etc/yaginx/config.json
-/usr/bin/yaginx serve --validate --config /etc/yaginx/config.json
-```
-
-See [the Go installation runbook](docs/go-version-new-install-runbook.md) for
-the required permissions, runtime configuration, and service verification.
-
-For an existing current Go deployment, back up the database and run
-`yaginx database migrate --config /etc/yaginx/config.json` instead. Older v1 and .NET schemas follow [the compatibility procedure](docs/migrations.md); unsafe or ambiguous schemas are rejected without writes. The reviewed .NET/PostgreSQL importer is `gateway/cmd/legacyimport` and never reads legacy plaintext passwords or private-key material.
+Yaginx is released under the [GNU GPL v3](LICENSE).

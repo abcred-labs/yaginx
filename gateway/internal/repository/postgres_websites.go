@@ -43,6 +43,10 @@ func (p *Postgres) UpsertWebsite(ctx context.Context, value management.WebsiteUp
 	if err := value.RequestHistory.Normalize(); err != nil {
 		return management.Website{}, err
 	}
+	if _, err := management.ParseWebsiteResponseHeaderTimeout(value.ResponseHeaderTimeout); err != nil {
+		return management.Website{}, err
+	}
+	value.ResponseHeaderTimeout = strings.TrimSpace(value.ResponseHeaderTimeout)
 	value.IPAccessMode = strings.ToLower(strings.TrimSpace(value.IPAccessMode))
 	if value.IPAccessMode == "" {
 		value.IPAccessMode = "disabled"

@@ -78,16 +78,22 @@ func ExtractSharedRuntime(values map[string]any) (map[string]any, error) {
 			delete(out, name)
 		}
 	}
+	removeLegacyAutomaticUpgrade(out)
 	return out, nil
 }
 
 // NormalizeSharedRuntime rejects local/bootstrap sections so a management
 // caller cannot accidentally persist a database DSN or node-local path.
-func NormalizeSharedRuntime(document map[string]any) (map[string]any, error) {
+func NormalizeSharedRuntime(document map[string]any, warningSinks ...*[]string) (map[string]any, error) {
 	if document == nil {
 		return nil, fmt.Errorf("runtime settings must be an object")
 	}
-	migrateLegacyLocalNetworkSettings(document)
+	warnings := migrateLegacyLocalNetworkSettings(document)
+	for _, sink := range warningSinks {
+		if sink != nil {
+			*sink = append(*sink, warnings...)
+		}
+	}
 	for key := range document {
 		found := false
 		for _, allowed := range SharedRuntimeSections {
@@ -109,6 +115,8 @@ func ApplySharedRuntime(document map[string]any, values map[string]any) error {
 	if document == nil {
 		return fmt.Errorf("runtime settings must be an object")
 	}
+	removeLegacyAutomaticUpgrade(document)
+	removeLegacyAutomaticUpgrade(values)
 	for _, name := range SharedRuntimeSections {
 		if value, ok := document[name]; ok {
 			if name == "management" {
@@ -147,7 +155,9 @@ func ApplySharedRuntime(document map[string]any, values map[string]any) error {
 // ValidateSharedRuntime validates an API payload without requiring callers to
 // know the local bootstrap fields.
 func ValidateSharedRuntime(document map[string]any) error {
-	values := map[string]any{"configVersion": float64(1)}
+	// The DSN is node-local and absent from shared payloads; supply a validation
+	// placeholder rather than requiring a database credential in the API.
+	values := map[string]any{"configVersion": float64(1), "database": map[string]any{"dsn": "postgres://localhost/yaginx"}}
 	if err := applyRuntimeDefaults(values); err != nil {
 		return err
 	}

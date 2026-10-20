@@ -146,6 +146,8 @@ export interface WebsiteUpsertInput {
   proxyTransforms?: KeyValueString[];
   simpleResponses?: SimpleResponse[];
   requestHistory?: WebsiteRequestHistoryPolicy | null;
+  /** Per-site upstream response header timeout (Go duration, e.g. "600s"); empty inherits the global setting. */
+  responseHeaderTimeout?: string;
 }
 
 export interface Website extends Omit<WebsiteUpsertInput, "id" | "name"> {

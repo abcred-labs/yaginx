@@ -5,6 +5,7 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/url"
 	"os"
@@ -104,6 +105,7 @@ func RuntimeValuesForSetup(path, databaseDSN string) (map[string]any, error) {
 		var values map[string]any
 		if json.Unmarshal(data, &values) == nil && values != nil {
 			section(values, "database")["dsn"] = databaseDSN
+			logLegacyWarnings(removeLegacyAutomaticUpgrade(values))
 			if applyRuntimeDefaults(values) == nil && validateRuntime(values) == nil {
 				return values, nil
 			}
@@ -115,6 +117,7 @@ func RuntimeValuesForSetup(path, databaseDSN string) (map[string]any, error) {
 // SaveRuntime atomically replaces a root-owned runtime configuration while
 // keeping the file private because it contains database credentials.
 func SaveRuntime(path string, values map[string]any) error {
+	logLegacyWarnings(removeLegacyAutomaticUpgrade(values))
 	if err := validateRuntime(values); err != nil {
 		return err
 	}
@@ -278,7 +281,7 @@ func applyRuntimeDefaults(v map[string]any) error {
 		"acme":               map[string]any{"directoryURL": "https://acme-v02.api.letsencrypt.org/directory", "email": "operator@example.com", "keyType": "EC256", "challengeType": "http-01", "orderMode": "single-domain", "scanIntervalMinimum": "30s", "scanIntervalMaximum": "120s", "renewBefore": "168h", "lockRetryBase": "60s", "lockRetryJitterMaximum": "15s", "temporaryRetryMaximum": "6h", "keyValueEndpointURL": "", "keyValueSetPath": "/api/key_value/set", "keyValueGetPath": "/api/key_value/get", "keyValueRequestTimeout": "10s", "followRedirects": false},
 		"trafficAggregation": map[string]any{"enabled": true, "flushInterval": "15s", "queueCapacity": float64(10000), "maxQueueBytes": float64(8 << 20), "batchSize": float64(500), "enableUAParsing": false, "uaCacheSize": float64(2000), "retentionDays": float64(90), "updateCurrentPeriod": true, "excludedPathPrefixes": []any{}},
 		"requestHistory":     map[string]any{"enabled": true, "recordMode": "ErrorsOnly", "successSamplingRate": float64(0), "retentionHours": float64(168), "bodyCaptureMaxBytes": float64(8192), "maxHeaderBytes": float64(8192), "queueCapacity": float64(5000), "maxQueueBytes": float64(16 << 20), "fullQueueBehavior": "DropWrite", "flushInterval": "5s", "batchSize": float64(250), "maxFlushRetryCount": float64(1), "retentionDeleteBatchSize": float64(5000), "excludedPathPrefixes": []any{}, "bodyCaptureContentTypes": []any{"text/", "application/json", "application/xml", "+json", "+xml"}},
-		"resourceReports":    map[string]any{"enabled": true, "minutelyDelay": "10s", "hourlyDelay": "1m", "dailyDelay": "5m", "minutelyReconciliationLookback": "10m", "reconciliationLookback": "48h", "materializationStatementTimeout": "2m", "contributionRetention": "744h", "monitorInfoRetention": "48h", "reportRetentionDays": float64(365), "minutelyRetentionDays": float64(30), "hourlyRetentionDays": float64(365), "dailyRetentionDays": float64(730), "leaderLockNamespace": "yaginx:resource-report"}, "observability": map[string]any{"logLevel": "info", "logFormat": "json", "metricsPath": "/metrics", "livePath": "/health/live", "readyPath": "/health/ready", "otlp": map[string]any{"enabled": false, "endpoint": "", "protocol": "grpc", "insecure": false, "sampleRatio": float64(0.01), "exportTimeout": "5s"}}, "upgrade": map[string]any{"manifestURL": "https://github.com/abcred-labs/yaginx/releases/latest/download/latest-release.json", "component": "yaginx", "packageName": "yaginx", "stateDirectory": "/var/lib/yaginx/upgrade", "lockFile": "/run/yaginx/upgrade.lock", "downloadTimeout": "10m", "readinessTimeout": "90s", "enabled": false, "minPublishedAge": "24h", "checkInterval": "6h", "supportedOS": "linux", "supportedArchitectures": []any{"amd64"}},
+		"resourceReports":    map[string]any{"enabled": true, "minutelyDelay": "10s", "hourlyDelay": "1m", "dailyDelay": "5m", "minutelyReconciliationLookback": "10m", "reconciliationLookback": "48h", "materializationStatementTimeout": "2m", "contributionRetention": "744h", "monitorInfoRetention": "48h", "reportRetentionDays": float64(365), "minutelyRetentionDays": float64(30), "hourlyRetentionDays": float64(365), "dailyRetentionDays": float64(730), "leaderLockNamespace": "yaginx:resource-report"}, "observability": map[string]any{"logLevel": "info", "logFormat": "json", "metricsPath": "/metrics", "livePath": "/health/live", "readyPath": "/health/ready", "otlp": map[string]any{"enabled": false, "endpoint": "", "protocol": "grpc", "insecure": false, "sampleRatio": float64(0.01), "exportTimeout": "5s"}}, "upgrade": map[string]any{"manifestURL": "https://github.com/abcred-labs/yaginx/releases/latest/download/latest-release.json", "component": "yaginx", "packageName": "yaginx", "stateDirectory": "/var/lib/yaginx/upgrade", "lockFile": "/run/yaginx/upgrade.lock", "downloadTimeout": "10m", "readinessTimeout": "90s", "supportedOS": "linux", "supportedArchitectures": []any{"amd64"}},
 	})
 	if admin := section(v, "admin"); admin["basePath"] == "/yaginx_console/" {
 		admin["basePath"] = "/"
@@ -290,7 +293,7 @@ func applyRuntimeDefaults(v map[string]any) error {
 // management allowlist used to live under the shared observability section;
 // it is now node-local because it protects this process's management socket.
 func migrateLegacyLocalNetworkSettings(v map[string]any) []string {
-	var warnings []string
+	warnings := removeLegacyAutomaticUpgrade(v)
 	if v == nil {
 		return warnings
 	}
@@ -316,6 +319,29 @@ func migrateLegacyLocalNetworkSettings(v map[string]any) []string {
 	}
 	delete(acme, "keyValueBaseURL")
 	return warnings
+}
+
+// Only the retired automatic-upgrade keys are ignored. Keep unknown keys so
+// schema validation still catches misspelled manual upgrade settings.
+func removeLegacyAutomaticUpgrade(values map[string]any) []string {
+	upgrade, ok := values["upgrade"].(map[string]any)
+	if !ok {
+		return nil
+	}
+	var warnings []string
+	for _, key := range []string{"enabled", "minPublishedAge", "checkInterval"} {
+		if _, exists := upgrade[key]; exists {
+			delete(upgrade, key)
+			warnings = append(warnings, "upgrade."+key+" ignored: automatic upgrades have been removed; use yaginx upgrade manually")
+		}
+	}
+	return warnings
+}
+
+func logLegacyWarnings(warnings []string) {
+	for _, warning := range warnings {
+		slog.Warn("configuration warning", "warning", warning)
+	}
 }
 
 func defaultCIDRs() []any {

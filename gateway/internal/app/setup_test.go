@@ -4,12 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"reflect"
-	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -24,7 +24,7 @@ func setupTestPorts(t *testing.T) (setupRequest, net.Listener) {
 		t.Fatal(err)
 	}
 	port := listener.Addr().(*net.TCPAddr).Port
-	return setupRequest{BindAddress: "127.0.0.1", ManagementPort: 0, HTTPPort: port, ProxyHTTPPort: port + 1, HTTPSPort: port + 2, ProxyHTTPSPort: port + 3}, listener
+	return setupRequest{BindAddress: "127.0.0.1", HTTPPort: port}, listener
 }
 
 func TestCheckSetupPortsRejectsOccupiedTCPPort(t *testing.T) {
@@ -46,38 +46,115 @@ func TestCheckSetupPortsErrorFieldsIdentifyListener(t *testing.T) {
 }
 
 func TestCheckSetupPortsChecksHTTP3UDPPort(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("Windows does not allow the TCP and UDP listeners used by this check to share a port")
-	}
-	tcp, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer tcp.Close()
 	udp, err := net.ListenPacket("udp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer udp.Close()
-	request := setupRequest{BindAddress: "127.0.0.1", HTTPPort: tcp.Addr().(*net.TCPAddr).Port + 1, ProxyHTTPPort: tcp.Addr().(*net.TCPAddr).Port + 2, HTTPSPort: udp.LocalAddr().(*net.UDPAddr).Port, ProxyHTTPSPort: tcp.Addr().(*net.TCPAddr).Port + 3}
+	// Only the UDP socket is real. Unrelated TCP ports must not prevent this
+	// test from reaching the HTTP/3 check on a busy CI runner.
+	request := setupRequest{BindAddress: "127.0.0.1", HTTPPort: 1, ProxyHTTPPort: 2, HTTPSPort: udp.LocalAddr().(*net.UDPAddr).Port, ProxyHTTPSPort: 3}
 	enabled := true
 	request.HTTP3Enabled = &enabled
-	if err := checkSetupPorts(request); err == nil || !strings.Contains(err.Error(), "http3") || !strings.Contains(err.Error(), "udp") {
+	err = checkSetupPortsWithBind(request, func(network, address string) (io.Closer, error) {
+		if network == "udp" {
+			return bindSetupPort(network, address)
+		}
+		return &setupTestSocket{}, nil
+	})
+	var portErr *setupPortError
+	if !errors.As(err, &portErr) || !strings.Contains(err.Error(), "http3") || !strings.Contains(err.Error(), "udp") || !reflect.DeepEqual(portErr.fields, []string{"bindAddress", "httpsPort"}) {
 		t.Fatalf("occupied UDP port was accepted: %v", err)
 	}
 }
 
-func TestCheckSetupPortsAllowsSetupManagementPort(t *testing.T) {
-	request := setupRequest{BindAddress: "0.0.0.0", ManagementPort: 9090, HTTPPort: 18080, ProxyHTTPPort: 19080, HTTPSPort: 18443, ProxyHTTPSPort: 19443}
-	if err := checkSetupPorts(request); err != nil {
-		t.Fatalf("setup management port should be reusable: %v", err)
-	}
+type setupTestSocket struct{ closes int }
+
+func (s *setupTestSocket) Close() error {
+	s.closes++
+	return nil
 }
 
-func TestCheckSetupPortsRejectsDuplicateTCPPorts(t *testing.T) {
-	request := setupRequest{BindAddress: "127.0.0.1", ManagementPort: 19090, HTTPPort: 18080, ProxyHTTPPort: 18080, HTTPSPort: 18443, ProxyHTTPSPort: 19443}
-	if err := checkSetupPorts(request); err == nil || !strings.Contains(err.Error(), "both") {
-		t.Fatalf("duplicate TCP ports were accepted: %v", err)
+func TestCheckSetupPortsBindingAndCleanup(t *testing.T) {
+	enabled := true
+	for _, tc := range []struct {
+		name       string
+		request    setupRequest
+		failOn     string
+		wantCalls  []string
+		wantFields []string
+		wantError  string
+	}{
+		{
+			name:      "setup management socket is reused",
+			request:   setupRequest{BindAddress: "127.0.0.1", ManagementPort: 9090},
+			wantCalls: []string{"tcp 127.0.0.1:8080", "tcp 127.0.0.1:9080", "tcp 127.0.0.1:8443", "tcp 127.0.0.1:9443"},
+		},
+		{
+			name:      "HTTP3 shares HTTPS port using UDP",
+			request:   setupRequest{BindAddress: "127.0.0.1", ManagementPort: 19090, HTTP3Enabled: &enabled},
+			wantCalls: []string{"tcp 127.0.0.1:19090", "tcp 127.0.0.1:8080", "tcp 127.0.0.1:9080", "tcp 127.0.0.1:8443", "tcp 127.0.0.1:9443", "udp 127.0.0.1:8443"},
+		},
+		{
+			name:    "TCP conflict",
+			request: setupRequest{BindAddress: "127.0.0.1"}, failOn: "tcp 127.0.0.1:9080",
+			wantCalls:  []string{"tcp 127.0.0.1:8080", "tcp 127.0.0.1:9080"},
+			wantFields: []string{"bindAddress", "proxyHttpPort"}, wantError: "proxy_http cannot use 127.0.0.1:9080/tcp",
+		},
+		{
+			name:    "UDP conflict",
+			request: setupRequest{BindAddress: "127.0.0.1", HTTP3Enabled: &enabled}, failOn: "udp 127.0.0.1:8443",
+			wantCalls:  []string{"tcp 127.0.0.1:8080", "tcp 127.0.0.1:9080", "tcp 127.0.0.1:8443", "tcp 127.0.0.1:9443", "udp 127.0.0.1:8443"},
+			wantFields: []string{"bindAddress", "httpsPort"}, wantError: "http3 cannot use 127.0.0.1:8443/udp",
+		},
+		{
+			name:       "duplicate TCP ports",
+			request:    setupRequest{BindAddress: "127.0.0.1", HTTPPort: 18080, ProxyHTTPPort: 18080},
+			wantCalls:  []string{"tcp 127.0.0.1:18080"},
+			wantFields: []string{"httpPort", "proxyHttpPort"}, wantError: "used by both http and proxy_http",
+		},
+		{
+			name:       "invalid port",
+			request:    setupRequest{BindAddress: "127.0.0.1", HTTPPort: 65536},
+			wantFields: []string{"httpPort"}, wantError: "http port 65536 is invalid",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var calls []string
+			var sockets []*setupTestSocket
+			bindErr := errors.New("address already in use")
+			err := checkSetupPortsWithBind(tc.request, func(network, address string) (io.Closer, error) {
+				call := network + " " + address
+				calls = append(calls, call)
+				if call == tc.failOn {
+					return nil, bindErr
+				}
+				socket := &setupTestSocket{}
+				sockets = append(sockets, socket)
+				return socket, nil
+			})
+			if tc.wantError == "" {
+				if err != nil {
+					t.Fatal(err)
+				}
+			} else {
+				var portErr *setupPortError
+				if !errors.As(err, &portErr) || !strings.Contains(err.Error(), tc.wantError) || !reflect.DeepEqual(portErr.fields, tc.wantFields) {
+					t.Fatalf("error=%v, want %q with fields %v", err, tc.wantError, tc.wantFields)
+				}
+				if tc.failOn != "" && !errors.Is(err, bindErr) {
+					t.Fatalf("bind error was not preserved: %v", err)
+				}
+			}
+			if !reflect.DeepEqual(calls, tc.wantCalls) {
+				t.Fatalf("bind calls=%v, want %v", calls, tc.wantCalls)
+			}
+			for i, socket := range sockets {
+				if socket.closes != 1 {
+					t.Errorf("socket %d closed %d times, want once", i, socket.closes)
+				}
+			}
+		})
 	}
 }
 
@@ -95,7 +172,7 @@ func TestSetupApplyRejectsOccupiedPortBeforeApply(t *testing.T) {
 	called := false
 	handler := setupHandlerWithApply(t.TempDir()+"/config.json", "", auth,
 		func(context.Context, string, setupRequest) error { called = true; return nil }, func() {})
-	body := fmt.Sprintf(`{"host":"127.0.0.1","database":"db","username":"user","password":"secret","bindAddress":"127.0.0.1","httpPort":%d,"proxyHttpPort":%d,"httpsPort":%d,"proxyHttpsPort":%d,"confirm":true}`, port, port+1, port+2, port+3)
+	body := fmt.Sprintf(`{"host":"127.0.0.1","database":"db","username":"user","password":"secret","bindAddress":"127.0.0.1","httpPort":%d,"confirm":true}`, port)
 	request := httptest.NewRequest(http.MethodPost, "/api/setup/apply", strings.NewReader(body))
 	request.RemoteAddr = "127.0.0.1:1234"
 	request.Header.Set("X-Yaginx-Setup-Token", auth.token)

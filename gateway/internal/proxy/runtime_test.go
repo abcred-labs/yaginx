@@ -571,6 +571,46 @@ func TestRuntimeClassifiesUpstreamResponseHeaderTimeout(t *testing.T) {
 	}
 }
 
+func TestSiteResponseHeaderTimeoutOverridesGlobalSetting(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		time.Sleep(50 * time.Millisecond)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer upstream.Close()
+	runtime := New(&Snapshot{Sites: []Site{
+		{Hosts: []string{"slow.test"}, Destination: upstream.URL, ResponseHeaderTimeout: 2 * time.Second},
+		{Hosts: []string{"fast.test"}, Destination: upstream.URL},
+	}})
+	runtime.transport.ResponseHeaderTimeout = 5 * time.Millisecond
+
+	override := httptest.NewRecorder()
+	runtime.ServeHTTP(override, httptest.NewRequest(http.MethodGet, "http://slow.test/", nil))
+	if override.Code != http.StatusOK {
+		t.Fatalf("site override should outlive global timeout, got %d", override.Code)
+	}
+	inherited := httptest.NewRecorder()
+	runtime.ServeHTTP(inherited, httptest.NewRequest(http.MethodGet, "http://fast.test/", nil))
+	if inherited.Code != http.StatusBadGateway {
+		t.Fatalf("site without override should use global timeout, got %d", inherited.Code)
+	}
+}
+
+func TestDerivedTransportIsCachedPerOverride(t *testing.T) {
+	r := New(nil)
+	first, err := r.transportFor("", false, time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, _ := r.transportFor("", false, time.Minute)
+	other, _ := r.transportFor("", false, 2*time.Minute)
+	if first != second || first == other || first.(*http.Transport).ResponseHeaderTimeout != time.Minute {
+		t.Fatal("derived transports must be cached by override and carry the timeout")
+	}
+	if shared, _ := r.transportFor("", false, r.transport.ResponseHeaderTimeout); shared != http.RoundTripper(r.transport) {
+		t.Fatal("override equal to the global value should reuse the shared transport")
+	}
+}
+
 func TestRuntimeClassifiesPipelineExceptionAndInvalidTransport(t *testing.T) {
 	var panicEvent telemetry.Event
 	runtime := New(&Snapshot{Sites: []Site{{Hosts: []string{"pipeline.test"}}}})
@@ -1023,10 +1063,10 @@ func TestRouteAndTransformApplyBeforeUpstream(t *testing.T) {
 
 func TestRouteTransportOptionsAreValidatedAndScoped(t *testing.T) {
 	r := New(nil)
-	if _, err := r.transportFor("://bad", false); err == nil {
+	if _, err := r.transportFor("://bad", false, 0); err == nil {
 		t.Fatal("invalid forward proxy accepted")
 	}
-	transport, err := r.transportFor("http://127.0.0.1:8080", true)
+	transport, err := r.transportFor("http://127.0.0.1:8080", true, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1337,5 +1377,26 @@ func TestRuntimeE2EWebSocketUpgradeAndFrame(t *testing.T) {
 	echo := make([]byte, len(payload))
 	if _, err := io.ReadFull(reader, echo); err != nil || string(echo) != string(payload) {
 		t.Fatalf("websocket echo=%q err=%v", echo, err)
+	}
+}
+
+func TestPruneDerivedTransportsKeepsRecentlyUsed(t *testing.T) {
+	r := New(nil)
+	stale, err := r.transportFor("", false, time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fresh, _ := r.transportFor("", false, 2*time.Minute)
+	r.derivedMu.Lock()
+	r.derived[transportKey{responseHeaderTimeout: time.Minute}].lastUsed = time.Now().Add(-2 * derivedTransportIdleTTL)
+	r.derivedMu.Unlock()
+
+	r.Replace(&Snapshot{})
+
+	if again, _ := r.transportFor("", false, 2*time.Minute); again != fresh {
+		t.Fatal("recently used transport must survive a snapshot reload")
+	}
+	if rebuilt, _ := r.transportFor("", false, time.Minute); rebuilt == stale {
+		t.Fatal("idle transport should have been pruned and rebuilt")
 	}
 }

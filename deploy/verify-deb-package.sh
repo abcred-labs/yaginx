@@ -17,10 +17,17 @@ for path in \
   usr/share/yaginx/version.txt \
   usr/share/yaginx/adminui/index.html \
   etc/yaginx/config.json \
-  lib/systemd/system/yaginx.service \
-  lib/systemd/system/yaginx-upgrade.service \
-  lib/systemd/system/yaginx-upgrade.timer; do
+  lib/systemd/system/yaginx.service; do
   printf '%s\n' "$contents" | grep -F "$path" >/dev/null
 done
 printf '%s\n' "$contents" | awk '$1 == "-rw-------" && $NF == "./etc/yaginx/config.json" { found=1 } END { exit !found }'
 dpkg-deb --ctrl-tarfile "$package" | tar -xOf - ./conffiles | grep -Fx '/etc/yaginx/config.json' >/dev/null
+
+if printf '%s\n' "$contents" | grep -E 'lib/systemd/system/yaginx-upgrade\.(service|timer)$' >/dev/null; then
+  echo "retired automatic upgrade units must not be packaged" >&2
+  exit 1
+fi
+control=$(dpkg-deb --ctrl-tarfile "$package" | tar -tvf -)
+for hook in preinst postinst postrm; do
+  printf '%s\n' "$control" | awk -v hook="./$hook" '$1 == "-rwxr-xr-x" && $NF == hook { found=1 } END { exit !found }'
+done

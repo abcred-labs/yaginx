@@ -3,6 +3,9 @@ package repository
 import (
 	"encoding/json"
 	"testing"
+	"time"
+
+	"yaginx-gateway/internal/proxy"
 )
 
 func TestValidateSnapshotTransformsRejectsUnresolvedRouteValues(t *testing.T) {
@@ -283,5 +286,26 @@ func TestWebsiteEditorReadsCollectionsEmbeddedInLegacySpecifications(t *testing.
     }`), false)
 	if err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestDecodeProxySiteResponseHeaderTimeout(t *testing.T) {
+	decode := func(raw string) proxy.Site {
+		t.Helper()
+		site, err := decodeProxySite(7, "site", []byte(`{"defaultHost":"site.test","responseHeaderTimeout":`+raw+`}`), []byte(`[]`), []byte(`[]`), []byte(`{}`), []byte(`[]`))
+		if err != nil {
+			t.Fatalf("%s: %v", raw, err)
+		}
+		return site
+	}
+	if got := decode(`"600s"`).ResponseHeaderTimeout; got != 600*time.Second {
+		t.Fatalf("valid override=%v", got)
+	}
+	// An invalid stored value must degrade to the global timeout instead of
+	// failing the whole snapshot.
+	for _, raw := range []string{`"nonsense"`, `"0s"`, `"-5s"`, `"2h"`} {
+		if got := decode(raw).ResponseHeaderTimeout; got != 0 {
+			t.Fatalf("%s should inherit the global timeout, got %v", raw, got)
+		}
 	}
 }

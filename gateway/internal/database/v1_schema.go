@@ -47,7 +47,7 @@ func v1TableNames() []string {
 	return names
 }
 
-// ValidateCurrentV1Schema identifies the historical stable Go schema so 1.0.x
+// ValidateCurrentV1Schema identifies the historical stable Go schema so 1.x
 // can provide a precise upgrade message instead of treating it as unknown.
 func ValidateCurrentV1Schema(ctx context.Context, db *sql.DB) error {
 	return validateCurrentV1Schema(ctx, db)

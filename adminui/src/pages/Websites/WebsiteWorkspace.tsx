@@ -203,6 +203,7 @@ const OverviewSection: React.FC<{ websiteId: string }> = ({ websiteId }) => <>
     <Form.Item name="allowInvalidTlsCertificate" label="忽略上游 TLS 证书错误" valuePropName="checked"><Switch checkedChildren="忽略" unCheckedChildren="校验" /></Form.Item>
     <Form.Item name="redirectHttpToHttps" label="HTTP 自动跳转 HTTPS" valuePropName="checked"><Switch checkedChildren="开启" unCheckedChildren="关闭" /></Form.Item>
   </Space></Col>
+  <Col xs={24} lg={12}><Form.Item name="responseHeaderTimeout" label="上游响应头超时" extra="上游在该时间内未返回响应头则返回 502。留空则使用全局设置（proxy.responseHeaderTimeout，默认 30s）；最大 1h。" rules={[{ pattern: /^(\d+(\.\d+)?(ms|s|m|h))+$/, message: '请输入时长，例如 600s 或 10m' }]}><Input placeholder="例如 600s" allowClear /></Form.Item></Col>
 </Row></>;
 
 const AccessControlSection = () => <div>
