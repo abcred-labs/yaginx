@@ -7,8 +7,10 @@ instructions.
 
 ## Status
 
-- R0-R6 are complete: cutover, the 14-day observation period, and all required
-  exercises passed.
+- R0-R6 implementation and cutover records are complete. External release
+  gates that require production credentials, a writable legacy host, fixed
+  hardware or real systemd remain tracked in the R5 evidence report and are
+  not claimed by local CI.
 - Go is the only production runtime in this repository. The pre-Go release
   artifact and `migration-pre-Go` tag are retained in controlled external
   storage for rollback evidence.
@@ -35,7 +37,8 @@ instructions.
 3. [v2 database roles](../../gateway/deploy/postgres/roles.sql)
 4. [Runtime configuration JSON Schema](contracts/runtime-config.schema.json)
 5. [Proxy compatibility matrix](contracts/proxy-compatibility-matrix.md)
-6. [Archived v1 design records](archive/v1-design-records/README.md)
+6. [Manual upgrade contract](contracts/upgrade-policy.md)
+7. [Archived v1 design records](archive/v1-design-records/README.md)
 
 ## Machine Contracts
 

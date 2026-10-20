@@ -1,4 +1,4 @@
-FROM alpine:3.22.0
+FROM alpine:3.24.2
 ARG BINARY_PATH
 RUN apk add --no-cache ca-certificates tzdata \
     && adduser -D -H -s /sbin/nologin yaginx \

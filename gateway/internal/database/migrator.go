@@ -86,7 +86,7 @@ func InitializeV2(ctx context.Context, databaseURL string, output io.Writer) err
 }
 
 // MigrateV2 upgrades an existing v2 schema. V1 databases must be upgraded by
-// the final 0.1.x release before installing 1.0.x.
+// the final 0.1.x release before installing 1.x.
 func MigrateV2(ctx context.Context, databaseURL string, output io.Writer) error {
 	db, err := openSQL(ctx, databaseURL)
 	if err != nil {
@@ -100,7 +100,7 @@ func MigrateV2(ctx context.Context, databaseURL string, output io.Writer) error 
 		}
 		switch state {
 		case StateCurrentV1:
-			return fmt.Errorf("current-v1 database is no longer supported by 1.0.x; run the final 0.1.x release to migrate it to v2 first")
+			return fmt.Errorf("current-v1 database is no longer supported by 1.x; run the final 0.1.x release to migrate it to v2 first")
 		case StateCurrentV2, StateCurrentV2Pending:
 			// Existing v2 installations may have only the baseline migration.
 		case StateUninitialized:
@@ -171,7 +171,7 @@ func DatabaseNeedsMigration(ctx context.Context, databaseURL string) (bool, erro
 	case StateUninitialized:
 		return true, nil
 	case StateCurrentV1:
-		return false, fmt.Errorf("current-v1 database requires the final 0.1.x release before upgrading to 1.0.x")
+		return false, fmt.Errorf("current-v1 database requires the final 0.1.x release before upgrading to 1.x")
 	case StateCurrentV2, StateCurrentV2Pending:
 		return !v2MigrationsComplete(ctx, db), nil
 	case StateUnsupported:

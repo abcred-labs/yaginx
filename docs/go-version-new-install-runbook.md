@@ -10,7 +10,7 @@
 | --- | --- |
 | 操作系统 | Debian 12，`amd64` |
 | PostgreSQL | 最低主版本 15；本文使用本机 `127.0.0.1:5432` 的 PostgreSQL 15 |
-| 发布版本 | `1.0.x`；运行时配置要求 PostgreSQL 15 |
+| 发布版本 | `1.1.x`；运行时配置要求 PostgreSQL 15 |
 | 运行账户 | `systemd` 以 root 运行；Debian 包不创建专用系统账户 |
 | 数据库 | 登录角色 `yaginx`，数据库 `yaginx` |
 | 运行配置 | `/etc/yaginx/config.json` |
@@ -58,7 +58,7 @@ bash install-yaginx.sh
 7. 临时下载目录会在脚本退出时删除；`dpkg --force-confdef --force-confold` 保留已有 `/etc/yaginx/config.json`。
 8. 首次安装时会先安装独立的 `yaginx-core` 救援包；若该包已安装则不会更新它。
 
-`deploy/install-yaginx.sh` 和直接 `dpkg -i` 仅用于首次安装、离线安装或受控包部署；它们不会重启一个已运行的 `yaginx.service`。在线升级使用 `sudo yaginx upgrade`：当服务原本处于运行状态时，该命令会在安装完成后执行一次 `systemctl restart yaginx`，等待 `/health/ready` 返回新版本；失败时自动安装旧包、重启旧服务并验证回滚结果。需要安装某个已发布版本时使用 `sudo yaginx upgrade --version <semver>`，检查但不安装时使用 `sudo yaginx upgrade --check --version <semver>`；指定版本会读取对应的不可变版本 manifest，且拒绝降级。对于已有 V2 schema 但仍有待执行迁移的数据库，使用 `sudo yaginx upgrade --migrate-database`，升级器会先安装候选包，再使用候选版本执行 `database migrate`，成功后才重启服务。迁移失败时不会重启候选服务，会尝试恢复旧包；数据库迁移不是可自动回滚事务，必须由运维确认数据库状态。因此使用普通升级命令后不需要再手动执行 `systemctl restart yaginx`。
+`deploy/install-yaginx.sh` 和直接 `dpkg -i` 仅用于首次安装、离线安装或受控包部署；它们不会重启一个已运行的 `yaginx.service`。在线升级使用 `sudo yaginx upgrade`：当服务原本处于运行状态时，该命令会在安装完成后执行一次 `systemctl restart yaginx`，等待 `/health/ready` 返回新版本；失败时自动安装旧包、重启旧服务并验证回滚结果。需要安装某个已发布版本时使用 `sudo yaginx upgrade --version <semver>`，检查但不安装时使用 `sudo yaginx upgrade --check --version <semver>`；指定版本会读取对应的不可变版本 manifest，且拒绝降级。对于已有 V2 schema 但仍有待执行迁移的数据库，使用 `sudo yaginx upgrade --version <semver> --migrate-database`，升级器会先安装候选包，再使用候选版本执行 `database migrate`，成功后才重启服务。迁移失败时不会重启候选服务，会尝试恢复旧包；数据库迁移不是可自动回滚事务，必须由运维确认数据库状态。因此使用普通升级命令后不需要再手动执行 `systemctl restart yaginx`。
 
 安装完成后确认版本：
 
@@ -78,10 +78,9 @@ dpkg -s yaginx-core | grep -E '^(Status|Version):'
 | `gateway/config/yaginx.example.json` | 构建 Debian 包时复制为初始 `/etc/yaginx/config.json` | 仅为包内初始模板；全新 Go 安装按第 4 节改为已验证配置 |
 | `gateway/deploy/deb/conffiles` | 声明 `/etc/yaginx/config.json` 为 Debian conffile | 升级时保留本机配置；不应依赖包升级覆盖密钥或端口 |
 | `gateway/deploy/deb/postinst` | Debian 安装后执行 | 创建 root 专用的数据/日志目录，并执行 systemd daemon-reload |
+| `gateway/deploy/deb/preinst` | Debian 解包前执行 | 停止并禁用项目旧版升级 timer，不停止或等待升级 worker |
 | `gateway/deploy/systemd/yaginx.service` | 复制到 `/lib/systemd/system/yaginx.service` | 主服务 unit |
 | `gateway/deploy/systemd/yaginx-core.service` | 由 `yaginx-core` 包复制到 `/lib/systemd/system/` | 手工救援 unit，与主服务互斥 |
-| `gateway/deploy/systemd/yaginx-upgrade.service` | 复制到 `/lib/systemd/system/` | 自动升级 worker unit |
-| `gateway/deploy/systemd/yaginx-upgrade.timer` | 复制到 `/lib/systemd/system/` | 自动升级检查 timer |
 | `gateway/deploy/postgres/roles.sql` | 不会由 Debian 包或 migration 自动执行 | 可选的生产职责分离授权资产；应在 migration 后由数据库所有者执行，并在文件外受控授予登录角色成员资格 |
 
 本 runbook 的单节点测试使用数据库所有者 `yaginx` 执行 migration 和运行时连接，因此不需要执行 `roles.sql`。需要 migrator/runtime 分离的生产部署应采用该授权资产，并审计每个 `GRANT` 后再执行。
@@ -161,11 +160,9 @@ JSON
 | --- | --- | --- |
 | `/lib/systemd/system/yaginx.service` | systemd 主机首次安装自动启用并启动；升级保留原状态 | 以 root 执行 `yaginx serve --config /etc/yaginx/config.json`；启用 `NoNewPrivileges`、私有 `/tmp`、只读系统目录和有限写入路径 |
 | `/lib/systemd/system/yaginx-core.service` | 不可 enable，只能手工 start | 以 root 执行 `yaginx-core --snapshot /var/lib/yaginx/core/runtime.json`；不连接数据库、不提供管理/健康端口，并与 `yaginx.service` 互斥 |
-| `/lib/systemd/system/yaginx-upgrade.service` | 安装后未自动启用 | root 执行 `yaginx upgrade --auto-worker --config /etc/yaginx/config.json` |
-| `/lib/systemd/system/yaginx-upgrade.timer` | 安装后未自动启用 | 开机 10 分钟后、之后每 6 小时触发升级检查 |
 | `/etc/yaginx/config.json` | Debian conffile | `dpkg --force-confold` 下升级保留本机版本 |
 
-首次安装自动执行 `systemctl enable --now yaginx`；升级不会额外启用或重启服务。自动升级必须另外通过 `yaginx upgrade auto on` 或受控方式启用；默认 `upgrade.enabled=false`。
+首次安装自动执行 `systemctl enable --now yaginx`；升级不会额外启用或重启主服务。在线升级的重启由管理员发起的 `yaginx upgrade` 负责。自动升级已移除，不再安装升级 worker/timer。
 
 如果没有预先写入有效的 `config.json`，启动服务会进入一次性 setup mode。setup
 默认监听 `0.0.0.0:9090`，页面本身可以远程打开，但所有 setup API 都必须携带服务
@@ -202,10 +199,9 @@ setup 成功后会写回完整且权限为 `0600` 的 `/etc/yaginx/config.json`�
 
 `yaginx upgrade` 默认以 UTC 时间戳输出检查、下载、校验、安装、重启、就绪轮询、回滚等阶段信息；同一内容会写入 `/var/log/yaginx/upgrade.log`。该文件为 `0600`，达到 10 MiB 时轮转，保留最近 5 个历史文件。日志文件不可写不会阻止升级或回滚，终端输出仍会继续并给出警告。
 
-自动 worker 的终端输出由 systemd 保存，可用以下命令查看：
+管理员手动升级的阶段输出会同时写入日志，可用以下命令查看：
 
 ```bash
-journalctl -u yaginx-upgrade --no-pager -n 200
 tail -n 200 /var/log/yaginx/upgrade.log
 ```
 
@@ -217,7 +213,7 @@ journalctl -u yaginx --since '<upgrade restart UTC time>' --no-pager
 
 ## 5. 迁移、节点批准与服务启动
 
-由 DBA 预先创建空数据库后，先用 `doctor` 验证配置和数据库连接，再执行 v2 初始化、角色授权和状态校验；`serve --validate` 必须在初始化完成后执行。对于已经是 V2 的既有环境，先完成可恢复备份，再使用 `database migrate`。V1 数据库必须先使用最后一个 `0.1.x` 版本迁移，`1.0.x` 不会自动迁移 V1。`database` 动作位于前，随后可传入 `--config`：
+由 DBA 预先创建空数据库后，先用 `doctor` 验证配置和数据库连接，再执行 v2 初始化、角色授权和状态校验；`serve --validate` 必须在初始化完成后执行。对于已经是 V2 的既有环境，先完成可恢复备份，再使用 `database migrate`。V1 数据库必须先使用最后一个 `0.1.x` 版本迁移，`1.1.x` 不会自动迁移 V1。`database` 动作位于前，随后可传入 `--config`：
 
 ```bash
 /usr/bin/yaginx doctor --check-db --config /etc/yaginx/config.json
@@ -231,7 +227,7 @@ systemctl status yaginx --no-pager
 curl --fail --silent --show-error http://127.0.0.1:19090/health/live
 ```
 
-`database init` 只接受真正空的数据库。`database migrate` 只接受 V2 schema；V1、旧 .NET schema、部分 schema 或未知版本均会拒绝。检测到 V1 时，先安装最后一个 `0.1.x` 完成迁移，再升级到 `1.0.x`。不能通过 repair/baseline 自动修复。
+`database init` 只接受真正空的数据库。`database migrate` 只接受 V2 schema；V1、旧 .NET schema、部分 schema 或未知版本均会拒绝。检测到 V1 时，先安装最后一个 `0.1.x` 完成迁移，再升级到 `1.1.x`。不能通过 repair/baseline 自动修复。
 
 `upgrade --migrate-database` 只在候选包已安装后执行迁移，默认升级不会自动修改数据库。迁移失败后程序包可以回滚，但数据库结构可能已经前进，不能把包回滚视为数据库回滚；重试前应检查迁移跟踪表和备份。
 
@@ -536,8 +532,6 @@ Header、Query 参数和 JSON 字段；只有错误请求持久化受大小限�
 | `upgrade.component` / `upgrade.packageName` | `yaginx` / `yaginx` | — | 固定值 |
 | `upgrade.stateDirectory` / `upgrade.lockFile` | `/var/lib/yaginx/upgrade` / `/run/yaginx/upgrade.lock` | — | 绝对路径 |
 | `upgrade.downloadTimeout` / `upgrade.readinessTimeout` | `10m` / `90s` | — | 下载与升级就绪超时 |
-| `upgrade.enabled` | `false` | — | 自动升级默认关闭 |
-| `upgrade.minPublishedAge` / `upgrade.checkInterval` | `24h` / `6h` | — | 发布最小年龄；检查间隔固定为 6h |
 | `upgrade.supportedOS` / `upgrade.supportedArchitectures` | `linux` / `["amd64"]` | — | 固定发布平台约束 |
 
 ## 8. 共享运行时材料与环境变量
@@ -597,3 +591,49 @@ Authorization: Bearer <在管理 UI“API 凭据”页面创建的 token>
 ```
 
 管理 UI 位于 `/`，在“系统 → API 凭据”中创建用途为 `mcp` 的凭据并保存一次性返回的 token。管理 API 位于 `/api/...`，MCP endpoint 位于 `/mcp`。旧 `/yaginx_console/` 路径已移除。
+
+<a id="removing-the-legacy-upgrade-timer"></a>
+
+## 移除旧自动升级 timer
+
+升级时机和多节点执行顺序由管理员安排。迁移旧安装前，先检查 unit 来源，确认是项目旧包
+提供的 `/lib/systemd/system/yaginx-upgrade.timer`（或 `/usr/lib` 下的同一 unit），然后停用：
+
+```bash
+systemctl show yaginx-upgrade.timer -p FragmentPath
+sudo systemctl disable --now yaginx-upgrade.timer
+systemctl status yaginx-upgrade.service --no-pager
+```
+
+确认已经开始的 worker 和其 `dpkg` 子进程结束后，再人工安装审核过的目标版本。
+不要通过停止 worker 来结束升级。首次迁移可下载、校验目标 `.deb` 后，在持有
+`/run/yaginx/upgrade.lock` 的情况下执行 `dpkg -i`，或使用旧版手动升级命令。
+新包的 `preinst` 在解包删除旧 unit 前停止并禁用项目 timer；缺少 unit、重复安装、
+无 systemd 或 systemd 无法查询均可通过（无法查询时输出警告并跳过清理），旧 timer
+停用失败则明确失败。安装脚本不会停止或等待升级 worker，
+允许已开始的旧升级完成，并在安装后执行 `daemon-reload`。兼容清理不删除管理员自建
+unit、配置、日志或回滚包，也不改变首次安装和主服务启停策略。
+
+旧配置的 `upgrade.enabled`、`upgrade.minPublishedAge`、`upgrade.checkInterval`
+会在本地和共享运行配置校验前被剔除，并通过配置警告说明自动升级已移除；包括
+`enabled=true` 在内的旧值均无效。`configVersion` 仍为 `1`。读取配置不因此改写文件；
+新生成、保存和导出的配置不再包含这些字段，其他未知字段仍按原规则校验。
+旧 `upgrade auto status|on|off` 和 `--auto-worker` 返回用法错误（退出码 `2`），不执行
+升级或修改配置。
+
+后续操作推荐先检查目标版本，再在维护窗口执行同一版本：
+
+```bash
+sudo yaginx upgrade --check --version <semver>
+sudo yaginx upgrade --version <semver>
+# 只有管理员确认需要数据库迁移时，才添加 --migrate-database
+```
+
+包校验、并发锁、拒绝降级、健康检查和失败回滚继续保护手动升级。现有修复参数
+`--skip-preflight-health`、`--no-restart`、`--package-only` 保持原语义。
+
+已知独立风险：`dpkg` 安装失败后的恢复策略不在本次移除范围内；包回滚也不能撤销
+已执行的数据库迁移。发生这类失败时应保留日志、回滚包和数据库备份，由管理员检查状态。
+
+验收结果见[自动升级移除验收记录](upgrade-removal-validation.md)，独立问题见
+[升级器独立风险](upgrade-known-risks.md)。

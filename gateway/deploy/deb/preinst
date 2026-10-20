@@ -1,0 +1,52 @@
+#!/bin/sh
+set -eu
+
+case "${1:-}" in
+    install|upgrade) ;;
+    *) exit 0 ;;
+esac
+
+# Do this before unpack removes the old units. Never stop or wait for the
+# upgrade service: it may be the process currently running this dpkg command.
+if [ ! -d /run/systemd/system ] || ! command -v systemctl >/dev/null 2>&1; then
+    exit 0
+fi
+
+timer=yaginx-upgrade.timer
+# Cleanup of a retired unit must never block installing the package. If systemd
+# cannot be queried, warn and continue; postinst/daemon-reload will reconcile.
+if ! state=$(systemctl show --property=LoadState --value "$timer" 2>/dev/null); then
+    echo "Unable to inspect legacy $timer; skipping its cleanup" >&2
+    exit 0
+fi
+fragment=
+if [ "$state" != not-found ]; then
+    fragment=$(systemctl show --property=FragmentPath --value "$timer" 2>/dev/null) || { echo "Unable to inspect legacy $timer; skipping its cleanup" >&2; exit 0; }
+fi
+case "$fragment" in
+    /lib/systemd/system/yaginx-upgrade.timer|/usr/lib/systemd/system/yaginx-upgrade.timer)
+        if ! systemctl stop "$timer"; then
+            echo "Unable to stop legacy $timer" >&2
+            exit 1
+        fi
+        if ! systemctl disable "$timer"; then
+            echo "Unable to disable legacy $timer" >&2
+            exit 1
+        fi
+        ;;
+    ""|/dev/null)
+        # A previous unpack may already have removed the fragment. Remove only
+        # the project's known enablement link, including a dangling link.
+        link=/etc/systemd/system/timers.target.wants/yaginx-upgrade.timer
+        if [ -L "$link" ]; then
+            case "$(readlink "$link")" in
+                /lib/systemd/system/yaginx-upgrade.timer|/usr/lib/systemd/system/yaginx-upgrade.timer)
+                    rm -- "$link"
+                    ;;
+            esac
+        fi
+        ;;
+    *)
+        # An administrator supplied this unit; leave it alone.
+        ;;
+esac

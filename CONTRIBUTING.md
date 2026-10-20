@@ -17,6 +17,12 @@ pnpm install --frozen-lockfile
 pnpm run api:check
 pnpm test
 pnpm run build
+cd ../yaginx-docs-site
+npx --yes pnpm@8.15.9 install --frozen-lockfile
+npx --yes pnpm@8.15.9 run typecheck
+npx --yes pnpm@8.15.9 run build
+cd ..
+node scripts/check-doc-links.mjs
 ```
 
 Migration files are append-only after release. A schema change must include a

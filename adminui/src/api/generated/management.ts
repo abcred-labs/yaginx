@@ -1164,6 +1164,8 @@ export interface components {
             proxyTransforms: components["schemas"]["KeyValueString"][] | null;
             simpleResponses: components["schemas"]["SimpleResponse"][] | null;
             requestHistory?: components["schemas"]["WebsiteRequestHistoryPolicy"];
+            /** @description Optional per-site upstream response header timeout (Go duration, e.g. 600s, max 1h). Omitted or empty inherits proxy.responseHeaderTimeout. */
+            responseHeaderTimeout?: string;
         };
         WebsiteRequestHistoryPolicy: {
             /**
@@ -1215,6 +1217,8 @@ export interface components {
             simpleResponses: components["schemas"]["SimpleResponseRequest"][] | null;
             /** @default null */
             requestHistory: components["schemas"]["WebsiteRequestHistoryPolicy"] | null;
+            /** @description Optional per-site upstream response header timeout (Go duration, e.g. 600s, max 1h). Omitted or empty inherits proxy.responseHeaderTimeout. */
+            responseHeaderTimeout?: string;
         };
         WebsiteUpsertResult: components["schemas"]["WebsiteBase"] & {
             id: components["schemas"]["Int64String"];
