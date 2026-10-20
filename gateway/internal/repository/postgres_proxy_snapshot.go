@@ -6,10 +6,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
+	"yaginx-gateway/internal/management"
 	"yaginx-gateway/internal/proxy"
 
 	"github.com/jackc/pgx/v5"
@@ -351,7 +353,14 @@ func decodeProxySite(id int64, name string, specifications, hosts, rules, transf
 	if err != nil {
 		return proxy.Site{}, fmt.Errorf("website %d request history: %w", id, err)
 	}
-	site := proxy.Site{ID: id, Hosts: hostNames, RedirectHost: legacyDefaultHost, Destination: stringValue(spec, "defaultDestination", ""), DestinationHost: stringValue(spec, "defaultDestinationHost", ""), RedirectHTTPS: boolValue(spec, "redirectHttpToHttps"), MaintenanceMode: boolValue(spec, "isMaintenanceMode"), IPAccessMode: ipAccessMode, IPAccessCIDRs: ipAccessCIDRs, OriginalHost: boolValue(spec, "preserveOriginalHost"), WebProxy: stringValue(spec, "webProxy", ""), AllowUnsafeTLS: boolValue(spec, "allowInvalidTlsCertificate"), RequestHistoryMode: historyMode, RequestHistorySuccessSamplingRate: historyRate, Simple: map[string]proxy.Response{}}
+	responseHeaderTimeout, err := management.ParseWebsiteResponseHeaderTimeout(stringValue(spec, "responseHeaderTimeout", ""))
+	if err != nil {
+		// A bad per-site override must not fail the whole snapshot; fall back to
+		// the global proxy.responseHeaderTimeout for this site only.
+		slog.Warn("ignoring invalid website responseHeaderTimeout", "websiteId", id, "error", err)
+		responseHeaderTimeout = 0
+	}
+	site := proxy.Site{ID: id, ResponseHeaderTimeout: responseHeaderTimeout, Hosts: hostNames, RedirectHost: legacyDefaultHost, Destination: stringValue(spec, "defaultDestination", ""), DestinationHost: stringValue(spec, "defaultDestinationHost", ""), RedirectHTTPS: boolValue(spec, "redirectHttpToHttps"), MaintenanceMode: boolValue(spec, "isMaintenanceMode"), IPAccessMode: ipAccessMode, IPAccessCIDRs: ipAccessCIDRs, OriginalHost: boolValue(spec, "preserveOriginalHost"), WebProxy: stringValue(spec, "webProxy", ""), AllowUnsafeTLS: boolValue(spec, "allowInvalidTlsCertificate"), RequestHistoryMode: historyMode, RequestHistorySuccessSamplingRate: historyRate, Simple: map[string]proxy.Response{}}
 	bindingsPresent := false
 	if rawBindings, ok := spec["hostBindings"]; ok && rawBindings != nil {
 		bindingsPresent = true

@@ -15,9 +15,12 @@ mkdir -p "$out"
 export GOOS=linux GOARCH=amd64 CGO_ENABLED=0
 commit=${GITHUB_SHA:-$(git rev-parse HEAD)}
 build_time=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-ldflags="-s -w -X yaginx-gateway/internal/app.Version=$version -X yaginx-gateway/internal/app.Commit=$commit -X yaginx-gateway/internal/app.BuildTime=$build_time"
-(cd "$root/gateway" && go build -trimpath -buildvcs=false -ldflags "$ldflags" -o "$out/yaginx-linux-amd64" ./cmd/yaginx)
-(cd "$root/gateway" && go build -trimpath -buildvcs=false -ldflags "$ldflags" -o "$out/yaginx-core-linux-amd64" ./cmd/yaginx-core)
+for component in yaginx yaginx-core; do
+  package=app
+  if [ "$component" = yaginx-core ]; then package=core; fi
+  ldflags="-s -w -X yaginx-gateway/internal/$package.Version=$version -X yaginx-gateway/internal/$package.Commit=$commit -X yaginx-gateway/internal/$package.BuildTime=$build_time"
+  (cd "$root/gateway" && go build -trimpath -buildvcs=false -ldflags "$ldflags" -o "$out/$component-linux-amd64" "./cmd/$component")
+done
 
 "$root/deploy/build-deb.sh" "$version" amd64 "$out"
 "$root/deploy/build-core-deb.sh" "$version" amd64 "$out" "artifacts/$version"

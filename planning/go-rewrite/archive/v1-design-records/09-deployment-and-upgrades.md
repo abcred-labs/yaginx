@@ -65,7 +65,9 @@ systemctl restart yaginx
 
 ## 人工升级
 
-`yaginx upgrade --check` 读取 HTTPS GitHub Releases manifest，验证 component/version/arch/SHA/immutable package URL；`yaginx upgrade` 要求 Linux root，仅人工触发。`verify` 和 `rollback` 是本地兼容命令，不读取 GitHub Releases。`yaginx upgrade auto status|on|off` 管理 root `yaginx-upgrade.timer`，默认关闭，timer 固定每六小时检查且仅接受发布时间至少 24 小时的版本。网关主服务继续以 non-root `yaginx` 用户运行；手动命令和 timer 在 runner 内共同持有 `/run/yaginx/upgrade.lock`：
+`yaginx upgrade --check` 读取 HTTPS GitHub Releases manifest，验证 component/version/arch/SHA/immutable package URL；`yaginx upgrade` 要求 Linux root，仅人工触发。`verify` 和 `rollback` 是本地兼容命令，不读取 GitHub Releases。**历史说明：自动升级功能现已移除；以下 timer、自动 CLI 与发布时间门槛仅记录旧版行为，不适用于当前部署。迁移步骤见 [当前运维手册](../../../../docs/go-version-new-install-runbook.md#removing-the-legacy-upgrade-timer)。**
+
+旧版 `yaginx upgrade auto status|on|off` 管理 root `yaginx-upgrade.timer`，默认关闭，timer 固定每六小时检查且仅接受发布时间至少 24 小时的版本。网关主服务继续以 non-root `yaginx` 用户运行；手动命令和 timer 在 runner 内共同持有 `/run/yaginx/upgrade.lock`：
 
 1. 获得 `/run/yaginx/upgrade.lock` flock。
 2. 下载同 filesystem temp，禁止 redirect 并校验 SHA-256。

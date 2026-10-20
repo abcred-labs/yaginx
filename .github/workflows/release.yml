@@ -9,7 +9,69 @@ permissions:
   packages: write
 
 jobs:
+  release-gate:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: yaginx_test
+          POSTGRES_PASSWORD: yaginx_test_pw
+          POSTGRES_DB: yaginx_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd="pg_isready -U yaginx_test -d yaginx_test"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.x'
+          cache-dependency-path: gateway/go.sum
+      - name: Verify and test gateway
+        working-directory: gateway
+        run: |
+          go mod verify
+          go build ./cmd/yaginx
+          go test -count=1 ./...
+          go vet ./...
+          go run ./cmd/contractlint
+          go run ./cmd/contractcheck
+          go run ./cmd/proxycheck
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 9.15.4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: adminui/pnpm-lock.yaml
+      - name: Verify admin UI
+        working-directory: adminui
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm run api:check
+          pnpm test -- --run
+          pnpm run build
+      - name: Run PostgreSQL integration
+        working-directory: gateway
+        env:
+          YAGINX_TEST_DATABASE_URL: postgres://yaginx_test:yaginx_test_pw@127.0.0.1:5432/yaginx_test?sslmode=disable
+        run: go test -p 1 -count=1 -tags integration ./internal/database ./internal/configsync ./internal/repository ./internal/management ./internal/app ./internal/acme ./cmd/legacyimport
+      - name: Verify documentation
+        working-directory: yaginx-docs-site
+        shell: bash
+        run: |
+          npx --yes pnpm@8.15.9 install --frozen-lockfile
+          npx --yes pnpm@8.15.9 run typecheck
+          npx --yes pnpm@8.15.9 run build
+      - name: Check documentation content and links
+        run: |
+          node scripts/check-doc-content.mjs
+          node scripts/check-doc-links.mjs
+
   release:
+    needs: release-gate
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -17,7 +79,7 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.25.x'
+          go-version: '1.26.x'
           cache-dependency-path: gateway/go.sum
       - uses: pnpm/action-setup@v6
         with:

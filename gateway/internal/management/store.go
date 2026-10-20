@@ -262,6 +262,27 @@ func (policy *WebsiteRequestHistoryPolicy) Normalize() error {
 	return nil
 }
 
+// MaxWebsiteResponseHeaderTimeout bounds the per-site upstream response header
+// timeout so one site cannot pin proxy connections indefinitely.
+const MaxWebsiteResponseHeaderTimeout = time.Hour
+
+// ParseWebsiteResponseHeaderTimeout validates the optional per-site override.
+// An empty value means "inherit proxy.responseHeaderTimeout" and yields zero.
+func ParseWebsiteResponseHeaderTimeout(raw string) (time.Duration, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return 0, nil
+	}
+	value, err := time.ParseDuration(raw)
+	if err != nil {
+		return 0, fmt.Errorf("website responseHeaderTimeout must be a duration such as 600s: %w", err)
+	}
+	if value <= 0 || value > MaxWebsiteResponseHeaderTimeout {
+		return 0, fmt.Errorf("website responseHeaderTimeout must be greater than 0 and at most %s", MaxWebsiteResponseHeaderTimeout)
+	}
+	return value, nil
+}
+
 type WebsiteUpsertRequest struct {
 	ID                         *ID                          `json:"id"`
 	Name                       *string                      `json:"name"`
@@ -283,6 +304,7 @@ type WebsiteUpsertRequest struct {
 	ProxyTransforms            []KeyValueString             `json:"proxyTransforms"`
 	SimpleResponses            []SimpleResponse             `json:"simpleResponses"`
 	RequestHistory             *WebsiteRequestHistoryPolicy `json:"requestHistory,omitempty"`
+	ResponseHeaderTimeout      string                       `json:"responseHeaderTimeout,omitempty"`
 }
 
 type Website struct {
@@ -340,6 +362,8 @@ type SMTPTestSendRequest struct {
 }
 
 type RuntimeSetting struct {
+	// Configuration compatibility warnings are local diagnostics, not API fields.
+	Warnings  []string       `json:"-"`
 	Config    map[string]any `json:"config"`
 	Revision  ID             `json:"revision"`
 	UpdatedAt *int64         `json:"updatedAt"`

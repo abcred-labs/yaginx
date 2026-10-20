@@ -279,6 +279,21 @@ func setupPortFields(name string) []string {
 }
 
 func checkSetupPorts(request setupRequest) error {
+	return checkSetupPortsWithBind(request, bindSetupPort)
+}
+
+func bindSetupPort(network, address string) (io.Closer, error) {
+	switch network {
+	case "udp":
+		return net.ListenPacket(network, address)
+	case "tcp":
+		return net.Listen(network, address)
+	default:
+		return nil, fmt.Errorf("unsupported listener network %q", network)
+	}
+}
+
+func checkSetupPortsWithBind(request setupRequest, bind func(network, address string) (io.Closer, error)) error {
 	bindAddress := strings.TrimSpace(request.BindAddress)
 	if bindAddress == "" {
 		bindAddress = "0.0.0.0"
@@ -311,26 +326,12 @@ func checkSetupPorts(request setupRequest) error {
 			continue
 		}
 		address := net.JoinHostPort(bindAddress, fmt.Sprintf("%d", listener.port))
-		var closeFn func() error
-		var err error
-		if listener.proto == "udp" {
-			var packet net.PacketConn
-			packet, err = net.ListenPacket("udp", address)
-			if err == nil {
-				closeFn = packet.Close
-			}
-		} else {
-			var tcp net.Listener
-			tcp, err = net.Listen("tcp", address)
-			if err == nil {
-				closeFn = tcp.Close
-			}
-		}
+		connection, err := bind(listener.proto, address)
 		if err != nil {
 			fields := append([]string{"bindAddress"}, setupPortFields(listener.name)...)
 			return &setupPortError{fields: fields, err: fmt.Errorf("listener %s cannot use %s/%s: %w", listener.name, address, listener.proto, err)}
 		}
-		_ = closeFn()
+		_ = connection.Close()
 	}
 	return nil
 }
@@ -479,7 +480,7 @@ func applySetupDatabase(ctx context.Context, configPath string, request setupReq
 		request.Action = map[database.State]string{database.StateUninitialized: "initialize", database.StateCurrentV2: "migrate", database.StateCurrentV2Pending: "migrate"}[state]
 	}
 	if state == database.StateCurrentV1 {
-		return fmt.Errorf("current-v1 database requires the final 0.1.x release before upgrading to 1.0.x")
+		return fmt.Errorf("current-v1 database requires the final 0.1.x release before upgrading to 1.x")
 	}
 	if state == database.StateUnsupported {
 		return fmt.Errorf("database schema is unsupported; automatic setup is refused")
@@ -574,7 +575,7 @@ func setupStateMessage(state database.State) string {
 	case database.StateUninitialized:
 		return "empty database; initialization is available"
 	case database.StateCurrentV1:
-		return "current-v1 database detected; use the final 0.1.x release before upgrading to 1.0.x"
+		return "current-v1 database detected; use the final 0.1.x release before upgrading to 1.x"
 	case database.StateCurrentV2:
 		return "supported v2 schema"
 	case database.StateCurrentV2Pending:

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -28,7 +29,8 @@ func (p *Postgres) GetRuntimeSetting(ctx context.Context) (*management.RuntimeSe
 	if err := json.Unmarshal(payload, &document); err != nil {
 		return nil, fmt.Errorf("decode runtime setting: %w", err)
 	}
-	config, err := config.NormalizeSharedRuntime(document)
+	var warnings []string
+	normalized, err := config.NormalizeSharedRuntime(document, &warnings)
 	if err != nil {
 		return nil, fmt.Errorf("normalize runtime setting: %w", err)
 	}
@@ -38,7 +40,8 @@ func (p *Postgres) GetRuntimeSetting(ctx context.Context) (*management.RuntimeSe
 	}
 	updated := updatedAt.Unix()
 	return &management.RuntimeSetting{
-		Config:    config,
+		Config:    normalized,
+		Warnings:  warnings,
 		Revision:  management.ID(revision),
 		UpdatedAt: &updated,
 		ApplyMode: "restart",
@@ -57,7 +60,28 @@ func (p *Postgres) SetRuntimeSetting(ctx context.Context, input management.Runti
 	if input.Config == nil {
 		return nil, fmt.Errorf("runtime config is required")
 	}
-	plain, err := json.Marshal(input.Config)
+	// Normalize first so legacy keys are migrated before schema validation, and
+	// work on a copy so neither step mutates the caller's request payload.
+	raw, err := json.Marshal(input.Config)
+	if err != nil {
+		return nil, fmt.Errorf("encode runtime setting: %w", err)
+	}
+	var document map[string]any
+	if err := json.Unmarshal(raw, &document); err != nil {
+		return nil, fmt.Errorf("copy runtime setting: %w", err)
+	}
+	var warnings []string
+	normalized, err := config.NormalizeSharedRuntime(document, &warnings)
+	if err != nil {
+		return nil, fmt.Errorf("normalize runtime setting: %w", err)
+	}
+	for _, warning := range warnings {
+		slog.Warn("runtime setting compatibility", "warning", warning)
+	}
+	if err := config.ValidateSharedRuntime(normalized); err != nil {
+		return nil, fmt.Errorf("validate runtime setting: %w", err)
+	}
+	plain, err := json.Marshal(normalized)
 	if err != nil {
 		return nil, fmt.Errorf("encode runtime setting: %w", err)
 	}

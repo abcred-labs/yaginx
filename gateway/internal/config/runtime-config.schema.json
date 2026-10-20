@@ -561,6 +561,7 @@
       }
     },
     "upgrade": {
+      "description": "Administrator-initiated upgrades only. Retired automatic-upgrade fields are stripped before validation with configuration warnings.",
       "type": "object",
       "additionalProperties": false,
       "default": {},
@@ -572,9 +573,6 @@
         "lockFile": { "$ref": "#/$defs/absolutePath", "default": "/run/yaginx/upgrade.lock" },
         "downloadTimeout": { "$ref": "#/$defs/duration", "default": "10m" },
         "readinessTimeout": { "$ref": "#/$defs/duration", "default": "90s" },
-        "enabled": { "type": "boolean", "default": false },
-        "minPublishedAge": { "$ref": "#/$defs/duration", "default": "24h" },
-        "checkInterval": { "const": "6h", "default": "6h" },
         "supportedOS": { "const": "linux", "default": "linux" },
         "supportedArchitectures": {
           "type": "array",

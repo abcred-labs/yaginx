@@ -26,7 +26,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.25.x'
+          go-version: '1.26.x'
           cache-dependency-path: gateway/go.sum
       - name: Verify modules
         working-directory: gateway
@@ -100,6 +100,10 @@ jobs:
           cache-dependency-path: yaginx-docs-site/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
       - run: pnpm run typecheck
+      - name: Check local documentation links
+        run: node ../scripts/check-doc-links.mjs
+      - name: Check documentation content
+        run: node ../scripts/check-doc-content.mjs
       - run: pnpm run build
 
   contract-tooling:
@@ -148,7 +152,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.25.x'
+          go-version: '1.26.x'
           cache-dependency-path: gateway/go.sum
       - uses: actions/setup-node@v4
         with:

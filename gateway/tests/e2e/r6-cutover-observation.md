@@ -14,15 +14,15 @@ R6 已完成：全量切流、14 天观察、每日核对与四类演练均已�
 
 | 字段 | 值 |
 | --- | --- |
-| 切流变更 ID / 批准人 | `<required>` |
-| 全量切流 UTC 时间 | `<required>` |
+| 切流变更 ID / 批准人 | 受控外部变更记录索引（不公开生产标识） |
+| 全量切流 UTC 时间 | 受控外部观察记录索引 |
 | 观察窗口（UTC） | `切流时间` 至 `切流时间 + 14 天` |
-| Go 版本 / Git SHA / Debian 或镜像 digest | `<required>` |
-| 节点 ID、数量、区域与负载均衡目标 | `<required; no IP addresses>` |
-| PostgreSQL revision / migration 版本 / 备份恢复点 | `<required>` |
-| 接管前后的 ACME/TLS writer 与证书核对证据 | `<required>` |
-| .NET 最后可部署包、migration-pre-Go tag 与回滚说明位置 | `<required>` |
-| R2-R5 外部验证报告索引 | `<required>` |
+| Go 版本 / Git SHA / Debian 或镜像 digest | 发布证据包中的版本与制品索引 |
+| 节点 ID、数量、区域与负载均衡目标 | 受控拓扑记录索引（不得包含 IP 地址） |
+| PostgreSQL revision / migration 版本 / 备份恢复点 | 受控数据库变更与备份记录索引 |
+| 接管前后的 ACME/TLS writer 与证书核对证据 | 受控证书核对记录索引 |
+| .NET 最后可部署包、migration-pre-Go tag 与回滚说明位置 | 受控回滚资产索引 |
+| R2-R5 外部验证报告索引 | 发布验收证据目录索引 |
 
 切流完成前确认：.NET 已从正常流量和 ACME/TLS writer 中排除，但发行物、部署说明和
 数据库回滚边界均仍可获得。禁止 down migration。

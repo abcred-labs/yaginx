@@ -4,63 +4,40 @@ import type * as Preset from '@docusaurus/preset-classic';
 
 const config: Config = {
   title: 'Yaginx',
-  tagline: 'Dinosaurs are cool',
-  favicon: 'img/favicon.ico',
-
-  // Set the production url of your site here
+  tagline: 'An open-source HTTP/HTTPS gateway and management plane',
+  favicon: 'img/logo.svg',
   url: 'https://abcred-labs.github.io',
-  // Set the /<baseUrl>/ pathname under which your site is served
-  // For GitHub pages deployment, it is often '/<projectName>/'
   baseUrl: '/yaginx/',
-
-  // GitHub pages deployment config.
-  // If you aren't using GitHub pages, you don't need these.
-  organizationName: 'abcred-labs', // Usually your GitHub org/user name.
-  projectName: 'yaginx', // Usually your repo name.
-
+  organizationName: 'abcred-labs',
+  projectName: 'yaginx',
   onBrokenLinks: 'throw',
-  onBrokenMarkdownLinks: 'warn',
-
-  // Even if you don't use internationalization, you can use this field to set
-  // useful metadata like html lang. For example, if your site is Chinese, you
-  // may want to replace "en" with "zh-Hans".
+  onBrokenMarkdownLinks: 'throw',
   i18n: {
     defaultLocale: 'en',
     locales: ['en'],
   },
-
   presets: [
     [
       'classic',
       {
         docs: {
           sidebarPath: './sidebars.ts',
-          // Please change this to your repo.
-          // Remove this to remove the "edit this page" links.
           editUrl:
             'https://github.com/abcred-labs/yaginx/tree/main/yaginx-docs-site',
         },
-        blog: {
-          showReadingTime: true,
-          // Please change this to your repo.
-          // Remove this to remove the "edit this page" links.
-          editUrl:
-            'https://github.com/abcred-labs/yaginx/tree/main/yaginx-docs-site',
-        },
+        blog: false,
         theme: {
           customCss: './src/css/custom.css',
         },
       } satisfies Preset.Options,
     ],
   ],
-
   themeConfig: {
-    // Replace with your project's social card
-    image: 'img/docusaurus-social-card.jpg',
+    image: 'img/logo.svg',
     navbar: {
       title: 'Yaginx',
       logo: {
-        alt: 'My Site Logo',
+        alt: 'Yaginx logo',
         src: 'img/logo.svg',
       },
       items: [
@@ -68,9 +45,13 @@ const config: Config = {
           type: 'docSidebar',
           sidebarId: 'tutorialSidebar',
           position: 'left',
-          label: '文档',
+          label: 'Documentation',
         },
-        {to: '/blog', label: '博客', position: 'left'},
+        {
+          href: 'https://github.com/abcred-labs/yaginx/releases',
+          label: 'Releases',
+          position: 'right',
+        },
         {
           href: 'https://github.com/abcred-labs/yaginx',
           label: 'GitHub',
@@ -82,46 +63,32 @@ const config: Config = {
       style: 'dark',
       links: [
         {
-          title: 'Docs',
+          title: 'Documentation',
           items: [
-            {
-              label: 'Tutorial',
-              to: '/docs/intro',
-            },
+            {label: 'Getting started', to: '/docs/intro'},
+            {label: 'Operations', to: '/docs/operations/maintenance'},
+            {label: 'API and MCP', to: '/docs/reference/api'},
           ],
         },
         {
-          title: 'Community',
+          title: 'Project',
           items: [
             {
-              label: 'Stack Overflow',
-              href: 'https://stackoverflow.com/questions/tagged/docusaurus',
+              label: 'Releases',
+              href: 'https://github.com/abcred-labs/yaginx/releases',
             },
             {
-              label: 'Discord',
-              href: 'https://discordapp.com/invite/docusaurus',
+              label: 'Issues',
+              href: 'https://github.com/abcred-labs/yaginx/issues',
             },
             {
-              label: 'Twitter',
-              href: 'https://twitter.com/docusaurus',
-            },
-          ],
-        },
-        {
-          title: 'More',
-          items: [
-            {
-              label: 'Blog',
-              to: '/blog',
-            },
-            {
-              label: 'GitHub',
-              href: 'https://github.com/facebook/docusaurus',
+              label: 'Security policy',
+              href: 'https://github.com/abcred-labs/yaginx/blob/main/SECURITY.md',
             },
           ],
         },
       ],
-      copyright: `Copyright © ${new Date().getFullYear()} My Project, Inc. Built with Docusaurus.`,
+      copyright: `Copyright © ${new Date().getFullYear()} Yaginx contributors. Licensed under GPL-3.0.`,
     },
     prism: {
       theme: prismThemes.github,
