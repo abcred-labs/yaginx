@@ -31,7 +31,7 @@
 # first administrator account.
 # The page checks the database lineage and only offers initialization for an
 # empty database or migration for an existing v2 schema. V1 databases must be
-# migrated with the final 0.1.x release before installing 1.0.x.
+# migrated with the final 0.1.x release before installing 1.1.x.
 # The DBA must create the empty PostgreSQL database and application role before
 # opening the wizard. The wizard initializes the Yaginx schema; it never runs
 # CREATE DATABASE or asks for a temporary PostgreSQL administrator connection.

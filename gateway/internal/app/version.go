@@ -3,9 +3,12 @@ package app
 import (
 	"fmt"
 	"io"
+
+	"yaginx-gateway/internal/core"
 )
 
-const BaseVersion = "1.0"
+// BaseVersion is shared with core so a release bump is a single edit.
+const BaseVersion = core.BaseVersion
 
 var (
 	Version   = BaseVersion + ".0"

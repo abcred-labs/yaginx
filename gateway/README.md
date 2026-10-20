@@ -29,7 +29,7 @@ v2 API/proxy fixture inventory. SQL query code is generated reproducibly with
 - `database init|migrate|status`: initializes an empty v2 database, upgrades
   only an existing v2 schema, or reports the database lifecycle state. V1
   databases must be migrated with the final `0.1.x` release before installing
-  `1.0.x`.
+  `1.1.x`.
 - `report backfill --from YYYY-MM-DD --to YYYY-MM-DD`: materializes daily
   reports from existing hourly reports one UTC day per transaction. It starts
   no listeners and can be repeated safely after an interrupted historical
@@ -48,11 +48,10 @@ v2 API/proxy fixture inventory. SQL query code is generated reproducibly with
 - `upgrade --check` verifies the latest immutable GitHub Release Debian release; `sudo
   yaginx upgrade` verifies and installs it. When `yaginx.service` is active,
   this is the supported online upgrade path: it restarts the service, waits for
-  readiness, and automatically rolls back if readiness fails. `upgrade auto
-  status|on|off` controls the root-owned six-hour systemd timer, with a 24-hour
-  publication safety delay. Each install emits timestamped phase diagnostics to
-  the invoking terminal (or `yaginx-upgrade.service` journal) and to the
-  root-only rolling `/var/log/yaginx/upgrade.log`; readiness failures include
+  readiness, and automatically rolls back if readiness fails. Upgrades are
+  initiated by an administrator. Each install emits timestamped phase diagnostics
+  to the invoking terminal and to the root-only rolling
+  `/var/log/yaginx/upgrade.log`; readiness failures include
   the health endpoint's safe diagnostic reasons and append the relevant
   `yaginx.service` journal tail before rollback.
   For an existing V2 database with pending migrations, use
@@ -64,7 +63,8 @@ v2 API/proxy fixture inventory. SQL query code is generated reproducibly with
   To install a specific published release, use `sudo yaginx upgrade --version
   <semver>` (or combine `--check` with `--version`). This fetches the immutable
   version manifest, refuses downgrades, and keeps the same readiness and rollback
-  checks. Automatic upgrades always follow the latest manifest.
+  checks. Check the chosen version with `--check --version <semver>` before
+  installing it during a maintenance window.
   `upgrade verify --candidate <file>` prints a local candidate SHA-256 and
   `upgrade rollback --current <file> --previous <file>` retains the prior
   atomic rollback behavior.
@@ -76,7 +76,11 @@ v2 API/proxy fixture inventory. SQL query code is generated reproducibly with
   and never touches systemd; it is intended for repairing hosts with a
   missing or invalid configuration. It accepts `--manifest-url`,
   `--state-directory`, and `--lock-file` overrides and cannot run database
-  migrations or the automatic worker.
+  migrations.
+
+  Automatic upgrades have been removed. Before migrating an old installation,
+  disable its timer and confirm any running worker has completed; follow the
+  [migration procedure](../docs/go-version-new-install-runbook.md#removing-the-legacy-upgrade-timer).
 
 ## Release assets
 
@@ -86,7 +90,7 @@ GitHub Actions publishes the full `yaginx` package and a separately versioned
 immutable packages, checksums, SBOM, installer, and manifest. Releases are
 currently unsigned; upgrade verification relies on HTTPS, immutable object
 names, and SHA-256.
-The GitHub Release assets include versioned Debian packages, checksums, SPDX SBOMs, installers, and manifests. The container build is:
+The GitHub Release assets include versioned Debian packages, checksums, SPDX SBOMs, installers, and manifests. Releases currently target Linux amd64 and are not signed; verification relies on HTTPS, immutable object names, and SHA-256. The container build is:
 
 ```powershell
 docker build -f gateway/deploy/docker/Dockerfile -t yaginx:<version> .
@@ -116,3 +120,8 @@ the main service so it can safely take over the same business ports.
 
 The full architecture and migration constraints live in
 `../planning/go-rewrite/`.
+
+For the public support boundary and the release acceptance checklist, see
+`../docs/release-readiness.md`. The operator-facing installation, migration,
+upgrade, recovery and MCP procedures are maintained in
+`../docs/go-version-new-install-runbook.md`.

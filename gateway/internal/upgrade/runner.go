@@ -37,7 +37,7 @@ var ErrLockBusy = errors.New("yaginx upgrade is already in progress")
 type Config struct {
 	ManifestURL, LockFile, StateDirectory, ReadyURL string
 	TargetVersion                                   string
-	MinPublishedAge, DownloadTimeout, ReadyTimeout  time.Duration
+	DownloadTimeout, ReadyTimeout                   time.Duration
 }
 
 type Release struct {
@@ -154,27 +154,23 @@ func (r *Runner) check(ctx context.Context, cfg Config, out io.Writer, logger *o
 	return release, true, nil
 }
 
-func (r *Runner) Install(ctx context.Context, cfg Config, automatic bool, out io.Writer) error {
-	return r.InstallWithOptions(ctx, cfg, automatic, InstallOptions{}, out)
+func (r *Runner) Install(ctx context.Context, cfg Config, out io.Writer) error {
+	return r.InstallWithOptions(ctx, cfg, InstallOptions{}, out)
 }
 
-func (r *Runner) InstallWithOptions(ctx context.Context, cfg Config, automatic bool, options InstallOptions, out io.Writer) error {
+func (r *Runner) InstallWithOptions(ctx context.Context, cfg Config, options InstallOptions, out io.Writer) error {
 	if err := r.validatePlatform(false); err != nil {
 		return err
 	}
 	logger := newOperationLogger(out, r.logFile(), r.now)
 	defer logger.Close()
-	logger.Event("upgrade.start", "automatic=%t", automatic)
+	logger.Event("upgrade.start", "administrator requested upgrade")
 	lock := r.Lock
 	if lock == nil {
 		return errors.New("upgrade lock is unavailable")
 	}
 	logger.Event("lock.acquire", "acquiring upgrade lock")
-	err := lock(cfg.LockFile, func() error { return r.installLocked(ctx, cfg, automatic, options, out, logger) })
-	if automatic && errors.Is(err, ErrLockBusy) {
-		logger.Event("lock.skipped", "automatic upgrade skipped: another upgrade is in progress")
-		return nil
-	}
+	err := lock(cfg.LockFile, func() error { return r.installLocked(ctx, cfg, options, out, logger) })
 	if err != nil {
 		if r.RecordSystemError != nil {
 			r.RecordSystemError("install", upgradeErrorCode(err), err)
@@ -204,7 +200,7 @@ func upgradeErrorCode(err error) string {
 	}
 }
 
-func (r *Runner) installLocked(ctx context.Context, cfg Config, automatic bool, options InstallOptions, out io.Writer, logger *operationLogger) error {
+func (r *Runner) installLocked(ctx context.Context, cfg Config, options InstallOptions, out io.Writer, logger *operationLogger) error {
 	mode := "online"
 	if options.PackageOnly {
 		mode = "package-only"
@@ -220,10 +216,6 @@ func (r *Runner) installLocked(ctx context.Context, cfg Config, automatic bool, 
 	release, available, err := r.check(ctx, cfg, out, logger)
 	if err != nil || !available {
 		return err
-	}
-	if automatic && r.now().Sub(release.PublishedAtUTC.UTC()) < cfg.MinPublishedAge {
-		logger.Event("automatic.skipped", "release age %s is below %s", r.now().Sub(release.PublishedAtUTC.UTC()).Round(time.Minute), cfg.MinPublishedAge)
-		return nil
 	}
 	current, err := r.currentVersion(ctx)
 	if err != nil {
@@ -330,6 +322,9 @@ func (r *Runner) restartAndWait(ctx context.Context, cfg Config, version, nodeID
 	} else if !active {
 		return fmt.Errorf("%s.service is not active after restart", ServiceName)
 	}
+	if nodeID == "" {
+		logger.Event("readiness.node_id", "prior node id unknown; node id match skipped, verifying version only")
+	}
 	logger.Event("readiness.wait", "expected_version=%s expected_node_id=%s timeout=%s", version, nodeID, cfg.ReadyTimeout)
 	deadline := r.now().Add(cfg.ReadyTimeout)
 	var last error
@@ -337,7 +332,7 @@ func (r *Runner) restartAndWait(ctx context.Context, cfg Config, version, nodeID
 	for {
 		attempt++
 		ready, err := r.ready(ctx, cfg.ReadyURL)
-		if err == nil && ready.Ready && ready.Version == version && ready.NodeID == nodeID {
+		if err == nil && ready.Ready && ready.Version == version && (nodeID == "" || ready.NodeID == nodeID) {
 			logger.Event("readiness.poll", "attempt=%d result=ready %s", attempt, ready.diagnostic())
 			return nil
 		}
@@ -739,6 +734,6 @@ func checksumFile(path string) (string, error) {
 	return hex.EncodeToString(hash.Sum(nil)), nil
 }
 func DefaultConfig() Config {
-	return Config{ManifestURL: DefaultManifestURL, LockFile: "/run/yaginx/upgrade.lock", StateDirectory: "/var/lib/yaginx/upgrade", MinPublishedAge: 24 * time.Hour, DownloadTimeout: 10 * time.Minute, ReadyTimeout: 90 * time.Second, ReadyURL: "http://127.0.0.1:9090/health/ready"}
+	return Config{ManifestURL: DefaultManifestURL, LockFile: "/run/yaginx/upgrade.lock", StateDirectory: "/var/lib/yaginx/upgrade", DownloadTimeout: 10 * time.Minute, ReadyTimeout: 90 * time.Second, ReadyURL: "http://127.0.0.1:9090/health/ready"}
 }
 func VersionPath() string { return filepath.Clean(VersionFile) }
