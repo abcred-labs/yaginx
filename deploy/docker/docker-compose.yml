@@ -1,0 +1,78 @@
+# One-command Yaginx deployment: PostgreSQL + Yaginx.
+#
+#   cp .env.example .env      # then set POSTGRES_PASSWORD
+#   docker compose up -d
+#
+# The Admin UI is served on http://127.0.0.1:${YAGINX_MANAGEMENT_PORT:-9090}.
+name: yaginx
+
+services:
+  postgres:
+    image: ${POSTGRES_IMAGE:-postgres:18}
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: yaginx
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: yaginx
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U yaginx -d yaginx"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  # One-shot: writes the runtime config on first run, then initializes or
+  # migrates the database. Safe to re-run on every `docker compose up`.
+  init:
+    image: ${YAGINX_IMAGE:-ghcr.io/abcred-labs/yaginx}:${YAGINX_VERSION:-latest}
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - yaginx-data:/var/lib/yaginx
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - |
+        cfg=/var/lib/yaginx/config.json
+        if [ ! -f "$$cfg" ]; then
+          umask 077
+          printf '{"configVersion":1,"database":{"dsn":"host=postgres port=5432 dbname=yaginx user=yaginx password=%s sslmode=disable"}}\n' "$$POSTGRES_PASSWORD" > "$$cfg"
+        fi
+        state=$$(yaginx database status --config "$$cfg")
+        echo "database state: $$state"
+        case "$$state" in
+          uninitialized) yaginx database init --config "$$cfg" ;;
+          current-v2-with-pending-migrations) yaginx database migrate --config "$$cfg" ;;
+          current-v2) ;;
+          *) echo "unsupported database state: $$state" >&2; exit 1 ;;
+        esac
+
+  yaginx:
+    image: ${YAGINX_IMAGE:-ghcr.io/abcred-labs/yaginx}:${YAGINX_VERSION:-latest}
+    restart: unless-stopped
+    depends_on:
+      init:
+        condition: service_completed_successfully
+    command: ["serve", "--config", "/var/lib/yaginx/config.json"]
+    ports:
+      - "${YAGINX_HTTP_PORT:-80}:8080"
+      - "${YAGINX_HTTPS_PORT:-443}:8443"
+      - "${YAGINX_HTTPS_PORT:-443}:8443/udp"
+      # Admin UI / management API: keep on loopback unless fronted by a trusted network.
+      - "${YAGINX_MANAGEMENT_BIND:-127.0.0.1}:${YAGINX_MANAGEMENT_PORT:-9090}:9090"
+    volumes:
+      - yaginx-data:/var/lib/yaginx
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:9090/health/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+
+volumes:
+  postgres-data:
+  yaginx-data:

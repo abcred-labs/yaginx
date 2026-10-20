@@ -26,3 +26,6 @@ audit-*.json
 # Playwright
 test-results/
 playwright-report/
+
+# Docker Compose secrets
+deploy/docker/.env
