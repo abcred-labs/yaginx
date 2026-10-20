@@ -58,17 +58,15 @@ bash install-yaginx.sh
 
 ### 2.2 中国大陆
 
-通过镜像下载脚本、manifest 和 `.deb`（以 root 执行）：
+先设置两个镜像环境变量，再执行与全球相同的安装脚本（以 root 执行；使用 sudo 时写成 `sudo -E bash`）：
 
 ```bash
 export YAGINX_GITHUB_MIRROR=https://github-mirror.abc.red
 export YAGINX_RELEASE_ASSETS_MIRROR=https://gh-release-assets.abc.red
-curl -fsSLO "$YAGINX_GITHUB_MIRROR/abcred-labs/yaginx/releases/latest/download/install-yaginx.sh"
-less install-yaginx.sh
-bash install-yaginx.sh
+curl -fsSL https://github.com/abcred-labs/yaginx/releases/latest/download/install-yaginx.sh | bash
 ```
 
-使用 `sudo` 时环境变量默认会被清除，需改为 `sudo env YAGINX_GITHUB_MIRROR=... YAGINX_RELEASE_ASSETS_MIRROR=... bash install-yaginx.sh`。救援包脚本 `install-yaginx-core.sh` 使用相同的环境变量。
+救援包脚本 `install-yaginx-core.sh` 和在线升级 `yaginx upgrade` 使用相同的两个环境变量。
 
 ### 2.3 脚本行为
 
@@ -382,10 +380,12 @@ curl --fail --silent --show-error http://127.0.0.1:19090/health/ready
 curl -fsSL https://github.com/abcred-labs/yaginx/releases/latest/download/install-yaginx-core.sh | bash
 ```
 
-中国大陆服务器通过镜像执行：
+中国大陆服务器先设置镜像环境变量再执行：
 
 ```bash
-curl -fsSL https://github-mirror.abc.red/abcred-labs/yaginx/releases/latest/download/install-yaginx-core.sh | YAGINX_GITHUB_MIRROR=https://github-mirror.abc.red YAGINX_RELEASE_ASSETS_MIRROR=https://gh-release-assets.abc.red bash
+export YAGINX_GITHUB_MIRROR=https://github-mirror.abc.red
+export YAGINX_RELEASE_ASSETS_MIRROR=https://gh-release-assets.abc.red
+curl -fsSL https://github.com/abcred-labs/yaginx/releases/latest/download/install-yaginx-core.sh | bash
 ```
 
 ## 7. Runtime 配置参考
@@ -563,6 +563,8 @@ Header、Query 参数和 JSON 字段；只有错误请求持久化受大小限�
 | `observability.otlp.protocol` / `insecure` | `grpc` / `false` | — | `grpc` 或 `http/protobuf` |
 | `observability.otlp.sampleRatio` / `exportTimeout` | `0.01` / `5s` | — | 采样率 0–1；导出超时 |
 | `upgrade.manifestURL` | 当前公开 latest manifest | `YAGINX_UPGRADE_MANIFEST_URL` | HTTPS release manifest |
+| `upgrade.githubMirror` | 空 | `YAGINX_GITHUB_MIRROR` | 可选 HTTPS 镜像，替换 `https://github.com`；中国大陆用 `https://github-mirror.abc.red` |
+| `upgrade.releaseAssetsMirror` | 空 | `YAGINX_RELEASE_ASSETS_MIRROR` | 可选 HTTPS 镜像，替换 `https://release-assets.githubusercontent.com`；中国大陆用 `https://gh-release-assets.abc.red` |
 | `upgrade.component` / `upgrade.packageName` | `yaginx` / `yaginx` | — | 固定值 |
 | `upgrade.stateDirectory` / `upgrade.lockFile` | `/var/lib/yaginx/upgrade` / `/run/yaginx/upgrade.lock` | — | 绝对路径 |
 | `upgrade.downloadTimeout` / `upgrade.readinessTimeout` | `10m` / `90s` | — | 下载与升级就绪超时 |
@@ -591,6 +593,8 @@ YAGINX_ACME_ENABLED
 YAGINX_LOG_LEVEL
 YAGINX_LOG_FORMAT
 YAGINX_UPGRADE_MANIFEST_URL
+YAGINX_GITHUB_MIRROR
+YAGINX_RELEASE_ASSETS_MIRROR
 ```
 
 ## 9. 常见失败与恢复方向
@@ -662,6 +666,25 @@ sudo yaginx upgrade --check --version <semver>
 sudo yaginx upgrade --version <semver>
 # 只有管理员确认需要数据库迁移时，才添加 --migrate-database
 ```
+
+中国大陆服务器应在 `/etc/yaginx/config.json` 的 `upgrade` 中持久配置镜像，之后每次升级都会自动使用：
+
+```json
+"upgrade": {
+  "githubMirror": "https://github-mirror.abc.red",
+  "releaseAssetsMirror": "https://gh-release-assets.abc.red"
+}
+```
+
+也可以临时通过环境变量指定（`sudo -E` 保留环境变量；`--package-only` 模式不读取配置文件，只读取环境变量）：
+
+```bash
+export YAGINX_GITHUB_MIRROR=https://github-mirror.abc.red
+export YAGINX_RELEASE_ASSETS_MIRROR=https://gh-release-assets.abc.red
+sudo -E yaginx upgrade --check --version <semver>
+```
+
+升级器逐跳跟随最多 5 次 HTTPS 重定向，并按上述镜像改写 GitHub 与 release-assets 地址；manifest 中的包 URL 仍按 GitHub 原始地址校验，下载后校验 SHA-256。指定 `--version` 时读取不可变的 `releases/download/v<semver>/release-manifest-<semver>.json`。
 
 包校验、并发锁、拒绝降级、健康检查和失败回滚继续保护手动升级。现有修复参数
 `--skip-preflight-health`、`--no-restart`、`--package-only` 保持原语义。

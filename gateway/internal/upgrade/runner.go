@@ -26,6 +26,11 @@ const (
 	// The moving latest manifest is fetched separately through DefaultManifestURL.
 	DefaultReleaseRootURL = "https://github.com/abcred-labs/yaginx/releases/download"
 	DefaultManifestURL    = "https://github.com/abcred-labs/yaginx/releases/latest/download/latest-release.json"
+	// GitHubBaseURL and ReleaseAssetsBaseURL are the origins rewritten by the
+	// optional download mirrors. GitHub release downloads redirect to release assets.
+	GitHubBaseURL         = "https://github.com"
+	ReleaseAssetsBaseURL  = "https://release-assets.githubusercontent.com"
+	maxRedirects          = 5
 	PackageName           = "yaginx"
 	ServiceName           = "yaginx"
 	VersionFile           = "/usr/share/yaginx/version.txt"
@@ -37,7 +42,11 @@ var ErrLockBusy = errors.New("yaginx upgrade is already in progress")
 type Config struct {
 	ManifestURL, LockFile, StateDirectory, ReadyURL string
 	TargetVersion                                   string
-	DownloadTimeout, ReadyTimeout                   time.Duration
+	// GitHubMirror and ReleaseAssetsMirror optionally replace GitHubBaseURL and
+	// ReleaseAssetsBaseURL in download and redirect URLs. Release metadata is
+	// still validated against the original GitHub URLs.
+	GitHubMirror, ReleaseAssetsMirror string
+	DownloadTimeout, ReadyTimeout     time.Duration
 }
 
 type Release struct {
@@ -356,7 +365,7 @@ func (r *Runner) ready(ctx context.Context, readyURL string) (readyResponse, err
 	if strings.TrimSpace(readyURL) == "" {
 		return readyResponse{}, errors.New("upgrade readiness URL is empty")
 	}
-	response, err := r.get(ctx, readyURL)
+	response, err := r.get(ctx, Config{}, readyURL)
 	if err != nil {
 		return readyResponse{}, err
 	}
@@ -409,11 +418,18 @@ func (r *Runner) fetch(ctx context.Context, cfg Config) (Release, error) {
 		if err != nil || parsed.Path == "" {
 			return Release{}, errors.New("upgrade manifest URL is invalid")
 		}
-		index := strings.LastIndex(parsed.Path, "/")
-		parsed.Path = parsed.Path[:index+1] + "manifest-" + target + ".json"
+		// Versioned manifests are published as release-manifest-<version>.json in
+		// the immutable GitHub release, not next to the moving latest manifest.
+		const latestSuffix = "/releases/latest/download/latest-release.json"
+		if strings.HasSuffix(parsed.Path, latestSuffix) {
+			parsed.Path = strings.TrimSuffix(parsed.Path, latestSuffix) + "/releases/download/v" + target + "/release-manifest-" + target + ".json"
+		} else {
+			index := strings.LastIndex(parsed.Path, "/")
+			parsed.Path = parsed.Path[:index+1] + "release-manifest-" + target + ".json"
+		}
 		manifestURL = parsed.String()
 	}
-	response, err := r.get(ctx, manifestURL)
+	response, err := r.get(ctx, cfg, manifestURL)
 	if err != nil {
 		return Release{}, fmt.Errorf("fetch latest release: %w", err)
 	}
@@ -452,7 +468,7 @@ func (r *Runner) ensureRollbackPackage(ctx context.Context, cfg Config, version 
 		return "", fmt.Errorf("create rollback directory: %w", err)
 	}
 	logger.Event("rollback.checksum", "fetching checksum for version=%s", version)
-	checksum, err := r.checksumFor(ctx, version)
+	checksum, err := r.checksumFor(ctx, cfg, version)
 	if err != nil {
 		return "", err
 	}
@@ -473,8 +489,8 @@ func (r *Runner) ensureRollbackPackage(ctx context.Context, cfg Config, version 
 	return path, nil
 }
 
-func (r *Runner) checksumFor(ctx context.Context, version string) (string, error) {
-	response, err := r.get(ctx, r.checksumsURL(version))
+func (r *Runner) checksumFor(ctx context.Context, cfg Config, version string) (string, error) {
+	response, err := r.get(ctx, cfg, r.checksumsURL(version))
 	if err != nil {
 		return "", fmt.Errorf("fetch rollback checksum: %w", err)
 	}
@@ -508,7 +524,7 @@ func (r *Runner) download(ctx context.Context, cfg Config, sourceURL, expectedSH
 	ctx, cancel := context.WithTimeout(ctx, cfg.DownloadTimeout)
 	defer cancel()
 	logger.Event("download.start", "kind=%s timeout=%s", prefix, cfg.DownloadTimeout)
-	response, err := r.get(ctx, sourceURL)
+	response, err := r.get(ctx, cfg, sourceURL)
 	if err != nil {
 		return "", err
 	}
@@ -561,31 +577,74 @@ func (r *Runner) download(ctx context.Context, cfg Config, sourceURL, expectedSH
 	return file.Name(), nil
 }
 
-func (r *Runner) get(ctx context.Context, rawURL string) (*http.Response, error) {
-	parsed, err := url.Parse(rawURL)
-	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
-		return nil, errors.New("upgrade URL is invalid")
+// get follows at most maxRedirects HTTPS redirects itself so every hop can be
+// rewritten to the configured download mirrors.
+func (r *Runner) get(ctx context.Context, cfg Config, rawURL string) (*http.Response, error) {
+	if err := ValidateMirror(cfg.GitHubMirror); err != nil {
+		return nil, fmt.Errorf("GitHub mirror: %w", err)
 	}
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
-	if err != nil {
-		return nil, err
+	if err := ValidateMirror(cfg.ReleaseAssetsMirror); err != nil {
+		return nil, fmt.Errorf("release assets mirror: %w", err)
 	}
 	if r.Client == nil {
 		return nil, errors.New("upgrade HTTP client is unavailable")
 	}
-	response, err := r.Client.Do(request)
-	if err != nil {
-		return nil, err
-	}
-	if response.Request != nil && response.Request.URL.String() != request.URL.String() {
+	current := cfg.mirrored(rawURL)
+	for redirects := 0; ; redirects++ {
+		parsed, err := url.Parse(current)
+		if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
+			return nil, errors.New("upgrade URL is invalid")
+		}
+		request, err := http.NewRequestWithContext(ctx, http.MethodGet, current, nil)
+		if err != nil {
+			return nil, err
+		}
+		response, err := r.Client.Do(request)
+		if err != nil {
+			return nil, err
+		}
+		if response.Request != nil && response.Request.URL.String() != request.URL.String() {
+			response.Body.Close()
+			return nil, errors.New("upgrade HTTP client followed a redirect without validation")
+		}
+		if response.StatusCode < http.StatusMultipleChoices || response.StatusCode >= http.StatusBadRequest {
+			return response, nil
+		}
+		location := response.Header.Get("Location")
 		response.Body.Close()
-		return nil, errors.New("upgrade HTTP redirect is not allowed")
+		if redirects >= maxRedirects {
+			return nil, errors.New("upgrade HTTP redirect limit exceeded")
+		}
+		next, err := request.URL.Parse(location)
+		if location == "" || err != nil {
+			return nil, errors.New("upgrade HTTP redirect location is invalid")
+		}
+		if next.Scheme != "https" {
+			return nil, errors.New("upgrade HTTP redirect must use HTTPS")
+		}
+		current = cfg.mirrored(next.String())
 	}
-	if response.StatusCode >= http.StatusMultipleChoices && response.StatusCode < http.StatusBadRequest {
-		response.Body.Close()
-		return nil, errors.New("upgrade HTTP redirect is not allowed")
+}
+
+// ValidateMirror accepts an empty value or an HTTPS origin with an optional path.
+func ValidateMirror(value string) error {
+	if value == "" {
+		return nil
 	}
-	return response, nil
+	parsed, err := url.Parse(value)
+	if err != nil || parsed.Scheme != "https" || parsed.Host == "" || parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" {
+		return errors.New("mirror must be an HTTPS URL without query or fragment")
+	}
+	return nil
+}
+
+func (c Config) mirrored(rawURL string) string {
+	for _, m := range []struct{ base, mirror string }{{GitHubBaseURL, c.GitHubMirror}, {ReleaseAssetsBaseURL, c.ReleaseAssetsMirror}} {
+		if m.mirror != "" && (rawURL == m.base || strings.HasPrefix(rawURL, m.base+"/")) {
+			return strings.TrimRight(m.mirror, "/") + strings.TrimPrefix(rawURL, m.base)
+		}
+	}
+	return rawURL
 }
 
 func (r *Runner) validatePlatform(check bool) error {

@@ -1,5 +1,7 @@
 # Yaginx
 
+English | [简体中文](README.zh-CN.md)
+
 Yaginx is a Go HTTP/HTTPS gateway with a React management console and
 PostgreSQL-backed configuration, certificates, telemetry, and node state.
 It is designed for Debian/systemd deployments and also ships as a container
@@ -37,13 +39,29 @@ Requirements: Linux amd64, PostgreSQL 15 or newer, and a DNS name that points
 to the proxy listener when ACME certificates are required. The current public
 release does not publish arm64 packages and release artifacts are not signed.
 
-1. Install a tagged Debian release using the
-   [`install-yaginx.sh`](https://github.com/abcred-labs/yaginx/releases/latest/download/install-yaginx.sh)
-   script, or build the package from source. Servers in mainland China should
-   download through the mirrors by setting
-   `YAGINX_GITHUB_MIRROR=https://github-mirror.abc.red` and
-   `YAGINX_RELEASE_ASSETS_MIRROR=https://gh-release-assets.abc.red`; see the
-   [installation guide](docs/installation-guide.md).
+1. Install the latest Debian release with
+   [`install-yaginx.sh`](https://github.com/abcred-labs/yaginx/releases/latest/download/install-yaginx.sh),
+   or build the package from source. Run as root (or prefix `bash` with
+   `sudo -E` to keep the environment variables).
+
+   **Global (default):**
+
+   ```bash
+   curl -fsSL https://github.com/abcred-labs/yaginx/releases/latest/download/install-yaginx.sh | bash
+   ```
+
+   **Mainland China:** set the two download mirrors first, then run the same
+   installer:
+
+   ```bash
+   export YAGINX_GITHUB_MIRROR=https://github-mirror.abc.red
+   export YAGINX_RELEASE_ASSETS_MIRROR=https://gh-release-assets.abc.red
+   curl -fsSL https://github.com/abcred-labs/yaginx/releases/latest/download/install-yaginx.sh | bash
+   ```
+
+   The mirrors only speed up downloads; package URLs and SHA-256 checksums are
+   still verified against the GitHub release. See the
+   [installation guide](docs/installation-guide.md) for details.
 2. Create an empty PostgreSQL database and application role. The setup wizard
    is available on the management port (9090 by default) on first start.
 3. Restrict the management port to administrators, complete the wizard, and

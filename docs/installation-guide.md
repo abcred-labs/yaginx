@@ -96,25 +96,31 @@ curl -fsSL https://github.com/abcred-labs/yaginx/releases/latest/download/instal
 
 ### 中国大陆
 
-中国大陆服务器直连 GitHub 下载 `.deb` 通常很慢或被中断，应通过镜像下载：
+中国大陆服务器直连 GitHub 下载 `.deb` 通常很慢或被中断。安装脚本本身很小，仍从 GitHub 获取；
+脚本随后下载的 manifest 和 `.deb` 通过镜像获取：
 
 | 环境变量 | 镜像地址 | 替换的原始地址 |
 | --- | --- | --- |
 | `YAGINX_GITHUB_MIRROR` | `https://github-mirror.abc.red` | `https://github.com`（Release manifest 和包地址） |
 | `YAGINX_RELEASE_ASSETS_MIRROR` | `https://gh-release-assets.abc.red` | `https://release-assets.githubusercontent.com`（`.deb` 实际下载地址） |
 
-`sudo` 默认会清除环境变量，因此需以 root 运行，或像下面这样使用 `sudo env` 传入：
+先设置两个环境变量，再执行与全球相同的安装脚本。`sudo` 默认会清除环境变量，因此请以
+root 执行，或使用 `sudo -E bash`：
 
 ```bash
-curl -fsSLO https://github-mirror.abc.red/abcred-labs/yaginx/releases/latest/download/install-yaginx.sh
+export YAGINX_GITHUB_MIRROR=https://github-mirror.abc.red
+export YAGINX_RELEASE_ASSETS_MIRROR=https://gh-release-assets.abc.red
+curl -fsSLO https://github.com/abcred-labs/yaginx/releases/latest/download/install-yaginx.sh
 less install-yaginx.sh
-sudo env YAGINX_GITHUB_MIRROR=https://github-mirror.abc.red YAGINX_RELEASE_ASSETS_MIRROR=https://gh-release-assets.abc.red bash install-yaginx.sh
+sudo -E bash install-yaginx.sh
 ```
 
 一行命令：
 
 ```bash
-curl -fsSL https://github-mirror.abc.red/abcred-labs/yaginx/releases/latest/download/install-yaginx.sh | sudo env YAGINX_GITHUB_MIRROR=https://github-mirror.abc.red YAGINX_RELEASE_ASSETS_MIRROR=https://gh-release-assets.abc.red bash
+export YAGINX_GITHUB_MIRROR=https://github-mirror.abc.red
+export YAGINX_RELEASE_ASSETS_MIRROR=https://gh-release-assets.abc.red
+curl -fsSL https://github.com/abcred-labs/yaginx/releases/latest/download/install-yaginx.sh | sudo -E bash
 ```
 
 镜像只负责下载加速：脚本仍按 GitHub 原始地址校验包 URL，并用 manifest 中的 SHA-256 校验
@@ -210,6 +216,11 @@ sudo -u postgres pg_dump --format=custom \
 ```bash
 sudo yaginx database status --config /etc/yaginx/config.json
 ```
+
+中国大陆服务器在线升级时，先在 `/etc/yaginx/config.json` 的 `upgrade` 中加入
+`"githubMirror": "https://github-mirror.abc.red"` 和
+`"releaseAssetsMirror": "https://gh-release-assets.abc.red"`，或执行升级命令时用
+`sudo -E` 传入 `YAGINX_GITHUB_MIRROR`、`YAGINX_RELEASE_ASSETS_MIRROR` 环境变量。
 
 状态应为 `current-v2` 或 `current-v2-with-pending-migrations`。检查目标版本但不安装：
 
