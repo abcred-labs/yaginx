@@ -39,7 +39,11 @@ release does not publish arm64 packages and release artifacts are not signed.
 
 1. Install a tagged Debian release using the
    [`install-yaginx.sh`](https://github.com/abcred-labs/yaginx/releases/latest/download/install-yaginx.sh)
-   script, or build the package from source.
+   script, or build the package from source. Servers in mainland China should
+   download through the mirrors by setting
+   `YAGINX_GITHUB_MIRROR=https://github-mirror.abc.red` and
+   `YAGINX_RELEASE_ASSETS_MIRROR=https://gh-release-assets.abc.red`; see the
+   [installation guide](docs/installation-guide.md).
 2. Create an empty PostgreSQL database and application role. The setup wizard
    is available on the management port (9090 by default) on first start.
 3. Restrict the management port to administrators, complete the wizard, and
