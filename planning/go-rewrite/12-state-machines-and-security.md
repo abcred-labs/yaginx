@@ -160,7 +160,7 @@ Go 更新密码只写 `password_salt` 和 `password_hash`，不再写明文 `acc
 
 1. 完成数据库 migration 后，首个 Go 服务实例在 PostgreSQL advisory lock 下生成 current JWT 材料。
 2. 全部实例读取 `gateway_runtime_material` 的同一 current/previous 值。
-3. issuer、audience、claims、`nbf=-30s`、`exp=10m+30s`、cookie 和 `expiresIn=600` 保持兼容；旧 .NET 会话是否可验证取决于管理员是否显式预置兼容材料。
+3. issuer、audience、claims、`nbf=-30s`、`exp=10m+30s`、cookie 和 `expiresIn=600` 保持兼容。
 
 ### 轮换
 

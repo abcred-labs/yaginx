@@ -1,8 +1,6 @@
 # 预生产稳定性压测演练手册
 
-本手册是 Go gateway 发布前的人工演练门禁，不替代
-[`planning/go-rewrite/10-testing-and-cutover.md`](../../../planning/go-rewrite/10-testing-and-cutover.md)
-中的合同、阈值或生产灰度流程。执行对象只能是隔离的预生产环境；禁止使用
+本手册是 Go gateway 发布前的人工演练门禁。执行对象只能是隔离的预生产环境；禁止使用
 生产数据库、真实用户、生产域名、生产证书私钥或生产流量。
 
 演练结果填写到同目录的
@@ -17,8 +15,8 @@ Item，不能作为发布通过的证据。
   一致。
 - 负载发生器与被测网关分离；其 CPU、内存、网卡和 socket 上限足以成为客户端，
   而不是压测瓶颈。记录所有节点和发生器的硬件、OS、内核、镜像及工具版本。
-- 为 .NET 基线与 Go 候选运行分别准备可重置的合成数据库和相同路由数据；两者使用
-  同一批负载发生器、上游、证书和网络 namespace。不得在同一轮混用两个运行时。
+- 为上一稳定版本与候选版本分别准备可重置的合成数据库和相同路由数据；两者使用
+  同一批负载发生器、上游、证书和网络 namespace。不得在同一轮混用两个版本。
 - Prometheus 至少每 10 秒抓取 gateway `/metrics`，并同时保留 gateway JSON 日志、
    主机 CPU/RSS/FD/网络数据、PostgreSQL `pg_stat_activity`、慢查询和数据库主机资源。
   1 GB 基线必须额外保留 `yaginx_process_resident_memory_bytes`、
@@ -43,7 +41,7 @@ go run ./cmd/proxyfixtureupstream -listen 0.0.0.0:20180 -mode echo
 ```
 
 将专用的预生产 Host 路由到该 upstream。以下 `/perf/` 路径为本手册新增的确定性
-压测端点，普通 `/sse`、`/websocket` 与 `/large-download` 的 golden-fixture 行为不变。
+压测端点，普通 `/sse`、`/websocket` 与 `/large-download` 的行为不变。
 
 | 场景 | 上游路径 | 预期 |
 | --- | --- | --- |
@@ -66,7 +64,7 @@ HTTP/1.1/2 短请求与上传下载；HTTP/3 客户端必须显式支持 QUIC；
 保留连接并按指定频率发送 frame。每轮开始前通过客户端协商日志和 gateway 指标确认
 HTTP/1.1、HTTP/2、HTTP/3 均实际产生流量，不能仅依据客户端配置声明。
 
-每个运行时按相同参数执行三轮：预热 5 分钟、正式采样 30 分钟、轮次间恢复到空闲和
+每个版本按相同参数执行三轮：预热 5 分钟、正式采样 30 分钟、轮次间恢复到空闲和
 稳定指标。最终比较三轮正式采样的中位数。
 
 | 负载类型 | 并发/比例 | 请求与连接定义 |
@@ -101,13 +99,13 @@ HTTP/1.1、HTTP/2、HTTP/3 均实际产生流量，不能仅依据客户端配�
    的分类。注入流量不计入正常用户成功率。
 
 任何阶段触发中止条件时，立即停止扩大负载，保存当前指标/日志/数据库快照，按
-`10-testing-and-cutover.md` 的回滚动作恢复上一稳定阶段；不得尝试 down migration。
+上一稳定版本的安装包回滚；不得尝试 down migration。
 
 ## 5. 验收与核对
 
-- Go 短请求 P95 不高于 .NET 110%，P99 不高于 120%，完成吞吐不少于 95%。任意连续
+- 候选版本短请求 P95 不高于上一稳定版本的 110%，P99 不高于 120%，完成吞吐不少于 95%。任意连续
   两个五分钟窗口 P95 超限或非注入 5xx/601–610 高于基线，即中止。
-- 稳态 RSS 不高于 .NET 120%；对于 Yaginx 1 GB 基线，正常 RSS 目标为 500-800 MiB，
+- 稳态 RSS 不高于上一稳定版本的 120%；对于 Yaginx 1 GB 基线，正常 RSS 目标为 500-800 MiB，
   高峰不得超过 900 MiB，且 cgroup `oom_kill` 为零。24 小时内 heap、goroutine、活跃连接、FD、CPU、网络、
   PostgreSQL pool 和队列深度不得呈持续单调增长。正常流量下
   `yaginx_queue_dropped_total` 的增量必须为零；并发拒绝必须单独通过

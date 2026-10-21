@@ -1,0 +1,61 @@
+{
+  "version": 1,
+  "matrixLine": 84,
+  "name": "transform-query-value-set",
+  "source": "captured",
+  "listener": {
+    "port": 18080,
+    "transport": "tcp"
+  },
+  "config": {
+    "defaultHost": "proxy-transform-query-fixture.example.invalid",
+    "proxyTransforms": {
+      "QueryValueParameter": "fixture",
+      "Set": "transformed"
+    }
+  },
+  "client": {
+    "method": "GET",
+    "host": "proxy-transform-query-fixture.example.invalid",
+    "path": "/original?old=one",
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json",
+      "Date": "${NOW}",
+      "Vary": "Accept-Encoding"
+    },
+    "body": {
+      "headers": {
+        "X-Fixture": "",
+        "X-Fixture-Forward-Proxy": "",
+        "X-Forwarded-For": "127.0.0.1",
+        "X-Forwarded-Host": "proxy-transform-query-fixture.example.invalid",
+        "X-Forwarded-Prefix": "",
+        "X-Forwarded-Proto": "http"
+      },
+      "host": "127.0.0.1:20180",
+      "method": "GET",
+      "path": "/original?old=one\u0026fixture=transformed"
+    }
+  },
+  "upstream": {
+    "attempted": true,
+    "method": "GET",
+    "host": "127.0.0.1:20180",
+    "path": "/original?old=one\u0026fixture=transformed",
+    "status": 200,
+    "headers": {
+      "X-Fixture": "",
+      "X-Fixture-Forward-Proxy": "",
+      "X-Forwarded-For": "127.0.0.1",
+      "X-Forwarded-Host": "proxy-transform-query-fixture.example.invalid",
+      "X-Forwarded-Prefix": "",
+      "X-Forwarded-Proto": "http"
+    }
+  },
+  "history": {
+    "status": 200,
+    "statusSource": "Upstream",
+    "errorCategory": ""
+  }
+}

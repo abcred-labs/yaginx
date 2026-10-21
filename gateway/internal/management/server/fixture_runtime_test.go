@@ -8,21 +8,20 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	"yaginx-gateway/internal/auth"
-	"yaginx-gateway/internal/contract"
 	"yaginx-gateway/internal/management"
+	"yaginx-gateway/internal/testfixtures"
 )
 
 // TestAccountFixturesReplayThroughGoRouter converts captured v2 exchanges
 // into executable handler checks. Repository-heavy list/report operations
 // have their own fixture lanes; this lane owns account/session and recovery.
 func TestAccountFixturesReplayThroughGoRouter(t *testing.T) {
-	fixtures, err := contract.LoadFixtures(filepath.Join("..", "..", "..", "tests", "contract", "fixtures"))
+	fixtures, err := testfixtures.Management()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -103,7 +102,7 @@ func TestAccountFixturesReplayThroughGoRouter(t *testing.T) {
 	}
 }
 
-func decodeFixtureResponse(t *testing.T, fixture contract.Fixture) map[string]any {
+func decodeFixtureResponse(t *testing.T, fixture testfixtures.Fixture) map[string]any {
 	t.Helper()
 	var value map[string]any
 	if err := json.Unmarshal(fixture.Response.Body, &value); err != nil {

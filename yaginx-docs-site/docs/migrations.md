@@ -24,11 +24,7 @@ Run `yaginx database migrate` for an existing v2 database. A failed migration
 is forward-only: keep the failed schema for diagnosis, verify the backup and
 restore it only through the approved database recovery procedure.
 
-Current v1 databases must first pass through the final compatible 0.1.x
-release. Ambiguous or partial lineage is rejected without writes.
-
-For .NET imports, use the reviewed read-only importer against a new target
-database. Reset passwords and re-issue ACME certificates after cutover.
+Ambiguous or partial lineage is rejected without writes.
 
 See the repository's [migration contract](https://github.com/abcred-labs/yaginx/blob/main/docs/migrations.md)
 and [public migration runbook](https://github.com/abcred-labs/yaginx/blob/main/docs/public-migration-runbook.md)

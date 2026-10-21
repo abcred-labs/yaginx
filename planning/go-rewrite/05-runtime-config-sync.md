@@ -2,7 +2,7 @@
 
 ## 一致性模型
 
-PostgreSQL 保存最终事实；`LISTEN/NOTIFY` 只缩短延迟。API、脚本、旧 .NET 或 migration 直接写配置表都经 trigger 产生 event/revision。节点只在完整候选通过验证后原子替换 snapshot。
+PostgreSQL 保存最终事实；`LISTEN/NOTIFY` 只缩短延迟。API、脚本或 migration 直接写配置表都经 trigger 产生 event/revision。节点只在完整候选通过验证后原子替换 snapshot。
 
 ```mermaid
 sequenceDiagram
@@ -54,7 +54,7 @@ reconcile 运行期间出现更高 revision 时只设置 pending target；当前
 - SNI -> verified certificate chain/private key in process memory。
 - system proxy settings、revision、build timestamp、schema format。
 
-请求入口只 load 一次 atomic pointer。候选冲突和验证规则由 [代理矩阵](contracts/proxy-compatibility-matrix.md) 固定。
+请求入口只 load 一次 atomic pointer。候选冲突和验证规则见 [代理运行时](06-proxy-runtime.md) 与 `runtime-config.schema.json`。
 
 ## Last-known-good
 

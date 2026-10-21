@@ -5,6 +5,8 @@
 package sqlc
 
 import (
+	"net/netip"
+
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -31,92 +33,200 @@ type AccountPasswordRecovery struct {
 	UpdateTs       int64
 }
 
+type AccountSession struct {
+	ID                int64
+	AccountID         int64
+	RefreshTokenHash  []byte
+	Remembered        bool
+	UserAgent         pgtype.Text
+	ClientIp          pgtype.Text
+	IssuedAt          pgtype.Timestamptz
+	LastUsedAt        pgtype.Timestamptz
+	IdleExpiresAt     pgtype.Timestamptz
+	AbsoluteExpiresAt pgtype.Timestamptz
+	RevokedAt         pgtype.Timestamptz
+}
+
 type GatewayAcmeAccount struct {
 	DirectoryUrl     string
 	Email            string
-	AccountUrl       pgtype.Text
-	PrivateKeyPem    []byte
-	RegistrationJson []byte
+	AccountUrl       string
 	CreatedAt        pgtype.Timestamptz
 	UpdatedAt        pgtype.Timestamptz
+	ID               int64
+	PrivateKeyPem    []byte
+	RegistrationJson []byte
 }
 
-type GatewayCertificate struct {
-	Fingerprint    string
-	DnsNames       []string
-	Issuer         pgtype.Text
-	SerialNumber   pgtype.Text
-	NotBefore      pgtype.Timestamptz
-	NotAfter       pgtype.Timestamptz
-	Source         string
-	Status         string
-	CertificatePem []byte
-	PrivateKeyPem  []byte
-	CreatedAt      pgtype.Timestamptz
-	UpdatedAt      pgtype.Timestamptz
-}
-
-type GatewayCertificateOrder struct {
-	ID           int64
-	Domains      []string
-	Status       string
-	NodeID       pgtype.UUID
-	AcmeOrderUrl pgtype.Text
-	Attempt      int32
-	ErrorMessage pgtype.Text
-	NextRetryAt  pgtype.Timestamptz
-	StartedAt    pgtype.Timestamptz
-	FinishedAt   pgtype.Timestamptz
-}
-
-type GatewayConfigEvent struct {
-	ID           int64
-	ResourceType string
-	ResourceID   string
-	Operation    string
-	CreatedAt    pgtype.Timestamptz
-}
-
-type GatewayConfigRevision struct {
-	Singleton bool
-	Revision  int64
+type GatewayAcmeKeyValue struct {
+	Key       string
+	Value     string
+	ExpiresAt pgtype.Timestamptz
+	CreatedAt pgtype.Timestamptz
 	UpdatedAt pgtype.Timestamptz
 }
 
+type GatewayApiCredential struct {
+	ID          int64
+	Name        string
+	Purpose     string
+	TokenPrefix string
+	TokenHash   []byte
+	Status      string
+	CreatedAt   pgtype.Timestamptz
+	UpdatedAt   pgtype.Timestamptz
+	RevokedAt   pgtype.Timestamptz
+}
+
+type GatewayCertificate struct {
+	Fingerprint       string
+	DnsNames          []string
+	Issuer            pgtype.Text
+	SerialNumber      pgtype.Text
+	NotBefore         pgtype.Timestamptz
+	NotAfter          pgtype.Timestamptz
+	Source            string
+	Status            string
+	CreatedAt         pgtype.Timestamptz
+	UpdatedAt         pgtype.Timestamptz
+	ID                int64
+	FingerprintSha256 string
+	IsActive          bool
+	ReplacedByID      pgtype.Int8
+	CertificatePem    []byte
+	PrivateKeyPem     []byte
+}
+
+type GatewayCertificateOrder struct {
+	ID            int64
+	Domains       []string
+	Status        string
+	NodeID        pgtype.UUID
+	AcmeOrderUrl  pgtype.Text
+	Attempt       int32
+	ErrorMessage  pgtype.Text
+	NextRetryAt   pgtype.Timestamptz
+	StartedAt     pgtype.Timestamptz
+	FinishedAt    pgtype.Timestamptz
+	DomainName    string
+	AccountID     pgtype.Int8
+	CertificateID pgtype.Int8
+	OrderUrl      string
+	ErrorClass    string
+	NextAttemptAt pgtype.Timestamptz
+	CreatedAt     pgtype.Timestamptz
+	UpdatedAt     pgtype.Timestamptz
+}
+
+type GatewayCertificateOrderLog struct {
+	ID         int64
+	OrderID    int64
+	OccurredAt pgtype.Timestamptz
+	Operation  string
+	Status     string
+	Result     string
+	ErrorCode  string
+	Message    string
+	NodeID     pgtype.UUID
+	Attempt    int32
+}
+
+type GatewayConfigEvent struct {
+	ID            int64
+	ResourceType  string
+	ResourceID    string
+	Operation     string
+	TransactionID int64
+	CreatedAt     pgtype.Timestamptz
+}
+
+type GatewayConfigRevision struct {
+	SingletonID int16
+	Revision    int64
+	UpdatedAt   pgtype.Timestamptz
+}
+
+type GatewayIpBlacklist struct {
+	ID            int64
+	Cidr          netip.Prefix
+	Profile       []byte
+	BlockedCount  int64
+	LastBlockedAt pgtype.Timestamptz
+	CreatedAt     pgtype.Timestamptz
+	RemovedAt     pgtype.Timestamptz
+}
+
 type GatewayNode struct {
-	NodeID                   pgtype.UUID
-	Fingerprint              string
-	Status                   string
-	NodeNumber               pgtype.Int2
-	Address                  pgtype.Text
-	Version                  pgtype.Text
-	AppliedRevision          int64
-	StartedAt                pgtype.Timestamptz
-	LastHeartbeatAt          pgtype.Timestamptz
-	LastError                pgtype.Text
-	CreatedAt                pgtype.Timestamptz
-	UpdatedAt                pgtype.Timestamptz
-	MachineFingerprint       string
-	DisplayName              string
-	SoftwareVersion          string
-	GitSha                   string
-	ReloadGeneration         int64
-	ObservedReloadGeneration int64
-	LastSnapshotAt           pgtype.Timestamptz
-	LastSnapshotError        string
-	StateReason              string
-	StateChangedAt           pgtype.Timestamptz
-	ApprovedAt               pgtype.Timestamptz
-	ApprovedByAccountID      pgtype.Int8
-	DrainStartedAt           pgtype.Timestamptz
-	DisabledAt               pgtype.Timestamptz
+	NodeID                    pgtype.UUID
+	Fingerprint               string
+	MachineFingerprint        string
+	DisplayName               string
+	SoftwareVersion           string
+	GitSha                    string
+	Status                    string
+	NodeNumber                pgtype.Int2
+	Address                   pgtype.Text
+	Version                   pgtype.Text
+	AppliedRevision           int64
+	ReloadGeneration          int64
+	ObservedReloadGeneration  int64
+	StartedAt                 pgtype.Timestamptz
+	LastHeartbeatAt           pgtype.Timestamptz
+	LastSnapshotAt            pgtype.Timestamptz
+	LastSnapshotError         string
+	LastError                 pgtype.Text
+	StateReason               string
+	StateChangedAt            pgtype.Timestamptz
+	ApprovedAt                pgtype.Timestamptz
+	ApprovedByAccountID       pgtype.Int8
+	DrainStartedAt            pgtype.Timestamptz
+	DisabledAt                pgtype.Timestamptz
+	CreatedAt                 pgtype.Timestamptz
+	UpdatedAt                 pgtype.Timestamptz
+	RestartGeneration         int64
+	ObservedRestartGeneration int64
+	RestartRequestedAt        pgtype.Timestamptz
+	RestartCompletedAt        pgtype.Timestamptz
+	RestartError              string
+}
+
+type GatewayRuntimeMaterial struct {
+	SingletonID int16
+	JwtCurrent  string
+	JwtPrevious pgtype.Text
+	CreatedAt   pgtype.Timestamptz
+	UpdatedAt   pgtype.Timestamptz
 }
 
 type GatewaySystemSetting struct {
-	SettingKey  string
-	Value       []byte
-	UpdatedAt   pgtype.Timestamptz
-	ContentType string
+	SettingKey         string
+	UpdatedAt          pgtype.Timestamptz
+	ContentType        string
+	UpdatedByAccountID pgtype.Int8
+	Value              []byte
+}
+
+type GatewayTrafficContribution struct {
+	NodeID              pgtype.UUID
+	ProcessID           pgtype.UUID
+	HostName            string
+	CycleType           int32
+	Period              int64
+	RequestQty          int64
+	DurationSum         int64
+	DurationMax         int64
+	InboundBytes        int64
+	OutboundBytes       int64
+	StatusCode          []byte
+	Spider              []byte
+	Browser             []byte
+	Os                  []byte
+	DurationBuckets     []byte
+	ErrorCounts         []byte
+	LatencyHistogram    []byte
+	ResponseModeMetrics []byte
+	IsFinal             bool
+	UpdatedAt           pgtype.Timestamptz
 }
 
 type HostTraffic struct {
@@ -161,6 +271,7 @@ type RequestHistory struct {
 	StatusSource          pgtype.Text
 	ErrorCategory         pgtype.Text
 	ErrorCode             pgtype.Text
+	TraceID               pgtype.Text
 }
 
 type ResourceMonitorInfo struct {
@@ -171,18 +282,24 @@ type ResourceMonitorInfo struct {
 }
 
 type ResourceReport struct {
-	ResourceUuid string
-	CycleType    int32
-	ReportTime   pgtype.Timestamptz
-	ReportTs     int64
-	RequestQty   int64
-	StatusCode   []byte
-	Spider       []byte
-	Browser      []byte
-	Os           []byte
-	Duration     []byte
-	CreateTime   pgtype.Timestamptz
-	UpdateTime   pgtype.Timestamptz
+	ResourceUuid        string
+	CycleType           int32
+	ReportTime          pgtype.Timestamptz
+	ReportTs            int64
+	RequestQty          int64
+	StatusCode          []byte
+	Spider              []byte
+	Browser             []byte
+	Os                  []byte
+	Duration            []byte
+	CreateTime          pgtype.Timestamptz
+	UpdateTime          pgtype.Timestamptz
+	InboundBytes        int64
+	OutboundBytes       int64
+	ErrorCounts         []byte
+	LatencyHistogram    []byte
+	ResponseModeMetrics []byte
+	IsPartial           bool
 }
 
 type WebDomain struct {
@@ -194,13 +311,64 @@ type WebDomain struct {
 }
 
 type Website struct {
-	ID              int64
-	Name            pgtype.Text
+	ID                int64
+	Name              pgtype.Text
+	Specifications    []byte
+	Hosts             []byte
+	ProxyRules        []byte
+	CreateTime        pgtype.Timestamptz
+	UpdateTime        pgtype.Timestamptz
+	ProxyTransforms   []byte
+	SimpleResponses   []byte
+	DataSchemaVersion int32
+}
+
+type WebsiteConfigMigrationError struct {
+	WebsiteID       int64
+	Reason          string
 	Specifications  []byte
 	Hosts           []byte
 	ProxyRules      []byte
-	CreateTime      pgtype.Timestamptz
-	UpdateTime      pgtype.Timestamptz
 	ProxyTransforms []byte
 	SimpleResponses []byte
+	RecordedAt      pgtype.Timestamptz
+}
+
+type YaginxSchemaVersion struct {
+	Generation    int16
+	InitializedAt pgtype.Timestamptz
+}
+
+type YaginxSystemError struct {
+	ID              int64
+	OccurredAt      pgtype.Timestamptz
+	NodeID          pgtype.UUID
+	Version         string
+	BuildID         string
+	ConfigRevision  pgtype.Int8
+	Component       string
+	Operation       string
+	Severity        string
+	ErrorCode       string
+	Fingerprint     string
+	SystemEventID   pgtype.UUID
+	Message         string
+	Details         []byte
+	TraceID         string
+	OccurrenceCount int64
+	FirstSeenAt     pgtype.Timestamptz
+	LastSeenAt      pgtype.Timestamptz
+}
+
+type YaginxSystemErrorMetric struct {
+	PeriodDay       pgtype.Date
+	Component       string
+	ErrorCode       string
+	Severity        string
+	NodeID          string
+	Version         string
+	ConfigRevision  int64
+	OccurrenceCount int64
+	FirstSeenAt     pgtype.Timestamptz
+	LastSeenAt      pgtype.Timestamptz
 }

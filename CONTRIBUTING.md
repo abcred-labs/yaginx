@@ -11,7 +11,6 @@
 cd gateway
 go test ./...
 go vet ./...
-go run ./cmd/contractlint
 cd ../adminui
 pnpm install --frozen-lockfile
 pnpm run api:check

@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "operationId": "accountRefreshToken",
+  "scenario": "auth",
+  "approvalId": "v2-api-account-refresh-token-cookie-failure",
+  "request": {
+    "method": "GET",
+    "path": "/api/account/refresh_token"
+  },
+  "response": {
+    "status": 401,
+    "headers": {
+      "Content-Type": "application/json",
+      "Set-Cookie": "${REDACTED_SET_COOKIE}"
+    },
+    "body": {
+      "code": 401,
+      "data": {
+        "requestId": "${RANDOM_ID}"
+      },
+      "errMsg": "missing or invalid refresh session",
+      "msg": "授权认证失败",
+      "tid": "${TID}"
+    }
+  },
+  "source": "adapter"
+}

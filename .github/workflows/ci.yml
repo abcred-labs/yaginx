@@ -37,12 +37,6 @@ jobs:
           go build ./cmd/yaginx
           go test -count=1 ./...
           go vet ./...
-      - name: Contract checks
-        working-directory: gateway
-        run: |
-          go run ./cmd/contractlint
-          go run ./cmd/contractcheck
-          go run ./cmd/proxycheck
       - name: Set up pnpm for integration
         uses: pnpm/action-setup@v6
         with:
@@ -61,7 +55,7 @@ jobs:
         working-directory: gateway
         env:
           YAGINX_TEST_DATABASE_URL: postgres://yaginx_test:yaginx_test_pw@127.0.0.1:5432/yaginx_test?sslmode=disable
-        run: go test -p 1 -count=1 -tags integration ./internal/database ./internal/configsync ./internal/repository ./internal/management ./internal/app ./internal/acme ./cmd/legacyimport
+        run: go test -p 1 -count=1 -tags integration ./internal/database ./internal/configsync ./internal/repository ./internal/management ./internal/app ./internal/acme
 
   adminui:
     runs-on: ubuntu-latest
@@ -105,21 +99,6 @@ jobs:
       - name: Check documentation content
         run: node ../scripts/check-doc-content.mjs
       - run: pnpm run build
-
-  contract-tooling:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: gateway/tools/contract-lint
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: gateway/tools/contract-lint/package-lock.json
-      - run: npm ci
-      - run: npm run check-mermaid
 
   security:
     runs-on: ubuntu-latest

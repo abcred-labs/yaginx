@@ -8,20 +8,19 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"path/filepath"
 	"strings"
 	"testing"
 
-	"yaginx-gateway/internal/contract"
 	"yaginx-gateway/internal/telemetry"
+	"yaginx-gateway/internal/testfixtures"
 )
 
-// TestRuntimeExecutesGoldenFixtures turns the W0 HTTP fixtures into executable
+// TestRuntimeExecutesFixtures turns the proxy HTTP fixtures into executable
 // data-plane checks. Transport-specific and deliberately approved Go-only
 // differences stay in proxyFixtureSpecializations; each name names the test
 // suite that owns it so fixture coverage cannot quietly become metadata-only.
-func TestRuntimeExecutesGoldenFixtures(t *testing.T) {
-	fixtures, err := contract.LoadProxyFixtures(filepath.Join("..", "..", "tests", "contract", "proxy"))
+func TestRuntimeExecutesFixtures(t *testing.T) {
+	fixtures, err := testfixtures.Proxy()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -89,7 +88,7 @@ type fixtureUpstreamObservation struct {
 	headers http.Header
 }
 
-func runRuntimeFixture(t *testing.T, fixture contract.ProxyFixture) {
+func runRuntimeFixture(t *testing.T, fixture testfixtures.ProxyFixture) {
 	t.Helper()
 	var observed []fixtureUpstreamObservation
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
@@ -157,7 +156,7 @@ func runRuntimeFixture(t *testing.T, fixture contract.ProxyFixture) {
 	}
 }
 
-func fixtureSite(t *testing.T, fixture contract.ProxyFixture, upstreamURL string) (Site, bool) {
+func fixtureSite(t *testing.T, fixture testfixtures.ProxyFixture, upstreamURL string) (Site, bool) {
 	t.Helper()
 	var config struct {
 		DefaultHost            string            `json:"defaultHost"`
@@ -235,7 +234,7 @@ func fixtureSite(t *testing.T, fixture contract.ProxyFixture, upstreamURL string
 	return site, true
 }
 
-func configureFixtureRequest(request *http.Request, fixture contract.ProxyFixture) {
+func configureFixtureRequest(request *http.Request, fixture testfixtures.ProxyFixture) {
 	if origin := fixture.Client.Headers["Access-Control-Allow-Origin"]; origin != "" {
 		request.Header.Set("Origin", origin)
 	}

@@ -28,11 +28,7 @@ func (q *Queries) ListActiveCertificates(ctx context.Context) ([]ListActiveCerti
 	var items []ListActiveCertificatesRow
 	for rows.Next() {
 		var i ListActiveCertificatesRow
-		if err := rows.Scan(
-			&i.Fingerprint,
-			&i.CertificatePem,
-			&i.PrivateKeyPem,
-		); err != nil {
+		if err := rows.Scan(&i.Fingerprint, &i.CertificatePem, &i.PrivateKeyPem); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

@@ -125,7 +125,7 @@ func (h *Handler) DeleteBatch(w http.ResponseWriter, r *http.Request) {
 		seen[id] = struct{}{}
 		ids = append(ids, int64(id))
 	}
-	// An empty or rejected batch answers 500 because the .NET console treats a
+	// An empty or rejected batch answers 500 because the legacy console treats a
 	// 400 here as a retryable validation hint and loops.
 	if err != nil || len(ids) == 0 {
 		management.Fail(w, http.StatusInternalServerError, management.RequestError(err))

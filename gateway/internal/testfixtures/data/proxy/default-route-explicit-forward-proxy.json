@@ -1,0 +1,59 @@
+{
+  "version": 1,
+  "matrixLine": 51,
+  "name": "default-route-explicit-forward-proxy",
+  "source": "captured",
+  "listener": {
+    "port": 18080,
+    "transport": "tcp"
+  },
+  "config": {
+    "defaultHost": "proxy-forward-proxy-fixture.example.invalid",
+    "defaultDestination": "http://127.0.0.1:20180",
+    "webProxy": "http://127.0.0.1:20181"
+  },
+  "client": {
+    "method": "GET",
+    "host": "proxy-forward-proxy-fixture.example.invalid",
+    "path": "/forward-default",
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json",
+      "Date": "${NOW}",
+      "Vary": "Accept-Encoding"
+    },
+    "body": {
+      "headers": {
+        "X-Fixture": "",
+        "X-Fixture-Forward-Proxy": "used",
+        "X-Forwarded-For": "127.0.0.1",
+        "X-Forwarded-Host": "proxy-forward-proxy-fixture.example.invalid",
+        "X-Forwarded-Prefix": "",
+        "X-Forwarded-Proto": "http"
+      },
+      "host": "127.0.0.1:20180",
+      "method": "GET",
+      "path": "/forward-default"
+    }
+  },
+  "upstream": {
+    "attempted": true,
+    "method": "GET",
+    "host": "127.0.0.1:20180",
+    "path": "/forward-default",
+    "status": 200,
+    "headers": {
+      "X-Fixture": "",
+      "X-Fixture-Forward-Proxy": "used",
+      "X-Forwarded-For": "127.0.0.1",
+      "X-Forwarded-Host": "proxy-forward-proxy-fixture.example.invalid",
+      "X-Forwarded-Prefix": "",
+      "X-Forwarded-Proto": "http"
+    }
+  },
+  "history": {
+    "status": 200,
+    "statusSource": "Upstream",
+    "errorCategory": ""
+  }
+}

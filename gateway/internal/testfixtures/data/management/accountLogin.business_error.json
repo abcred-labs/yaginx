@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "operationId": "accountLogin",
+  "scenario": "business_error",
+  "request": {
+    "method": "POST",
+    "path": "/api/account/login",
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "body": {
+      "email": "${REDACTED_EMAIL}",
+      "password": "${REDACTED_PASSWORD}"
+    }
+  },
+  "response": {
+    "status": 500,
+    "headers": {
+      "Act-Trace-Id": "${RANDOM_ID}",
+      "Content-Type": "application/json",
+      "Date": "${NOW}",
+      "Duration": "${RUNTIME_METADATA}",
+      "Handler-Node": "${RUNTIME_METADATA}",
+      "Vary": "Accept-Encoding"
+    },
+    "body": {
+      "code": 500,
+      "data": {
+        "requestId": "${RANDOM_ID}"
+      },
+      "errMsg": "",
+      "msg": "调用异常",
+      "tid": "${TID}"
+    }
+  },
+  "source": "captured"
+}

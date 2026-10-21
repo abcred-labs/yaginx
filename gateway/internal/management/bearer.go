@@ -49,7 +49,7 @@ func Identity(ctx context.Context) auth.Claims {
 	return claims
 }
 
-// LegacyAuthorizationError reproduces the .NET console's authorization message
+// LegacyAuthorizationError reproduces the legacy console's authorization message
 // verbatim, including its loopback address, because the console matches on it.
 func LegacyAuthorizationError(path string) string {
 	return "地址http://127.0.0.1:18080/yaginx_console" + path + "授权认证失败, 请检查Authorization并传入有效的认证信息"

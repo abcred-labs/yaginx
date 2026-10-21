@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "matrixLine": 115,
+  "name": "simple-response-status-content-type",
+  "source": "captured",
+  "listener": {
+    "port": 18080,
+    "transport": "tcp"
+  },
+  "config": {
+    "defaultHost": "proxy-fixture.example.invalid",
+    "simpleResponses": [
+      {
+        "path": "/simple",
+        "statusCode": 218,
+        "contentType": "text/plain; charset=utf-8"
+      }
+    ]
+  },
+  "client": {
+    "method": "GET",
+    "host": "proxy-fixture.example.invalid",
+    "path": "/simple",
+    "status": 218,
+    "headers": {
+      "Content-Type": "text/plain; charset=utf-8",
+      "Date": "${NOW}",
+      "Vary": "Accept-Encoding",
+      "X-Fixture-Header": "fixture-value"
+    },
+    "body": "fixture-simple-response"
+  },
+  "upstream": {
+    "attempted": false
+  },
+  "history": {
+    "status": 218,
+    "statusSource": "YaginxPipeline",
+    "errorCategory": ""
+  }
+}

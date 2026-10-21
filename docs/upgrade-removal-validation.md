@@ -18,8 +18,7 @@
 | 并发锁 | Linux 原生测试二进制执行 `TestUpgradeLockConflictAndRelease`，及 runner 锁冲突测试 | 同一路径 flock 冲突明确报错，退出后锁可再次获取 |
 | 包内容 | `build-deb.sh` 和 `verify-deb-package.sh` | 新包不含两个旧 unit，preinst/postinst/postrm 均为可执行 hook |
 | 常规检查 | `go test -count=1 ./...`、`go vet ./...`、`go mod verify` | 通过 |
-| 契约 | contractlint、contractcheck、proxycheck | 通过 |
-| PostgreSQL 集成 | database、configsync、repository、management、app、acme、legacyimport | 隔离 PostgreSQL 18 容器全部通过 |
+| PostgreSQL 集成 | database、configsync、repository、management、app、acme | 隔离 PostgreSQL 18 容器全部通过 |
 | 文档 | 本地链接检查、Docusaurus production build | 通过 |
 
 ## 一次性 Debian/systemd 验证

@@ -41,11 +41,9 @@ func TestRunVersion(t *testing.T) {
 	}
 }
 
-func TestLegacyDatabaseCommandsAreNotExposed(t *testing.T) {
+func TestRemovedDatabaseCommandsAreNotExposed(t *testing.T) {
 	for _, args := range [][]string{
 		{"migrate", "up"},
-		{"import-legacy"},
-		{"legacy-preflight"},
 	} {
 		var stdout, stderr bytes.Buffer
 		if code := Run(context.Background(), args, &stdout, &stderr); code != 2 {

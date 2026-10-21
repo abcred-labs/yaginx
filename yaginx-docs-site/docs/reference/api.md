@@ -38,16 +38,3 @@ Authorization: Bearer <purpose-scoped-mcp-token>
 The `diagnose_request` tool can query request history and related system
 errors. Restrict the management listener and rotate the credential if it is
 ever exposed.
-
-## Contract and fixture checks
-
-From `gateway/`, run:
-
-```bash
-go run ./cmd/contractlint
-go run ./cmd/contractcheck
-go run ./cmd/proxycheck
-```
-
-These checks validate the OpenAPI inventory, approved compatibility deviations,
-fixture redaction metadata and proxy matrix coverage.

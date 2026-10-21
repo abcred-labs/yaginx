@@ -14,9 +14,6 @@ Before opening a pull request, run the checks for the area you changed:
 cd gateway
 go test -count=1 ./...
 go vet ./...
-go run ./cmd/contractlint
-go run ./cmd/contractcheck
-go run ./cmd/proxycheck
 
 cd ../adminui
 pnpm install --frozen-lockfile

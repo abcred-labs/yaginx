@@ -1,6 +1,6 @@
-// proxyfixtureupstream is an isolated upstream used only to collect W0 proxy
-// golden evidence. It reflects the received request metadata as JSON so a
-// fixture can prove forwarding behavior without recording real traffic.
+// proxyfixtureupstream is an isolated synthetic upstream for proxy verification
+// and pre-production load tests. It reflects the received request metadata as
+// JSON so forwarding behavior can be checked without recording real traffic.
 package main
 
 import (

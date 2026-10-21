@@ -207,17 +207,33 @@ journalctl -u yaginx --since '15 minutes ago' --no-pager
 使用 `--no-restart`。配置损坏时可以使用 `--package-only`，但该模式不会连接数据库、
 执行 migration、重启或自动回滚，必须由运维单独恢复配置并验收。
 
-## V1 和旧 .NET 数据库
+## 强制升级（手动安装最新 .deb）
 
-- **V1 数据库**：先使用最后一个支持 V1 → V2 的 `0.1.x` 兼容版本完成迁移，再安装 1.x。
-  1.x 不会猜测 V1 数据，也不会隐式重写 V1 schema。
-- **旧 .NET 数据库**：不能直接让公开 1.x 二进制原地升级。使用只读源连接生成兼容报告，
-  将脱敏数据导入新 V2 数据库，再切换应用配置。密码、恢复码、HTTP 正文/请求头、异常堆栈和
-  私钥不会由导入器复制；切换后需要重置密码并重新配置或签发 ACME 证书。
-- **未知或部分迁移状态**：停止升级，保留旧实例和备份，先完成 schema 检查。
+`yaginx upgrade` 不可用时（例如旧版本升级器指向其他发布源、无法访问 GitHub），可以直接下载最新
+发布的 `.deb` 并安装。该方式**不校验 SHA-256、不备份、不检查数据库状态、不执行 migration**，
+安装后立即重启服务；仅在确认数据库已是 `current-v2` 且无待执行迁移时使用。
 
-详细规则见 [`migrations.md`](migrations.md) 和
-[`public-migration-runbook.md`](public-migration-runbook.md)。
+在服务器上以 root 执行（使用中国大陆镜像；`jq` 不是必需的）：
+
+```bash
+GH=https://github-mirror.abc.red; AS=https://gh-release-assets.abc.red; V=$(curl -fsSL $GH/abcred-labs/yaginx/releases/latest/download/latest-release.json | grep -o '"version":"[^"]*"' | cut -d'"' -f4); U=$GH/abcred-labs/yaginx/releases/download/v$V/yaginx_${V}_amd64.deb; R=$(curl -sS -o /dev/null -w '%{redirect_url}' $U); [ -n "$R" ] && U=${R/https:\/\/release-assets.githubusercontent.com/$AS}; curl -fL --retry 5 -o /tmp/yaginx.deb "$U" && dpkg --force-confdef --force-confold -i /tmp/yaginx.deb && systemctl restart yaginx && sleep 8 && yaginx version && curl -s http://127.0.0.1:29090/health/ready; echo
+```
+
+说明：
+
+- 命令从镜像读取最新版本号，下载对应 `.deb`，并把 `release-assets.githubusercontent.com` 的重定向改写到资产镜像。
+- `--force-confold` 保留现有 `/etc/yaginx/config.json`。
+- 任一步失败时后续步骤不会执行，服务保持原状。
+- 可访问 GitHub 的环境把 `GH` 改为 `https://github.com`，`AS` 改为 `https://release-assets.githubusercontent.com`。
+- 管理端口不是 `29090` 时，把最后的健康检查端口改为实际的 `ports.management`。
+- 最新版本号可能低于已安装版本，此时是降级；安装前先确认 `yaginx database status --config /etc/yaginx/config.json` 输出 `current-v2`。
+- 需要回退时重新安装旧版本 `.deb` 并重启；数据库迁移不可自动回滚，迁移后不要直接降级。
+
+## 未知或部分迁移状态
+
+`database status` 输出 `unsupported`，或迁移中途失败时：停止升级，保留旧实例和备份，先完成 schema 检查。
+
+详细规则见 [`migrations.md`](migrations.md)。
 
 ## Docker 安装
 
@@ -256,7 +272,7 @@ PostgreSQL，也不提供管理 API。恢复主服务后应立即停止核心救
 | 现象 | 处理 |
 | --- | --- |
 | `database init` 拒绝执行 | 目标数据库不是空库；已有 V2 数据库应使用 `database migrate`。 |
-| `database status` 显示 V1 | 先安装最后一个 `0.1.x` 兼容版本。 |
+| `database status` 显示 `unsupported` | 数据库不是受支持的 V2 schema；停止升级，保留备份并检查 schema，不要自动重建。 |
 | 配置出现 unknown property | 删除或转换私有版本字段，按当前运行配置 schema 重新校验。 |
 | readiness 返回 503 | 查看 `journalctl -u yaginx`，重点检查数据库、端口、证书、节点审批和快照。 |
 | 升级包下载失败 | 检查 GitHub Release、HTTPS、架构和 manifest 中的 SHA-256。 |

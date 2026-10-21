@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "matrixLine": 169,
+  "name": "upstream-response-header-failure",
+  "source": "captured",
+  "listener": {
+    "port": 18080,
+    "transport": "tcp"
+  },
+  "config": {
+    "defaultHost": "proxy-raw-header-failure-fixture.example.invalid",
+    "defaultDestination": "http://127.0.0.1:20184",
+    "upstreamMode": "close-before-response-headers"
+  },
+  "client": {
+    "method": "GET",
+    "host": "proxy-raw-header-failure-fixture.example.invalid",
+    "path": "/header-failure",
+    "status": 604,
+    "headers": {
+      "Content-Length": "0",
+      "Date": "${NOW}"
+    },
+    "body": ""
+  },
+  "upstream": {
+    "attempted": false
+  },
+  "history": {
+    "status": 605,
+    "statusSource": "YaginxProxy",
+    "errorCategory": "UpstreamResponseHeaderFailure"
+  }
+}

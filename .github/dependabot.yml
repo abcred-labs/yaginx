@@ -12,10 +12,6 @@ updates:
     directory: /yaginx-docs-site
     schedule:
       interval: weekly
-  - package-ecosystem: npm
-    directory: /gateway/tools/contract-lint
-    schedule:
-      interval: weekly
   - package-ecosystem: docker
     directory: /gateway/deploy/docker
     schedule:

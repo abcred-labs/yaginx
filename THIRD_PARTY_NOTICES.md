@@ -7,8 +7,6 @@ versions are pinned by the checked-in manifests and lock files:
 - Admin UI: `adminui/package.json` and `adminui/pnpm-lock.yaml`.
 - Documentation site: `yaginx-docs-site/package.json` and
   `yaginx-docs-site/pnpm-lock.yaml`.
-- Contract tooling: `gateway/tools/contract-lint/package.json` and
-  `gateway/tools/contract-lint/package-lock.json`.
 
 All listed packages are resolved from public Go modules, npm, or public GitHub
 repositories. Their upstream license and copyright notices remain authoritative

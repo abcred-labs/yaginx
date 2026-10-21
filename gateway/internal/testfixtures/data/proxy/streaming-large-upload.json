@@ -1,0 +1,65 @@
+{
+  "version": 1,
+  "matrixLine": 146,
+  "name": "streaming-large-upload",
+  "source": "captured",
+  "listener": {
+    "port": 18080,
+    "transport": "tcp"
+  },
+  "config": {
+    "defaultHost": "proxy-stream-large-fixture.example.invalid",
+    "direction": "upload",
+    "payloadBytes": 1048576
+  },
+  "client": {
+    "method": "POST",
+    "host": "proxy-stream-large-fixture.example.invalid",
+    "path": "/large-upload",
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json",
+      "Date": "${NOW}",
+      "Vary": "Accept-Encoding"
+    },
+    "body": {
+      "bodyBytes": 1048576,
+      "bodySha256": "bcd4d73688ca636a74309e81dca1d3ae5963bd5880fa066df27f3e7a5d709594",
+      "headers": {
+        "Forwarded": "",
+        "X-Fixture": "",
+        "X-Fixture-Forward-Proxy": "",
+        "X-Forwarded-For": "127.0.0.1",
+        "X-Forwarded-Host": "proxy-stream-large-fixture.example.invalid",
+        "X-Forwarded-Prefix": "",
+        "X-Forwarded-Proto": "http"
+      },
+      "host": "127.0.0.1:20180",
+      "method": "POST",
+      "path": "/large-upload"
+    }
+  },
+  "upstream": {
+    "attempted": true,
+    "method": "POST",
+    "host": "127.0.0.1:20180",
+    "path": "/large-upload",
+    "status": 200,
+    "headers": {
+      "Forwarded": "",
+      "X-Fixture": "",
+      "X-Fixture-Forward-Proxy": "",
+      "X-Forwarded-For": "127.0.0.1",
+      "X-Forwarded-Host": "proxy-stream-large-fixture.example.invalid",
+      "X-Forwarded-Prefix": "",
+      "X-Forwarded-Proto": "http"
+    },
+    "bodyBytes": 1048576,
+    "bodySha256": "bcd4d73688ca636a74309e81dca1d3ae5963bd5880fa066df27f3e7a5d709594"
+  },
+  "history": {
+    "status": 200,
+    "statusSource": "Upstream",
+    "errorCategory": ""
+  }
+}

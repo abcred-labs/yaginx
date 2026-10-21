@@ -78,9 +78,6 @@ discovery at `/.well-known/mcp.json`. The retired `/yaginx_console/`,
 cd gateway
 go test -count=1 ./...
 go vet ./...
-go run ./cmd/contractlint
-go run ./cmd/contractcheck
-go run ./cmd/proxycheck
 
 cd ../adminui
 pnpm install --frozen-lockfile
@@ -96,9 +93,7 @@ npx --yes pnpm@8.15.9 run build
 
 The PostgreSQL integration suite, ACME/Pebble tests, systemd installation and
 upgrade drills, performance soak, and production traffic exercises require an
-isolated Linux environment. Their acceptance criteria are recorded in
-[`gateway/tests/e2e/r5-functional-rc-report.md`](gateway/tests/e2e/r5-functional-rc-report.md)
-and [`gateway/tests/e2e/r6-cutover-observation.md`](gateway/tests/e2e/r6-cutover-observation.md).
+isolated Linux environment and are tracked in the release record.
 
 ## License
 

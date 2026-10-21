@@ -34,7 +34,7 @@ func TestBaselineOwnsOnlyV2MigrationLineage(t *testing.T) {
 		"yaginx_publish_config_event",
 	} {
 		if strings.Contains(baseline, forbidden) {
-			t.Fatalf("v2 baseline retains forbidden v1 contract text %q", forbidden)
+			t.Fatalf("v2 baseline retains forbidden contract text %q", forbidden)
 		}
 	}
 }
