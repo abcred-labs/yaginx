@@ -1,0 +1,59 @@
+{
+  "version": 1,
+  "matrixLine": 49,
+  "name": "default-destination-host-override",
+  "source": "captured",
+  "listener": {
+    "port": 18080,
+    "transport": "tcp"
+  },
+  "config": {
+    "defaultHost": "proxy-host-override-fixture.example.invalid",
+    "defaultDestination": "http://127.0.0.1:20180",
+    "defaultDestinationHost": "fixture-upstream-host.example.invalid"
+  },
+  "client": {
+    "method": "GET",
+    "host": "proxy-host-override-fixture.example.invalid",
+    "path": "/override",
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json",
+      "Date": "${NOW}",
+      "Vary": "Accept-Encoding"
+    },
+    "body": {
+      "headers": {
+        "X-Fixture": "",
+        "X-Fixture-Forward-Proxy": "",
+        "X-Forwarded-For": "127.0.0.1",
+        "X-Forwarded-Host": "proxy-host-override-fixture.example.invalid",
+        "X-Forwarded-Prefix": "",
+        "X-Forwarded-Proto": "http"
+      },
+      "host": "fixture-upstream-host.example.invalid",
+      "method": "GET",
+      "path": "/override"
+    }
+  },
+  "upstream": {
+    "attempted": true,
+    "method": "GET",
+    "host": "fixture-upstream-host.example.invalid",
+    "path": "/override",
+    "status": 200,
+    "headers": {
+      "X-Fixture": "",
+      "X-Fixture-Forward-Proxy": "",
+      "X-Forwarded-For": "127.0.0.1",
+      "X-Forwarded-Host": "proxy-host-override-fixture.example.invalid",
+      "X-Forwarded-Prefix": "",
+      "X-Forwarded-Proto": "http"
+    }
+  },
+  "history": {
+    "status": 200,
+    "statusSource": "Upstream",
+    "errorCategory": ""
+  }
+}

@@ -1,6 +1,6 @@
 # 代理运行时
 
-[代理兼容矩阵](contracts/proxy-compatibility-matrix.md) 是实现和 E2E fixture 的权威合同。本章固定组件边界和运行策略。
+本章固定代理组件边界和运行策略；代理参数以 `contracts/runtime-config.schema.json` 为准。
 
 ## Listener
 

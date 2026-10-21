@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-// Claims keeps the .NET wire-claim names separate from the handler-friendly
+// Claims keeps the wire-claim names separate from the handler-friendly
 // identity fields. Subject is never serialized: legacy tokens use uid/uname,
 // not the standard JWT sub claim.
 type Claims struct {

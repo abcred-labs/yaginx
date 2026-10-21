@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "operationId": "accountLogin",
+  "scenario": "success",
+  "request": {
+    "method": "POST",
+    "path": "/api/account/login",
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "body": {
+      "email": "${REDACTED_EMAIL}",
+      "password": "${REDACTED_PASSWORD}"
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Act-Trace-Id": "${RANDOM_ID}",
+      "Content-Type": "application/json",
+      "Date": "${NOW}",
+      "Duration": "${RUNTIME_METADATA}",
+      "Handler-Node": "${RUNTIME_METADATA}",
+      "Set-Cookie": "${REDACTED_SET_COOKIE}",
+      "Vary": "Accept-Encoding"
+    },
+    "body": {
+      "code": 200,
+      "data": {
+        "expiresIn": 600,
+        "name": "${REDACTED_EMAIL}",
+        "token": "${REDACTED_TOKEN}",
+        "userId": "${REDACTED_EMAIL}"
+      },
+      "errMsg": null,
+      "msg": null,
+      "tid": "${TID}"
+    }
+  },
+  "source": "captured"
+}

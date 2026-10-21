@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "matrixLine": 168,
+  "name": "upstream-request-refused-classification",
+  "source": "captured",
+  "listener": {
+    "port": 18080,
+    "transport": "tcp"
+  },
+  "config": {
+    "defaultHost": "proxy-refused-destination-fixture.example.invalid",
+    "defaultDestination": "http://127.0.0.1:20183"
+  },
+  "client": {
+    "method": "GET",
+    "host": "proxy-refused-destination-fixture.example.invalid",
+    "path": "/refused",
+    "status": 604,
+    "headers": {
+      "Content-Length": "0",
+      "Date": "${NOW}"
+    },
+    "body": ""
+  },
+  "upstream": {
+    "attempted": false
+  },
+  "history": {
+    "status": 604,
+    "statusSource": "YaginxProxy",
+    "errorCategory": "UpstreamRequestFailure"
+  }
+}

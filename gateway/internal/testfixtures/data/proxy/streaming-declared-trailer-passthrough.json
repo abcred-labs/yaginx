@@ -1,0 +1,56 @@
+{
+  "version": 1,
+  "matrixLine": 148,
+  "name": "streaming-declared-trailer-passthrough",
+  "source": "captured",
+  "listener": {
+    "port": 18080,
+    "transport": "tcp"
+  },
+  "config": {
+    "defaultHost": "proxy-fixture.example.invalid",
+    "upstreamMode": "declared-trailer"
+  },
+  "client": {
+    "method": "GET",
+    "host": "proxy-fixture.example.invalid",
+    "path": "/trailers",
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json",
+      "Date": "${NOW}",
+      "Vary": "Accept-Encoding"
+    },
+    "trailers": {
+      "X-Fixture-Trailer": ""
+    },
+    "body": {
+      "bodyBytes": 0,
+      "bodySha256": "",
+      "headers": {
+        "Forwarded": "",
+        "X-Fixture": "",
+        "X-Fixture-Forward-Proxy": "",
+        "X-Forwarded-For": "127.0.0.1",
+        "X-Forwarded-Host": "proxy-fixture.example.invalid",
+        "X-Forwarded-Prefix": "",
+        "X-Forwarded-Proto": "http"
+      },
+      "host": "127.0.0.1:20180",
+      "method": "GET",
+      "path": "/trailers"
+    }
+  },
+  "upstream": {
+    "attempted": true,
+    "method": "GET",
+    "host": "127.0.0.1:20180",
+    "path": "/trailers",
+    "status": 200
+  },
+  "history": {
+    "status": 200,
+    "statusSource": "Upstream",
+    "errorCategory": ""
+  }
+}

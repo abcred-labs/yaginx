@@ -26,10 +26,9 @@ and `/helps` paths are not supported by the Go runtime.
 
 Every release tag must pass the repository CI jobs:
 
-- Go build, unit tests, vet, contract lint, management fixture coverage and
-  proxy fixture coverage.
+- Go build, unit tests and vet.
 - PostgreSQL integration tests for clean initialization, migration lineage,
-  config synchronization, permissions, ACME state and legacy import.
+  config synchronization, permissions and ACME state.
 - Admin UI OpenAPI drift check, tests and production build.
 - Documentation typecheck and production build.
 - Secret scan, dependency scan, SBOM generation and container build.
@@ -37,7 +36,6 @@ Every release tag must pass the repository CI jobs:
 The following checks need an isolated Linux environment and are not safely
 reproducible on every contributor workstation:
 
-- .NET-to-Go dual-runtime comparison against a writable synthetic database.
 - Pebble/ACME HTTP-01 acceptance, certificate renewal and multi-node locking.
 - Fresh Debian install, non-root service startup, upgrade, readiness failure,
   migration failure and automatic rollback.
@@ -45,21 +43,15 @@ reproducible on every contributor workstation:
   PostgreSQL outage/recovery drill.
 - Production trust, release-signing and shadow-canary exercises.
 
-These checks must be recorded in
-[`gateway/tests/e2e/r5-functional-rc-report.md`](../gateway/tests/e2e/r5-functional-rc-report.md)
-and [`gateway/tests/e2e/r6-cutover-observation.md`](../gateway/tests/e2e/r6-cutover-observation.md)
-before a release is described as having completed the external acceptance
-gates. Automated CI success alone is not a production traffic declaration.
+These checks must be recorded in the release record before a release is
+described as having completed the external acceptance gates. Automated CI success alone is not a production traffic declaration.
 
 ## Upgrade and recovery rules
 
 - Back up PostgreSQL before every migration or import.
 - New installations use the v2 baseline and `yaginx database init`.
 - Existing v2 databases use `yaginx database migrate`.
-- Current v1 databases must pass through the final 0.1.x compatibility release
-  before installing 1.x. The 1.x binary refuses ambiguous or partial lineage.
-- .NET imports use the read-only source adapter and a new target database;
-  passwords must be reset and ACME certificates must be re-issued after cutover.
+- The 1.x binary refuses ambiguous or partial lineage.
 - A failed package readiness check can roll back the package, but a failed
   database migration is forward-only and requires operator verification.
 

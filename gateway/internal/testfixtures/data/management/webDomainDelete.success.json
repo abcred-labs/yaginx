@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "operationId": "webDomainDelete",
+  "scenario": "success",
+  "request": {
+    "method": "DELETE",
+    "path": "/api/web_domain/delete?id=907260000000005",
+    "headers": {
+      "Authorization": "${REDACTED_AUTHORIZATION}"
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Act-Trace-Id": "${RANDOM_ID}",
+      "Content-Type": "application/json",
+      "Date": "${NOW}",
+      "Duration": "${RUNTIME_METADATA}",
+      "Handler-Node": "${RUNTIME_METADATA}",
+      "Vary": "Accept-Encoding"
+    },
+    "body": {
+      "code": 200,
+      "data": {},
+      "errMsg": null,
+      "msg": null,
+      "tid": "${TID}"
+    }
+  },
+  "source": "captured"
+}

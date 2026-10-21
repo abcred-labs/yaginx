@@ -75,7 +75,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description v2 deviation (see approved-deviations.json): authenticated by the HttpOnly yaginx-refresh cookie set at login/refresh, not by an Authorization bearer, so the session can be renewed after the access token itself has expired. */
+        /** @description v2 behavior: authenticated by the HttpOnly yaginx-refresh cookie set at login/refresh, not by an Authorization bearer, so the session can be renewed after the access token itself has expired. */
         get: operations["accountRefreshToken"];
         put?: never;
         post?: never;

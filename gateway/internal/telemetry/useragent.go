@@ -7,7 +7,7 @@ import (
 )
 
 // userAgentClassifier uses the maintained ua-parser regex corpus, matching the
-// .NET service's family-level browser/OS data model. Its own bounded cache is
+// previous service's family-level browser/OS data model. Its own bounded cache is
 // deliberately owned by the asynchronous aggregation worker, never proxy I/O.
 type userAgentClassifier struct {
 	enabled bool

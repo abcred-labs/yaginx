@@ -1,5 +1,7 @@
 # 17 — 管理面内聚重构（契约驱动 + 统计域合并）
 
+> 注：本文记录的 `contractlint`、`contractcheck`、`proxycheck` 及 fixture 抓取工具已从仓库移除，相关命令与结果仅作历史记录。fixture 回放测试仍保留，数据与加载代码位于 `gateway/internal/testfixtures`。
+
 状态：**已完成**。本文档既是设计记录也是落地记录；"决策记录"一节保留了与初始方案的偏离及其理由。
 
 ## 背景
@@ -10,7 +12,7 @@
    `/api/resource/report/*`、`/api/resource_view/*` 共 23 个端点读的是重叠的同一组表
    （`gateway_traffic_contribution`、`resource_report`、`host_traffic`），却各自定义了
    独立的 query 类型、分页约定和响应形状。`host_traffic` 用 stringified 数字加
-   `*Human` 预格式化字段（.NET 兼容遗留），`observability` 用 typed 数字 —— 同一功能的两代表示并存。
+   `*Human` 预格式化字段（遗留格式），`observability` 用 typed 数字 —— 同一功能的两代表示并存。
 
 2. **`management.Store` 是 64 方法的上帝接口**（`internal/management/store.go:432`），
    唯一实现是 3320 行、77 方法的 `repository.Postgres`。任何改动都要碰这两个文件。
@@ -63,7 +65,7 @@
   SPA 静态缓存），由 `transport.go` 和 `serve_static.go` 统一施加于所有响应，
   不是任何单个操作的契约。逐字节行为仍由 fixture 守住。
 - **统计端点不要求 fixture。** 7 个 analytics 操作中的 5 个（overview/domains/timeseries/
-  contributions/details）是 Go 原生新形状，没有 .NET golden runtime 可对齐，
+  contributions/details）是 Go 原生新形状，没有既有基线可对齐，
   因此不带 `x-fixture-required`。覆盖由 `internal/management/analytics/handler_test.go`
   （270 行）承担。契约总计 56 操作 / 26 个 fixture-required。
 - **`yaginx_observability_*` 指标名不改。** 词汇统一到 analytics 时，Prometheus 指标名
@@ -81,7 +83,7 @@
 | `/api/node/approve`、`/api/node/search` | 2 | 旧别名，仅 `postgres_integration_test.go` 引用 |
 
 **`host_traffic` 是删除而不是合并。** 原计划把它的 5 个操作映射进 analytics；
-实际做法是整栈删除：它读的是同一组表，但表示法是 .NET 兼容的 stringified 数字 +
+实际做法是整栈删除：它读的是同一组表，但表示法是旧式的 stringified 数字 +
 `*Human` 预格式化字段，没有任何一行逻辑值得搬进新端点。前端的
 `pages/Monitors/HostTraffics/*` 改为直接调用 analytics 端点。
 连带删除的 Go 侧：`Store.SearchHostTraffic`、`HostTrafficChartSummary`、

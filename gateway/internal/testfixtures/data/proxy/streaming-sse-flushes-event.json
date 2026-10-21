@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "matrixLine": 145,
+  "name": "streaming-sse-flushes-event",
+  "source": "captured",
+  "listener": {
+    "port": 18080,
+    "transport": "tcp"
+  },
+  "config": {
+    "defaultHost": "proxy-stream-sse-fixture.example.invalid",
+    "upstreamMode": "sse",
+    "flushRequired": true
+  },
+  "client": {
+    "method": "GET",
+    "host": "proxy-stream-sse-fixture.example.invalid",
+    "path": "/sse",
+    "status": 200,
+    "headers": {
+      "Cache-Control": "no-cache",
+      "Content-Type": "text/event-stream",
+      "Date": "${NOW}"
+    },
+    "body": "event: fixture\ndata: {\"method\":\"GET\",\"host\":\"127.0.0.1:20180\",\"path\":\"/sse\",\"headers\":{\"Forwarded\":\"\",\"X-Fixture\":\"\",\"X-Fixture-Forward-Proxy\":\"\",\"X-Forwarded-For\":\"127.0.0.1\",\"X-Forwarded-Host\":\"proxy-stream-sse-fixture.example.invalid\",\"X-Forwarded-Prefix\":\"\",\"X-Forwarded-Proto\":\"http\"},\"bodyBytes\":0,\"bodySha256\":\"\"}\n\n"
+  },
+  "upstream": {
+    "attempted": true,
+    "method": "GET",
+    "host": "127.0.0.1:20180",
+    "path": "/sse",
+    "status": 200
+  },
+  "history": {
+    "status": 200,
+    "statusSource": "Upstream",
+    "errorCategory": ""
+  }
+}

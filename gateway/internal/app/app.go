@@ -12,7 +12,7 @@ Commands:
   serve                 Start management and four business listeners.
   database init         Initialize an empty PostgreSQL database with the v2 schema.
   database migrate      Upgrade an existing v2 schema.
-  database status       Report uninitialized, current-v1, current-v2, pending-v2, or unsupported.
+  database status       Report uninitialized, current-v2, current-v2-with-pending-migrations, or unsupported.
   report backfill       Materialize daily reports for an inclusive UTC date range.
   report reset          Clear traffic statistics after Go-only writer confirmation.
   upgrade               Check, install, schedule, verify, or roll back releases.

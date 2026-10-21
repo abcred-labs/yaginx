@@ -101,7 +101,7 @@ func (h Handler) absoluteTTL(remember bool) time.Duration {
 
 // Routes registers the unauthenticated login, recovery, refresh, and logout
 // operations. RefreshToken and Logout are unauthenticated at the bearer layer
-// by design (see approved-deviations.json v2-api-account-refresh-token-cookie-*):
+// by design:
 // they authenticate against the yaginx-refresh cookie instead, which is what
 // lets a session survive the access token's own short expiry.
 func (h Handler) Routes(r chi.Router) {

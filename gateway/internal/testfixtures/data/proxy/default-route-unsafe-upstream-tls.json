@@ -1,0 +1,59 @@
+{
+  "version": 1,
+  "matrixLine": 52,
+  "name": "default-route-unsafe-upstream-tls",
+  "source": "captured",
+  "listener": {
+    "port": 18080,
+    "transport": "tcp"
+  },
+  "config": {
+    "defaultHost": "proxy-unsafe-tls-fixture.example.invalid",
+    "defaultDestination": "https://127.0.0.1:20182",
+    "allowInvalidTlsCertificate": true
+  },
+  "client": {
+    "method": "GET",
+    "host": "proxy-unsafe-tls-fixture.example.invalid",
+    "path": "/unsafe-default",
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json",
+      "Date": "${NOW}",
+      "Vary": "Accept-Encoding"
+    },
+    "body": {
+      "headers": {
+        "X-Fixture": "",
+        "X-Fixture-Forward-Proxy": "",
+        "X-Forwarded-For": "127.0.0.1",
+        "X-Forwarded-Host": "proxy-unsafe-tls-fixture.example.invalid",
+        "X-Forwarded-Prefix": "",
+        "X-Forwarded-Proto": "http"
+      },
+      "host": "127.0.0.1:20182",
+      "method": "GET",
+      "path": "/unsafe-default"
+    }
+  },
+  "upstream": {
+    "attempted": true,
+    "method": "GET",
+    "host": "127.0.0.1:20182",
+    "path": "/unsafe-default",
+    "status": 200,
+    "headers": {
+      "X-Fixture": "",
+      "X-Fixture-Forward-Proxy": "",
+      "X-Forwarded-For": "127.0.0.1",
+      "X-Forwarded-Host": "proxy-unsafe-tls-fixture.example.invalid",
+      "X-Forwarded-Prefix": "",
+      "X-Forwarded-Proto": "http"
+    }
+  },
+  "history": {
+    "status": 200,
+    "statusSource": "Upstream",
+    "errorCategory": ""
+  }
+}

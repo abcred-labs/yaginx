@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "matrixLine": 25,
+  "name": "priority-http-to-https-redirect",
+  "source": "captured",
+  "listener": {
+    "port": 18080,
+    "transport": "tcp"
+  },
+  "config": {
+    "defaultHost": "proxy-redirect-fixture.example.invalid",
+    "defaultDestination": "http://127.0.0.1:20180",
+    "redirectHttpToHttps": true
+  },
+  "client": {
+    "method": "GET",
+    "host": "proxy-redirect-fixture.example.invalid",
+    "path": "/redirect",
+    "status": 302,
+    "headers": {
+      "Content-Length": "0",
+      "Date": "${NOW}",
+      "Location": "https://proxy-redirect-fixture.example.invalid/redirect"
+    },
+    "body": ""
+  },
+  "upstream": {
+    "attempted": false
+  },
+  "history": {
+    "status": 302,
+    "statusSource": "YaginxPipeline",
+    "errorCategory": ""
+  }
+}

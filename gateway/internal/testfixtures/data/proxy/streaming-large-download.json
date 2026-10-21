@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "matrixLine": 146,
+  "name": "streaming-large-download",
+  "source": "captured",
+  "listener": {
+    "port": 18080,
+    "transport": "tcp"
+  },
+  "config": {
+    "defaultHost": "proxy-stream-large-fixture.example.invalid",
+    "direction": "download",
+    "payloadBytes": 1048576
+  },
+  "client": {
+    "method": "GET",
+    "host": "proxy-stream-large-fixture.example.invalid",
+    "path": "/large-download",
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/octet-stream",
+      "Date": "${NOW}",
+      "X-Fixture-Body-Bytes": "1048576"
+    },
+    "bodyBytes": 1048576,
+    "bodySha256": "236e1844739de218dfaa2e2869ee852fb8233f9a16a216e8409a861da124fb7f"
+  },
+  "upstream": {
+    "attempted": true,
+    "method": "GET",
+    "host": "127.0.0.1:20180",
+    "path": "/large-download",
+    "status": 200
+  },
+  "history": {
+    "status": 200,
+    "statusSource": "Upstream",
+    "errorCategory": ""
+  }
+}

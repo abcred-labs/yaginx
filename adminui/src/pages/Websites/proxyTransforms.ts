@@ -1,6 +1,6 @@
 import type { KeyValueString } from "@/api/website";
 
-// Keys the gateway data plane understands (see proxy-compatibility-matrix.md).
+// Keys the gateway data plane understands.
 export const proxyTransformKeys = [
   'PathPrefix', 'PathRemovePrefix', 'PathSet', 'QueryValueParameter',
   'RequestHeader', 'RequestHeadersCopy', 'ResponseHeader', 'ResponseHeadersCopy',

@@ -1,0 +1,60 @@
+{
+  "version": 1,
+  "matrixLine": 111,
+  "name": "cors-origin-echo",
+  "source": "captured",
+  "listener": {
+    "port": 18080,
+    "transport": "tcp"
+  },
+  "config": {
+    "defaultHost": "proxy-fixture.example.invalid",
+    "defaultDestination": "http://127.0.0.1:20180"
+  },
+  "client": {
+    "method": "GET",
+    "host": "proxy-fixture.example.invalid",
+    "path": "/cors-origin",
+    "status": 200,
+    "headers": {
+      "Access-Control-Allow-Credentials": "true",
+      "Access-Control-Allow-Origin": "https://cors-fixture.example.invalid",
+      "Content-Type": "application/json",
+      "Date": "${NOW}",
+      "Vary": "Accept-Encoding"
+    },
+    "body": {
+      "headers": {
+        "X-Fixture": "",
+        "X-Fixture-Forward-Proxy": "",
+        "X-Forwarded-For": "127.0.0.1",
+        "X-Forwarded-Host": "proxy-fixture.example.invalid",
+        "X-Forwarded-Prefix": "",
+        "X-Forwarded-Proto": "http"
+      },
+      "host": "127.0.0.1:20180",
+      "method": "GET",
+      "path": "/cors-origin"
+    }
+  },
+  "upstream": {
+    "attempted": true,
+    "method": "GET",
+    "host": "127.0.0.1:20180",
+    "path": "/cors-origin",
+    "status": 200,
+    "headers": {
+      "X-Fixture": "",
+      "X-Fixture-Forward-Proxy": "",
+      "X-Forwarded-For": "127.0.0.1",
+      "X-Forwarded-Host": "proxy-fixture.example.invalid",
+      "X-Forwarded-Prefix": "",
+      "X-Forwarded-Proto": "http"
+    }
+  },
+  "history": {
+    "status": 200,
+    "statusSource": "Upstream",
+    "errorCategory": ""
+  }
+}

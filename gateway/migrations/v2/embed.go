@@ -2,8 +2,7 @@ package v2
 
 import "embed"
 
-// Files contains the clean v2 baseline lineage. Empty databases never use
-// the historic Goose bridge migrations.
+// Files contains the v2 migration lineage applied to every database.
 //
 //go:embed *.sql
 var Files embed.FS

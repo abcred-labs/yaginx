@@ -13,15 +13,11 @@ const getSystemSetting = `-- name: GetSystemSetting :one
 SELECT value FROM gateway_system_setting WHERE setting_key = $1
 `
 
-type GetSystemSettingRow struct {
-	Value []byte
-}
-
-func (q *Queries) GetSystemSetting(ctx context.Context, settingKey string) (GetSystemSettingRow, error) {
+func (q *Queries) GetSystemSetting(ctx context.Context, settingKey string) ([]byte, error) {
 	row := q.db.QueryRow(ctx, getSystemSetting, settingKey)
-	var i GetSystemSettingRow
-	err := row.Scan(&i.Value)
-	return i, err
+	var value []byte
+	err := row.Scan(&value)
+	return value, err
 }
 
 const upsertSystemSetting = `-- name: UpsertSystemSetting :exec
@@ -37,10 +33,6 @@ type UpsertSystemSettingParams struct {
 }
 
 func (q *Queries) UpsertSystemSetting(ctx context.Context, arg UpsertSystemSettingParams) error {
-	_, err := q.db.Exec(ctx, upsertSystemSetting,
-		arg.SettingKey,
-		arg.Value,
-		arg.ContentType,
-	)
+	_, err := q.db.Exec(ctx, upsertSystemSetting, arg.SettingKey, arg.Value, arg.ContentType)
 	return err
 }

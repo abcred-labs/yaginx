@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "matrixLine": 22,
+  "name": "management-spa-root-index",
+  "source": "captured",
+  "listener": {
+    "port": 18080,
+    "transport": "tcp"
+  },
+  "config": {
+    "managementPath": "/yaginx_console/",
+    "staticAsset": "index.html"
+  },
+  "client": {
+    "method": "GET",
+    "host": "127.0.0.1:18080",
+    "path": "/yaginx_console/",
+    "status": 200,
+    "headers": {
+      "Act-Trace-Id": "${RANDOM_ID}",
+      "Content-Type": "text/html",
+      "Date": "${NOW}",
+      "Duration": "${RUNTIME_METADATA}",
+      "Handler-Node": "${RUNTIME_METADATA}",
+      "Vary": "Accept-Encoding"
+    },
+    "body": "\u003c!DOCTYPE html\u003e\n\u003chtml\u003e\n\u003chead\u003e\n    \u003cmeta charset=\"utf-8\" /\u003e\n    \u003ctitle\u003eYaginx AdminUI\u003c/title\u003e\n\u003c/head\u003e\n\u003cbody\u003e\n    \u003ch1\u003eYaginx AdminUI\u003c/h1\u003e\n\u003c/body\u003e\n\u003c/html\u003e"
+  },
+  "upstream": {
+    "attempted": false
+  },
+  "history": {
+    "status": 200,
+    "statusSource": "Management",
+    "errorCategory": ""
+  }
+}

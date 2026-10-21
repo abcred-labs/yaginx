@@ -1,6 +1,6 @@
 # Yaginx Go 版本：全新安装与配置 Runbook
 
-本文档记录 Go 版本 Yaginx 在全新 Debian 主机上的安装、PostgreSQL 15 初始化、配置、迁移和验收流程。`0.1.x` 是最后支持 V1 -> V2 数据库迁移的版本线；从 `1.0.0` 开始只支持 V2 schema。示例不包含真实主机名、口令、JWT 或加密密钥。
+本文档记录 Go 版本 Yaginx 在全新 Debian 主机上的安装、PostgreSQL 15 初始化、配置、迁移和验收流程。只支持 V2 schema。示例不包含真实主机名、口令、JWT 或加密密钥。
 
 > 适用范围：Debian amd64、以单节点本机 PostgreSQL 为起点的全新安装。生产多节点、公开管理面和证书签发需要在此基础上完成网络、审批和 ACME 设计。
 
@@ -213,7 +213,7 @@ journalctl -u yaginx --since '<upgrade restart UTC time>' --no-pager
 
 ## 5. 迁移、节点批准与服务启动
 
-由 DBA 预先创建空数据库后，先用 `doctor` 验证配置和数据库连接，再执行 v2 初始化、角色授权和状态校验；`serve --validate` 必须在初始化完成后执行。对于已经是 V2 的既有环境，先完成可恢复备份，再使用 `database migrate`。V1 数据库必须先使用最后一个 `0.1.x` 版本迁移，`1.1.x` 不会自动迁移 V1。`database` 动作位于前，随后可传入 `--config`：
+由 DBA 预先创建空数据库后，先用 `doctor` 验证配置和数据库连接，再执行 v2 初始化、角色授权和状态校验；`serve --validate` 必须在初始化完成后执行。对于已经是 V2 的既有环境，先完成可恢复备份，再使用 `database migrate`。`database` 动作位于前，随后可传入 `--config`：
 
 ```bash
 /usr/bin/yaginx doctor --check-db --config /etc/yaginx/config.json
@@ -227,7 +227,7 @@ systemctl status yaginx --no-pager
 curl --fail --silent --show-error http://127.0.0.1:19090/health/live
 ```
 
-`database init` 只接受真正空的数据库。`database migrate` 只接受 V2 schema；V1、旧 .NET schema、部分 schema 或未知版本均会拒绝。检测到 V1 时，先安装最后一个 `0.1.x` 完成迁移，再升级到 `1.1.x`。不能通过 repair/baseline 自动修复。
+`database init` 只接受真正空的数据库。`database migrate` 只接受 V2 schema；部分 schema 或未知版本均会拒绝。不能通过 repair/baseline 自动修复。
 
 `upgrade --migrate-database` 只在候选包已安装后执行迁移，默认升级不会自动修改数据库。迁移失败后程序包可以回滚，但数据库结构可能已经前进，不能把包回滚视为数据库回滚；重试前应检查迁移跟踪表和备份。
 

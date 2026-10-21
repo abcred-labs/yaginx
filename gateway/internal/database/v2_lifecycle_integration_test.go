@@ -17,12 +17,11 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/pressly/goose/v3"
 
-	"yaginx-gateway/migrations"
 	v2migrations "yaginx-gateway/migrations/v2"
 )
 
 func TestV2InitializeEmptyDatabaseAndRejectRepeat(t *testing.T) {
-	ctx, dsn, base := isolatedV2Database(t)
+	ctx, dsn, _ := isolatedV2Database(t)
 
 	if state, err := DatabaseState(ctx, dsn); err != nil || state != StateUninitialized {
 		t.Fatalf("initial state=%q err=%v", state, err)
@@ -43,13 +42,6 @@ func TestV2InitializeEmptyDatabaseAndRejectRepeat(t *testing.T) {
 	}
 	if err := InitializeV2(ctx, dsn, bytes.NewBuffer(nil)); err == nil || !strings.Contains(err.Error(), "requires an empty database") {
 		t.Fatalf("repeat initialization error=%v", err)
-	}
-	var oldTracker bool
-	if err := base.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_schema=current_schema() AND table_name='gateway_schema_version')`).Scan(&oldTracker); err != nil {
-		t.Fatal(err)
-	}
-	if oldTracker {
-		t.Fatal("v2 initialization created the v1 Goose tracker")
 	}
 }
 
@@ -136,7 +128,7 @@ func TestV2MigrateAcceptsVersionFivePendingLineage(t *testing.T) {
 	}
 }
 
-func TestV2MigrateRejectsPartialAndCurrentV1(t *testing.T) {
+func TestV2MigrateRejectsPartialAndBrokenLineage(t *testing.T) {
 	ctx, partialDSN, partial := isolatedV2Database(t)
 	if _, err := partial.Exec(ctx, `CREATE TABLE website(id bigint PRIMARY KEY)`); err != nil {
 		t.Fatal(err)
@@ -170,28 +162,6 @@ func TestV2MigrateRejectsPartialAndCurrentV1(t *testing.T) {
 	}
 	if err := MigrateV2(ctx, brokenDSN, bytes.NewBuffer(nil)); err == nil || !strings.Contains(err.Error(), "unsupported") {
 		t.Fatalf("broken lineage migration error=%v", err)
-	}
-
-	ctx, v1DSN, _ := isolatedV2Database(t)
-	db, err := openSQL(ctx, v1DSN)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer db.Close()
-	goose.SetBaseFS(migrations.Files)
-	goose.SetTableName("gateway_schema_version")
-	if err := goose.SetDialect("postgres"); err != nil {
-		t.Fatal(err)
-	}
-	if err := goose.UpToContext(ctx, db, ".", 16); err != nil {
-		t.Fatalf("create current-v1 schema: %v", err)
-	}
-	if state, err := DatabaseState(ctx, v1DSN); err != nil || state != StateCurrentV1 {
-		t.Fatalf("v1 state=%q err=%v", state, err)
-	}
-	err = MigrateV2(ctx, v1DSN, bytes.NewBuffer(nil))
-	if err == nil || !strings.Contains(err.Error(), "final 0.1.x release") {
-		t.Fatalf("V1 migration error=%v, want final 0.1.x guidance", err)
 	}
 }
 
@@ -236,26 +206,6 @@ func TestV2StateRejectsNonEmptyAndForgedSchemas(t *testing.T) {
 		})
 	}
 
-	t.Run("incomplete v1 tracker", func(t *testing.T) {
-		ctx, dsn, _ := isolatedV2Database(t)
-		db, err := openSQL(ctx, dsn)
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer db.Close()
-		goose.SetBaseFS(migrations.Files)
-		goose.SetTableName("gateway_schema_version")
-		if err := goose.SetDialect("postgres"); err != nil {
-			t.Fatal(err)
-		}
-		if err := goose.UpToContext(ctx, db, ".", 15); err != nil {
-			t.Fatal(err)
-		}
-		if state, err := DatabaseState(ctx, dsn); err != nil || state != StateUnsupported {
-			t.Fatalf("state=%q err=%v", state, err)
-		}
-	})
-
 	t.Run("forged v2 marker", func(t *testing.T) {
 		ctx, dsn, base := isolatedV2Database(t)
 		if _, err := base.Exec(ctx, `CREATE TABLE yaginx_schema_version (generation smallint PRIMARY KEY); INSERT INTO yaginx_schema_version(generation) VALUES (2)`); err != nil {
@@ -266,15 +216,18 @@ func TestV2StateRejectsNonEmptyAndForgedSchemas(t *testing.T) {
 		}
 	})
 
-	t.Run("v1 tracker remains after v2", func(t *testing.T) {
+	t.Run("leftover legacy tables are ignored", func(t *testing.T) {
 		ctx, dsn, base := isolatedV2Database(t)
 		if err := InitializeV2(ctx, dsn, bytes.NewBuffer(nil)); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := base.Exec(ctx, `CREATE TABLE gateway_schema_version (id bigint PRIMARY KEY, version_id bigint, is_applied boolean, tstamp timestamptz)`); err != nil {
+		if _, err := base.Exec(ctx, `
+CREATE TABLE "VersionInfo" ("Version" bigint PRIMARY KEY);
+CREATE TABLE "__EFMigrationsHistory" ("MigrationId" text PRIMARY KEY);
+CREATE TABLE gateway_schema_version (id bigint PRIMARY KEY, version_id bigint, is_applied boolean, tstamp timestamptz)`); err != nil {
 			t.Fatal(err)
 		}
-		if state, err := DatabaseState(ctx, dsn); err != nil || state != StateUnsupported {
+		if state, err := DatabaseState(ctx, dsn); err != nil || state != StateCurrentV2 {
 			t.Fatalf("state=%q err=%v", state, err)
 		}
 	})

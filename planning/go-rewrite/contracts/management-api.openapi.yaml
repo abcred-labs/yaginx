@@ -29,7 +29,6 @@ paths:
       tags: [account]
       operationId: accountLogin
       security: []
-      x-fixture-required: true
       x-go-handler: internal/management/account.Handler.Login
       requestBody:
         required: true
@@ -56,7 +55,6 @@ paths:
       tags: [account]
       operationId: passwordRecoveryStart
       security: []
-      x-fixture-required: true
       x-go-handler: internal/management/account.Handler.PasswordRecoveryStart
       requestBody:
         required: true
@@ -76,7 +74,6 @@ paths:
       tags: [account]
       operationId: passwordRecoveryVerifyEmail
       security: []
-      x-fixture-required: true
       x-go-handler: internal/management/account.Handler.PasswordRecoveryVerifyEmail
       requestBody:
         required: true
@@ -96,7 +93,6 @@ paths:
       tags: [account]
       operationId: passwordRecoveryReset
       security: []
-      x-fixture-required: true
       x-go-handler: internal/management/account.Handler.PasswordRecoveryReset
       requestBody:
         required: true
@@ -116,11 +112,9 @@ paths:
       tags: [account]
       operationId: accountRefreshToken
       security: []
-      x-fixture-required: true
-      x-deviation: v2-api-account-refresh-token-cookie-success
       x-go-handler: internal/management/account.Handler.RefreshToken
       description: >-
-        v2 deviation (see approved-deviations.json): authenticated by the
+        v2 behavior: authenticated by the
         HttpOnly yaginx-refresh cookie set at login/refresh, not by an
         Authorization bearer, so the session can be renewed after the access
         token itself has expired.
@@ -206,7 +200,6 @@ paths:
     post:
       tags: [account]
       operationId: accountRegister
-      x-fixture-required: true
       x-go-handler: internal/management/account.Handler.Register
       requestBody:
         required: true
@@ -227,7 +220,6 @@ paths:
     get:
       tags: [account]
       operationId: accountProfileGet
-      x-fixture-required: true
       x-go-handler: internal/management/account.Handler.GetProfile
       responses:
         '200':
@@ -242,7 +234,6 @@ paths:
     post:
       tags: [account]
       operationId: accountProfileUpdate
-      x-fixture-required: true
       x-go-handler: internal/management/account.Handler.UpdateProfile
       requestBody:
         required: true
@@ -263,7 +254,6 @@ paths:
     post:
       tags: [website]
       operationId: websiteUpsert
-      x-fixture-required: true
       x-go-handler: internal/management/website.Handler.Upsert
       requestBody:
         required: true
@@ -284,7 +274,6 @@ paths:
     post:
       tags: [website]
       operationId: websiteRuleRefresh
-      x-fixture-required: true
       x-go-handler: internal/management/website.Handler.RefreshRules
       responses:
         '200':
@@ -300,7 +289,6 @@ paths:
     delete:
       tags: [website]
       operationId: websiteDelete
-      x-fixture-required: true
       x-go-handler: internal/management/website.Handler.Delete
       parameters:
         - $ref: '#/components/parameters/IdQuery'
@@ -338,7 +326,6 @@ paths:
     get:
       tags: [website]
       operationId: websiteSearchGet
-      x-fixture-required: true
       x-go-handler: internal/management/website.Handler.Search
       responses:
         '200':
@@ -352,7 +339,6 @@ paths:
     post:
       tags: [website]
       operationId: websiteSearchPost
-      x-fixture-required: true
       x-go-handler: internal/management/website.Handler.Search
       requestBody:
         required: false
@@ -373,7 +359,6 @@ paths:
     get:
       tags: [website]
       operationId: websiteGet
-      x-fixture-required: true
       x-go-handler: internal/management/website.Handler.Get
       parameters:
         - $ref: '#/components/parameters/IdQuery'
@@ -390,7 +375,6 @@ paths:
     get:
       tags: [website]
       operationId: websiteGetByName
-      x-fixture-required: true
       x-go-handler: internal/management/website.Handler.GetByName
       parameters:
         - $ref: '#/components/parameters/NameQuery'
@@ -407,7 +391,6 @@ paths:
     post:
       tags: [web_domain]
       operationId: webDomainUpsert
-      x-fixture-required: true
       x-go-handler: internal/management/webdomain.Handler.Upsert
       requestBody:
         required: true
@@ -428,7 +411,6 @@ paths:
     delete:
       tags: [web_domain]
       operationId: webDomainDelete
-      x-fixture-required: true
       x-go-handler: internal/management/webdomain.Handler.Delete
       parameters:
         - $ref: '#/components/parameters/IdQuery'
@@ -446,7 +428,6 @@ paths:
     get:
       tags: [web_domain]
       operationId: webDomainSearchGet
-      x-fixture-required: true
       x-go-handler: internal/management/webdomain.Handler.Search
       responses:
         '200':
@@ -460,7 +441,6 @@ paths:
     post:
       tags: [web_domain]
       operationId: webDomainSearchPost
-      x-fixture-required: true
       x-go-handler: internal/management/webdomain.Handler.Search
       requestBody:
         required: false
@@ -481,7 +461,6 @@ paths:
     get:
       tags: [web_domain]
       operationId: webDomainGet
-      x-fixture-required: true
       x-go-handler: internal/management/webdomain.Handler.Get
       parameters:
         - $ref: '#/components/parameters/IdQuery'
@@ -498,7 +477,6 @@ paths:
     get:
       tags: [web_domain]
       operationId: webDomainGetByName
-      x-fixture-required: true
       x-go-handler: internal/management/webdomain.Handler.GetByName
       parameters:
         - $ref: '#/components/parameters/NameQuery'
@@ -715,7 +693,6 @@ paths:
     post:
       tags: [request_history]
       operationId: requestHistorySearch
-      x-fixture-required: true
       x-go-handler: internal/management/history.Handler.Search
       requestBody:
         required: true
@@ -736,7 +713,6 @@ paths:
     get:
       tags: [request_history]
       operationId: requestHistoryGet
-      x-fixture-required: true
       x-go-handler: internal/management/history.Handler.Get
       parameters:
         - $ref: '#/components/parameters/IdQuery'
@@ -897,7 +873,6 @@ paths:
     get:
       tags: [system_setting]
       operationId: smtpGet
-      x-fixture-required: true
       x-go-handler: internal/management/settings.Handler.GetSMTP
       responses:
         '200':
@@ -912,7 +887,6 @@ paths:
     post:
       tags: [system_setting]
       operationId: smtpUpsert
-      x-fixture-required: true
       x-go-handler: internal/management/settings.Handler.UpsertSMTP
       requestBody:
         required: true
@@ -933,7 +907,6 @@ paths:
     post:
       tags: [system_setting]
       operationId: smtpTestSend
-      x-fixture-required: true
       x-go-handler: internal/management/settings.Handler.TestSMTP
       requestBody:
         required: true

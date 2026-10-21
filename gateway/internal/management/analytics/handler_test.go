@@ -15,7 +15,7 @@ import (
 	"yaginx-gateway/internal/management"
 )
 
-// The analytics operations carry no .NET golden fixture: they are the Go-native
+// The analytics operations have no prior baseline: they are the Go-native
 // contract that replaced the host_traffic and resource_report stacks, so their
 // request validation and response shape are pinned here instead.
 

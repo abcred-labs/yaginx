@@ -479,9 +479,6 @@ func applySetupDatabase(ctx context.Context, configPath string, request setupReq
 	if request.Action == "" {
 		request.Action = map[database.State]string{database.StateUninitialized: "initialize", database.StateCurrentV2: "migrate", database.StateCurrentV2Pending: "migrate"}[state]
 	}
-	if state == database.StateCurrentV1 {
-		return fmt.Errorf("current-v1 database requires the final 0.1.x release before upgrading to 1.x")
-	}
 	if state == database.StateUnsupported {
 		return fmt.Errorf("database schema is unsupported; automatic setup is refused")
 	}
@@ -574,8 +571,6 @@ func setupStateMessage(state database.State) string {
 	switch state {
 	case database.StateUninitialized:
 		return "empty database; initialization is available"
-	case database.StateCurrentV1:
-		return "current-v1 database detected; use the final 0.1.x release before upgrading to 1.x"
 	case database.StateCurrentV2:
 		return "supported v2 schema"
 	case database.StateCurrentV2Pending:

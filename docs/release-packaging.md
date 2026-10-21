@@ -10,7 +10,7 @@ Yaginx 使用 Git tag 触发 GitHub Actions 发布。发布人只需要从已通
 
 - PR 已合并到 `main`，且没有未提交的发布相关修改。
 - `main` 的 required checks 全部通过：`release-gate`、Go、PostgreSQL 集成、Admin UI、
-  文档、contract/proxy、secret/dependency/license/SBOM 和 Docker 检查。
+  文档、secret/dependency/license/SBOM 和 Docker 检查。
 - migration 是向前兼容的追加文件，已补充空库、当前库和中断重试测试。
 - 版本说明、支持矩阵和升级/回滚说明已更新。
 - 仓库不包含凭据、证书私钥、生产数据、私有域名或私有依赖。
@@ -24,9 +24,6 @@ go mod verify
 go build ./cmd/yaginx
 go test -count=1 ./...
 go vet ./...
-go run ./cmd/contractlint
-go run ./cmd/contractcheck
-go run ./cmd/proxycheck
 
 cd ../adminui
 pnpm install --frozen-lockfile
@@ -39,7 +36,6 @@ pnpm run build
 
 ## 版本号和 migration 规则
 
-- `v0.1.x`：历史兼容版本线，用于 V1 → V2 迁移。
 - `v1.1.x`：当前稳定版本线，首个版本为 `v1.1.0`。
 - `v1.x`：稳定公开版本线；只接受 V2 schema，重大不兼容变更使用 major 版本。
 - 已发布的 migration 永远不能修改或删除；schema 变更必须新增 forward migration。
@@ -71,7 +67,7 @@ v<major>.<minor>.<patch>
 
 推送 tag 后，workflow 按顺序执行两个 job：
 
-1. `release-gate` 在 PostgreSQL 服务上运行 Go、migration、legacy import、Admin UI、文档和
+1. `release-gate` 在 PostgreSQL 服务上运行 Go、migration、Admin UI、文档和
    本地链接检查。
 2. `release` 在 gate 成功后构建和发布制品。
 

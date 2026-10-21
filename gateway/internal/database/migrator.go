@@ -25,7 +25,6 @@ type State string
 
 const (
 	StateUninitialized    State = "uninitialized"
-	StateCurrentV1        State = "current-v1"
 	StateCurrentV2        State = "current-v2"
 	StateCurrentV2Pending State = "current-v2-with-pending-migrations"
 	StateUnsupported      State = "unsupported"
@@ -85,8 +84,7 @@ func InitializeV2(ctx context.Context, databaseURL string, output io.Writer) err
 	})
 }
 
-// MigrateV2 upgrades an existing v2 schema. V1 databases must be upgraded by
-// the final 0.1.x release before installing 1.x.
+// MigrateV2 upgrades an existing v2 schema.
 func MigrateV2(ctx context.Context, databaseURL string, output io.Writer) error {
 	db, err := openSQL(ctx, databaseURL)
 	if err != nil {
@@ -99,8 +97,6 @@ func MigrateV2(ctx context.Context, databaseURL string, output io.Writer) error 
 			return err
 		}
 		switch state {
-		case StateCurrentV1:
-			return fmt.Errorf("current-v1 database is no longer supported by 1.x; run the final 0.1.x release to migrate it to v2 first")
 		case StateCurrentV2, StateCurrentV2Pending:
 			// Existing v2 installations may have only the baseline migration.
 		case StateUninitialized:
@@ -170,8 +166,6 @@ func DatabaseNeedsMigration(ctx context.Context, databaseURL string) (bool, erro
 	switch state {
 	case StateUninitialized:
 		return true, nil
-	case StateCurrentV1:
-		return false, fmt.Errorf("current-v1 database requires the final 0.1.x release before upgrading to 1.x")
 	case StateCurrentV2, StateCurrentV2Pending:
 		return !v2MigrationsComplete(ctx, db), nil
 	case StateUnsupported:
@@ -216,12 +210,8 @@ func detectState(ctx context.Context, db *sql.DB) (State, error) {
 	if err != nil {
 		return "", fmt.Errorf("inspect v2 migration tracker: %w", err)
 	}
-	v1, err := schemaTableExists(ctx, db, "gateway_schema_version")
-	if err != nil {
-		return "", fmt.Errorf("inspect v1 schema marker: %w", err)
-	}
 	if v2 {
-		if v1 || !v2Tracker {
+		if !v2Tracker {
 			return StateUnsupported, nil
 		}
 		if err := validateV2Marker(ctx, db); err != nil {
@@ -242,20 +232,8 @@ func detectState(ctx context.Context, db *sql.DB) (State, error) {
 		}
 		return StateCurrentV2, nil
 	}
-	if v1 || v2Tracker {
-		if !v1 || v2Tracker {
-			return StateUnsupported, nil
-		}
-		if err := ValidateGatewaySchema(ctx, db); err != nil {
-			return StateUnsupported, nil
-		}
-		if err := ValidateCurrentV1Schema(ctx, db); err != nil {
-			return StateUnsupported, nil
-		}
-		if err := validateGooseTracker(ctx, db, "gateway_schema_version", expectedGooseVersions(16)); err != nil {
-			return StateUnsupported, nil
-		}
-		return StateCurrentV1, nil
+	if v2Tracker {
+		return StateUnsupported, nil
 	}
 	hasObjects, err := schemaHasUserObjects(ctx, db)
 	if err != nil {
@@ -314,14 +292,6 @@ SELECT EXISTS (
 	return exists, nil
 }
 
-func expectedGooseVersions(last int64) []int64 {
-	versions := make([]int64, 0, last+1)
-	for version := int64(0); version <= last; version++ {
-		versions = append(versions, version)
-	}
-	return versions
-}
-
 func v2MigrationProgress(ctx context.Context, db *sql.DB) (int64, error) {
 	columns, err := tableColumns(ctx, db, "yaginx_schema_migration")
 	if err != nil {
@@ -369,47 +339,6 @@ func v2MigrationProgress(ctx context.Context, db *sql.DB) (int64, error) {
 func v2MigrationsComplete(ctx context.Context, db *sql.DB) bool {
 	progress, err := v2MigrationProgress(ctx, db)
 	return err == nil && progress == latestV2Migration
-}
-
-func validateGooseTracker(ctx context.Context, db *sql.DB, table string, expected []int64) error {
-	columns, err := tableColumns(ctx, db, table)
-	if err != nil {
-		return err
-	}
-	for _, column := range []string{"id", "version_id", "is_applied", "tstamp"} {
-		if _, ok := columns[column]; !ok {
-			return fmt.Errorf("%s is missing tracker column %q", table, column)
-		}
-	}
-	rows, err := db.QueryContext(ctx, `SELECT version_id, is_applied FROM `+table+` ORDER BY id`)
-	if err != nil {
-		return fmt.Errorf("read %s lineage: %w", table, err)
-	}
-	defer rows.Close()
-	actual := make([]int64, 0, len(expected))
-	for rows.Next() {
-		var version int64
-		var applied bool
-		if err := rows.Scan(&version, &applied); err != nil {
-			return err
-		}
-		if !applied {
-			return fmt.Errorf("%s has unapplied version %d", table, version)
-		}
-		actual = append(actual, version)
-	}
-	if err := rows.Err(); err != nil {
-		return err
-	}
-	if len(actual) != len(expected) {
-		return fmt.Errorf("%s lineage count = %d, want %d", table, len(actual), len(expected))
-	}
-	for index, version := range expected {
-		if actual[index] != version {
-			return fmt.Errorf("%s lineage[%d] = %d, want %d", table, index, actual[index], version)
-		}
-	}
-	return nil
 }
 
 func validateV2Marker(ctx context.Context, db *sql.DB) error {

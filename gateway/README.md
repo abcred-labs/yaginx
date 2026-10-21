@@ -12,11 +12,9 @@ go test ./...
 go vet ./...
 go generate ./...
 go build ./cmd/yaginx
-go run ./cmd/contractlint
 ```
 
-`go run ./cmd/contractlint` and `go run ./cmd/contractcheck` validate the
-v2 API/proxy fixture inventory. SQL query code is generated reproducibly with
+SQL query code is generated reproducibly with
 `./tools/generate-sqlc.ps1` (sqlc v1.29.0).
 
 ## Commands
@@ -27,9 +25,7 @@ v2 API/proxy fixture inventory. SQL query code is generated reproducibly with
   configuration and database, and initializes the shared PostgreSQL JWT
   material on its first successful run.
 - `database init|migrate|status`: initializes an empty v2 database, upgrades
-  only an existing v2 schema, or reports the database lifecycle state. V1
-  databases must be migrated with the final `0.1.x` release before installing
-  `1.1.x`.
+  only an existing v2 schema, or reports the database lifecycle state.
 - `report backfill --from YYYY-MM-DD --to YYYY-MM-DD`: materializes daily
   reports from existing hourly reports one UTC day per transaction. It starts
   no listeners and can be repeated safely after an interrupted historical
@@ -112,7 +108,7 @@ Set-Location gateway
 
 The script does not connect to production infrastructure. Pebble, public DNS
 HTTP-01, release signing and production traffic tests remain Manual Testing
-Items in `planning/go-rewrite/10-testing-and-cutover.md`.
+Items.
 
 For Debian/systemd installs, use `deploy/systemd/yaginx.service` for normal
 operation. `yaginx-core.service` is deliberately manual-only and conflicts with
