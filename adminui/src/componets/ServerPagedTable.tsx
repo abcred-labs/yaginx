@@ -5,6 +5,9 @@ import { Table } from "antd"
 import type { TablePaginationConfig } from "antd/es/table"
 import { SizeType } from "antd/es/config-provider/SizeContext"
 import React, { useEffect, useState } from "react"
+import { buildServerPageRequest } from "@/ui/serverPageRequest"
+
+export { buildServerPageRequest }
 
 export interface ServerPagedTableProps<T> {
   pkFieldName: string;
@@ -22,22 +25,6 @@ export interface ServerPagedTableProps<T> {
   onPageDataChange?: (records: T[]) => void;
   size?: SizeType;
 }
-
-export const buildServerPageRequest = (
-  filterCondition: Record<string, any> = {},
-  externalFilterCondition: Record<string, any> = {},
-  page: PageRequest = {}
-): Record<string, any> => {
-  const request = { ...filterCondition, ...externalFilterCondition };
-  // These names belong to Ant Design's table state, never to the API wire.
-  delete request.current;
-  delete request.pageSizeOptions;
-  return {
-    ...request,
-    pageIndex: page.pageIndex ?? DEFAULT_PAGE_INDEX,
-    pageSize: page.pageSize ?? DEFAULT_PAGE_SIZE,
-  };
-};
 
 const ServerPagedTable = <T,>(props: ServerPagedTableProps<T>) => {
   const [refreshToken, setRefreshToken] = useState(0);

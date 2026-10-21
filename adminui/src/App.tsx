@@ -7,6 +7,7 @@ import Loading from './componets/Loading';
 import { RootAuthProvider } from './layouts/RootAuthProvider';
 import NoFound from './layouts/NoFond';
 import { AppearanceProvider } from './appearance';
+import { ConfirmDialogHost, Toaster } from '@modra/react';
 
 const App: React.FC = () => {
   // 主路由构建
@@ -27,6 +28,8 @@ const App: React.FC = () => {
           </RootAuthProvider>
         </HashRouter>
       </Suspense>
+      <Toaster />
+      <ConfirmDialogHost />
     </AppearanceProvider>
   );
 };

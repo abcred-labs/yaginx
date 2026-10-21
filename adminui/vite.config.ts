@@ -6,6 +6,7 @@ import path from 'path';
 import { createProxy } from './config/vite/proxy';
 import pkg from './package.json';
 import react from '@vitejs/plugin-react-swc';
+import tailwindcss from '@tailwindcss/vite';
 
 const { dependencies, devDependencies, name, version } = pkg;
 const __APP_INFO__ = {
@@ -24,7 +25,7 @@ export default ({ command, mode }: ConfigEnv): UserConfig => {
   return {
     base: VITE_BASE_PATH,
     // plugins: createVitePlugins(mode, isBuild),
-    plugins: [react()],
+    plugins: [react(), tailwindcss()],
     css: {
       preprocessorOptions: {
         less: {

@@ -1,43 +1,86 @@
-import { Drawer, Grid, Layout, Menu, Tooltip } from 'antd';
+import { AppShell, Menu, SiderCollapseButton, useSiderToggle } from '@modra/react';
+import type { MenuItemType } from '@modra/react';
 import React, { Suspense, useEffect, useMemo, useState } from 'react';
 import { Link, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { ErrorBoundary } from 'react-error-boundary';
-import Sider from 'antd/es/layout/Sider';
-import { MenuFoldOutlined, MenuUnfoldOutlined } from '@ant-design/icons';
 import { IAuthContext, useAuth } from './RootAuthProvider';
 import Loading from '@/componets/Loading';
-import MenuIcon from '@/MenuIcon';
+import MenuIcon from '@/ui/menuIcons';
 import SidebarAccount from './SidebarAccount';
 import AppTopbar from './AppTopbar';
 import { PageMetaProvider } from './PageMeta';
 import { IMenuLink, menus } from '@/router/menu';
-import { useAppearance } from '@/appearance';
 import { persistSidebarCollapsed, readSidebarCollapsed } from './sidebarPreference';
 import { buildLoginRedirectPath } from '@/utils/safeRedirect';
 
-const { Content } = Layout;
-
 const ErrorFallback = ({ error, resetErrorBoundary }: any) => (
-  <div className="app-error-state" role="alert">
-    <span className="app-error-state__eyebrow">连接中断</span>
-    <h2>此页面暂时无法加载</h2>
-    <p>{error?.message || '请检查网络或服务状态后重新加载。'}</p>
-    <button className="app-error-state__action" onClick={resetErrorBoundary}>重新加载</button>
+  <div className="mx-auto flex max-w-md flex-col items-center gap-3 py-16 text-center" role="alert">
+    <span className="text-xs font-medium tracking-wide text-destructive">连接中断</span>
+    <h2 className="text-lg font-semibold">此页面暂时无法加载</h2>
+    <p className="text-sm text-muted-foreground">{error?.message || '请检查网络或服务状态后重新加载。'}</p>
+    <button
+      className="rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground hover:opacity-90"
+      onClick={resetErrorBoundary}
+    >
+      重新加载
+    </button>
   </div>
 );
+
+const toLeaf = (item: IMenuLink, parentPath = ''): MenuItemType => {
+  const targetPath = item.path.startsWith('/') ? item.path : `${parentPath}/${item.path}`;
+  return {
+    key: item.path,
+    title: item.title,
+    label: <Link to={targetPath}>{item.title}</Link>,
+    icon: item.icon ? <MenuIcon name={item.icon} /> : undefined,
+  };
+};
+
+// 二级菜单拍平成分组，省掉一次手风琴点击；收起态由 Menu 自动退化成图标加分隔线。
+const menuItems: MenuItemType[] = menus.map((section) =>
+  section.children?.length
+    ? {
+      key: `group-${section.path}`,
+      type: 'group',
+      label: section.title,
+      children: section.children.map((child) => toLeaf(child, section.path)),
+    }
+    : toLeaf(section));
+
+// 详情页/创建页不在菜单里，退回到最长前缀匹配，避免导航整体失去选中态。
+const menuKeys = menus
+  .flatMap((section) => (section.children?.length ? section.children : [section]))
+  .map((item) => item.path);
+
+const findSelectedKey = (pathname: string): string | undefined => {
+  const exact = menuKeys.find((key) => key === pathname);
+  if (exact) return exact;
+  return menuKeys
+    .filter((key) => key !== '/' && pathname.startsWith(key))
+    .sort((a, b) => b.length - a.length)[0];
+};
+
+const Brand: React.FC = () => {
+  const { collapsed } = useSiderToggle();
+  return (
+    <div className={`flex items-center gap-2 px-3 ${collapsed ? 'flex-col justify-center py-2' : 'h-14 justify-between'}`}>
+      <span className="truncate text-base font-semibold tracking-wider" aria-label="YAGINX">
+        {collapsed ? 'YG' : 'YAGINX'}
+      </span>
+      <SiderCollapseButton aria-label="切换导航" />
+    </div>
+  );
+};
 
 const UserLayout: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const screens = Grid.useBreakpoint();
-  const isMobile = !screens.md;
   const { isAuthorized, authReady }: IAuthContext = useAuth();
-  const { effectiveTheme } = useAppearance();
   const [collapsed, setCollapsed] = useState(readSidebarCollapsed);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const updateCollapsed = (nextCollapsed: boolean) => {
-    setCollapsed(nextCollapsed);
-    persistSidebarCollapsed(nextCollapsed);
+  const updateCollapsed = (next: boolean) => {
+    setCollapsed(next);
+    persistSidebarCollapsed(next);
   };
 
   useEffect(() => {
@@ -50,66 +93,7 @@ const UserLayout: React.FC = () => {
     }
   }, [authReady, isAuthorized, navigate, location.pathname, location.search]);
 
-  useEffect(() => {
-    if (isMobile) {
-      setMobileMenuOpen(false);
-    }
-  }, [isMobile, location.pathname]);
-
-  // 展开态把二级菜单拍平成分组，省掉一次手风琴点击；收起态只剩图标，用分隔线保留分组感。
-  const { groupedItems, flatItems } = useMemo(() => {
-    const toLeaf = (item: IMenuLink, parentPath = '') => {
-      const targetPath = item.path.startsWith('/') ? item.path : `${parentPath}/${item.path}`;
-      return {
-        key: item.path,
-        label: <Link to={targetPath}>{item.title}</Link>,
-        icon: item.icon ? <MenuIcon name={item.icon} /> : undefined,
-      };
-    };
-
-    const grouped: any[] = [];
-    const flat: any[] = [];
-
-    menus.forEach((section, index) => {
-      if (!section.children?.length) {
-        grouped.push(toLeaf(section));
-        flat.push(toLeaf(section));
-        return;
-      }
-
-      grouped.push({
-        key: `group-${section.path}`,
-        type: 'group',
-        label: <span className="sider-menu__group-label">{section.title}</span>,
-        children: section.children.map((child) => toLeaf(child, section.path)),
-      });
-
-      if (index > 0) flat.push({ key: `divider-${section.path}`, type: 'divider' });
-      section.children.forEach((child) => flat.push(toLeaf(child, section.path)));
-    });
-
-    return { groupedItems: grouped, flatItems: flat };
-  }, []);
-
-  // 详情页/创建页不在菜单里，退回到最长前缀匹配，避免导航整体失去选中态。
-  const selectedKey = useMemo(() => {
-    const keys = menus.flatMap((section) => (section.children?.length ? section.children : [section])).map((item) => item.path);
-    const exact = keys.find((key) => key === location.pathname);
-    if (exact) return exact;
-    return keys
-      .filter((key) => key !== '/' && location.pathname.startsWith(key))
-      .sort((a, b) => b.length - a.length)[0];
-  }, [location.pathname]);
-
-  const navMenu = (compact = false) => (
-    <Menu
-      className={`sider-menu${compact ? ' sider-menu--compact' : ''}`}
-      theme={effectiveTheme}
-      mode="inline"
-      selectedKeys={selectedKey ? [selectedKey] : []}
-      items={compact ? flatItems : groupedItems}
-    />
-  );
+  const selectedKey = useMemo(() => findSelectedKey(location.pathname), [location.pathname]);
 
   if (!authReady) {
     // 静默刷新还没跑完：不知道到底算不算登录，先别渲染任何东西，也别跳转。
@@ -121,74 +105,33 @@ const UserLayout: React.FC = () => {
     return <Navigate to={`/login?redirect=${encodeURIComponent(redirect)}`} replace />;
   }
 
-  const sideWidth = collapsed ? 72 : 232;
   return (
     <PageMetaProvider>
-      <Layout className="admin-shell" hasSider={!isMobile}>
-        {isMobile ? (
-          <Drawer
-            className="app-mobile-nav"
-            open={mobileMenuOpen}
-            onClose={() => setMobileMenuOpen(false)}
-            placement="left"
-            width={264}
-            closable={false}
-            styles={{ body: { padding: 0 } }}
-          >
-            <div className="app-sider__brand">
-              <div className="logo">YAGINX</div>
+      <AppShell
+        fullscreen
+        brand={<span className="text-base font-semibold tracking-wider">YAGINX</span>}
+        siderCollapsed={collapsed}
+        onSiderCollapse={updateCollapsed}
+        siderTrigger={null}
+        header={<AppTopbar />}
+        sidebar={(
+          <div className="flex h-full min-h-0 flex-col">
+            <Brand />
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              <Menu mode="inline" items={menuItems} selectedKeys={selectedKey ? [selectedKey] : []} />
             </div>
-            {navMenu()}
             <SidebarAccount />
-          </Drawer>
-        ) : (
-          <Sider
-            className="app-sider"
-            collapsible
-            collapsed={collapsed}
-            onCollapse={updateCollapsed}
-            trigger={null}
-            width={232}
-            collapsedWidth={72}
-            style={{ overflow: 'hidden', height: '100vh', position: 'fixed', left: 0, top: 0, bottom: 0, zIndex: 1000 }}
-          >
-            <div className={`app-sider__brand${collapsed ? ' app-sider__brand--collapsed' : ''}`}>
-              {collapsed ? (
-                <div className="logo logo--collapsed" aria-label="YAGINX">YG</div>
-              ) : (
-                <div className="logo">YAGINX</div>
-              )}
-              <Tooltip title={collapsed ? '展开导航' : '收起导航'} placement="right">
-                <button
-                  className="app-sider__toggle"
-                  aria-label={collapsed ? '展开导航' : '收起导航'}
-                  aria-expanded={!collapsed}
-                  onClick={() => updateCollapsed(!collapsed)}
-                >
-                  {collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
-                </button>
-              </Tooltip>
-            </div>
-
-            {navMenu(collapsed)}
-            <SidebarAccount collapsed={collapsed} />
-          </Sider>
+          </div>
         )}
-
-        <Layout className="app-main-layout" style={{ marginLeft: isMobile ? 0 : sideWidth, minHeight: '100vh' }}>
-          <AppTopbar isMobile={isMobile} onOpenNavigation={() => setMobileMenuOpen(true)} />
-
-          <Content className="app-content">
-            <div className="app-content__surface">
-              <ErrorBoundary FallbackComponent={ErrorFallback} onReset={() => window.location.reload()}>
-                <Suspense fallback={<Loading />}>
-                  <Outlet />
-                </Suspense>
-              </ErrorBoundary>
-            </div>
-          </Content>
-        </Layout>
-      </Layout>
+      >
+        <div className="mx-auto w-full max-w-screen-2xl p-4 md:p-6">
+          <ErrorBoundary FallbackComponent={ErrorFallback} onReset={() => window.location.reload()}>
+            <Suspense fallback={<Loading />}>
+              <Outlet />
+            </Suspense>
+          </ErrorBoundary>
+        </div>
+      </AppShell>
     </PageMetaProvider>
   );
 };

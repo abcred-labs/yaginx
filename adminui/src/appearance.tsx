@@ -1,5 +1,8 @@
 import { ConfigProvider, theme } from 'antd';
 import type { ThemeConfig } from 'antd';
+import { ConfigProvider as ModraConfigProvider, ThemeProvider as ModraThemeProvider } from '@modra/react';
+import type { ThemeOverride } from '@modra/react';
+import { zhCN } from '@modra/react/locale/zh-CN';
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 
 export type ThemePreference = 'system' | 'light' | 'dark';
@@ -82,6 +85,23 @@ export const buildTheme = (effectiveTheme: EffectiveTheme): ThemeConfig => {
   };
 };
 
+/** 与 buildTheme 使用同一组品牌色，让迁移期间 antd 与 Modra 组件外观一致。 */
+export const buildModraTheme = (effectiveTheme: EffectiveTheme): ThemeOverride => {
+  const isDark = effectiveTheme === 'dark';
+  const primary = isDark ? '#76a8ff' : '#2575ff';
+  return {
+    color: {
+      primary,
+      primaryForeground: isDark ? '#0d1524' : '#ffffff',
+      ring: primary,
+      info: primary,
+      success: isDark ? '#48d3bd' : '#00a88f',
+      warning: isDark ? '#f0b661' : '#e99a2f',
+      destructive: isDark ? '#ff918b' : '#d54b45',
+    },
+  };
+};
+
 export const AppearanceProvider: React.FC<React.PropsWithChildren> = ({ children }) => {
   const [preference, setPreferenceState] = useState<ThemePreference>(getStoredPreference);
   const [systemTheme, setSystemTheme] = useState<EffectiveTheme>(getSystemTheme);
@@ -97,6 +117,7 @@ export const AppearanceProvider: React.FC<React.PropsWithChildren> = ({ children
   useEffect(() => {
     document.documentElement.dataset.theme = effectiveTheme;
     document.documentElement.style.colorScheme = effectiveTheme;
+    document.documentElement.classList.toggle('dark', effectiveTheme === 'dark');
   }, [effectiveTheme]);
 
   const setPreference = (nextPreference: ThemePreference) => {
@@ -106,11 +127,16 @@ export const AppearanceProvider: React.FC<React.PropsWithChildren> = ({ children
 
   const value = useMemo(() => ({ preference, effectiveTheme, setPreference }), [preference, effectiveTheme]);
   const antTheme = useMemo(() => buildTheme(effectiveTheme), [effectiveTheme]);
+  const modraTheme = useMemo(() => buildModraTheme(effectiveTheme), [effectiveTheme]);
 
   return (
     <AppearanceContext.Provider value={value}>
       <ConfigProvider theme={antTheme}>
-        {children}
+        <ModraThemeProvider theme={modraTheme} applyToRoot>
+          <ModraConfigProvider locale={zhCN}>
+            {children}
+          </ModraConfigProvider>
+        </ModraThemeProvider>
       </ConfigProvider>
     </AppearanceContext.Provider>
   );

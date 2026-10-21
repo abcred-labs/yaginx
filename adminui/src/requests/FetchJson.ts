@@ -1,4 +1,4 @@
-import { notification } from "antd";
+import { notifyError } from "@/ui/notify";
 import qs from "qs";
 import { Fetch } from "./Fetch";
 import { PREFIX } from "./requestConsts";
@@ -32,11 +32,7 @@ const traceID = (response: IApiRspEnvelop<unknown>) => {
 
 const showTransportError = (error: unknown) => {
   const message = error instanceof Error && error.message ? error.message : "无法连接到服务";
-  notification.open({
-    message: "请求失败",
-    description: message,
-    duration: 5,
-  });
+  notifyError("请求失败", message);
 };
 
 type FetchJsonArgs = {
@@ -130,11 +126,7 @@ async function performRequest<T>({
           }
         }
         console.log(`Json API access denied`);
-        notification.open({
-          message: `未授权: ${code}`,
-          description: msg,
-          duration: 5,
-        });
+        notifyError(`未授权: ${code}`, msg ?? undefined);
         // 续签也失败了：会话确实失效，清掉本地 token 并强制退回登录页，
         // 避免用户停留在一个已经失效、但界面上看起来仍"已登录"的页面上。
         useAccessStore.getState().emptyToken();
@@ -148,11 +140,7 @@ async function performRequest<T>({
       console.log({ code, errMsg });
       const id = traceID(resp);
       const detail = errMsg || msg || "服务未能完成请求";
-      notification.open({
-        message: `业务调用失败: ${code}`,
-        description: id ? `${detail}（追踪号: ${id}）` : detail,
-        duration: 5,
-      });
+      notifyError(`业务调用失败: ${code}`, id ? `${detail}（追踪号: ${id}）` : detail);
 
       throw { code, reason: errMsg, traceId: id };
     }
