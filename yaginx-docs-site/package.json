@@ -29,7 +29,7 @@
     "@docusaurus/tsconfig": "3.10.2",
     "@docusaurus/types": "3.10.2",
     "@types/node": "26.6.5",
-    "typescript": "~5.2.2"
+    "typescript": "~7.0.2"
   },
   "browserslist": {
     "production": [
