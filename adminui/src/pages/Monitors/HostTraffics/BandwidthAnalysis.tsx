@@ -1,9 +1,9 @@
-import { SPACE } from "@/utils/spacing";
 import { overviewSection, getAnalyticsOverview, type IAnalyticsDomain, type IAnalyticsOverview, type IAnalyticsPoint } from "@/api/analytics";
 import { chartPalette, useAppearance } from "@/appearance";
 import EChartPanel from "@/componets/charts/EChartPanel";
 import { formatBytes, formatPercent } from "@/utils/formatters";
-import { Alert, Button, Col, Row } from "antd";
+import { Button } from "@modra/react";
+import { MonAlert } from "@/ui/monParts";
 import React, { useEffect, useState } from "react";
 import { HostTrafficPage } from "./HostTrafficPage";
 import { buildBandwidthRankOption, buildBandwidthTrendOption } from "./chartOptions";
@@ -103,9 +103,9 @@ const BandwidthAnalysis: React.FC = () => {
           }
         ]}
       />
-      {error ? <Alert type="error" showIcon message={error} action={<Button size="small" onClick={refresh}>重试</Button>} /> : null}
-      <Row gutter={[SPACE.space3, SPACE.space3]}>
-        <Col xs={24} xl={14}>
+      {error ? <MonAlert type="error" message={error} action={<Button size="sm" variant="outline" onClick={refresh}>重试</Button>} /> : null}
+      <div className="grid grid-cols-1 gap-3 xl:grid-cols-24">
+        <div className="xl:col-span-14">
           <EChartPanel
             title="入/出流量趋势"
             hint={`按${trafficGrainLabel(grain)}聚合，适合识别上传突增和大响应时段。`}
@@ -116,8 +116,8 @@ const BandwidthAnalysis: React.FC = () => {
             emptyHeight={180}
             emptyDescription="当前筛选范围内暂无流量记录"
           />
-        </Col>
-        <Col xs={24} xl={10}>
+        </div>
+        <div className="xl:col-span-10">
           <EChartPanel
             title="Top 10 流量消耗"
             hint="按总字节数排序，流入和流出分段显示。"
@@ -128,8 +128,8 @@ const BandwidthAnalysis: React.FC = () => {
             emptyHeight={180}
             emptyDescription="当前筛选范围内暂无流量排行"
           />
-        </Col>
-      </Row>
+        </div>
+      </div>
     </HostTrafficPage>
   );
 };

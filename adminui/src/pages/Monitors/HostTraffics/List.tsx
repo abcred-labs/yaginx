@@ -1,10 +1,10 @@
 import { getAnalyticsDetails, type IAnalyticsDetails } from "@/api/analytics";
 import { DEFAULT_PAGE_INDEX, DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS } from "@/api/apiTypes";
 import { LocalTime } from "@/componets/LocalTime";
-import { SectionCard } from "@/componets/Workbench";
+import { SectionCard } from "@/ui/workbench";
 import { formatBytes, formatNumber, formatPercent } from "@/utils/formatters";
-import { Button, Table, Tag } from "antd";
-import type { ColumnsType, TablePaginationConfig } from "antd/es/table";
+import { Badge, Button, DataTable } from "@modra/react";
+import type { ColumnDef } from "@tanstack/react-table";
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { HostTrafficPage } from "./HostTrafficPage";
@@ -48,38 +48,42 @@ const List: React.FC = () => {
     setPagination((current) => current.pageIndex === 1 ? current : { ...current, pageIndex: 1 });
   }, [filters.from, filters.to, filters.hostName]);
 
-  const columns: ColumnsType<IAnalyticsDetails["records"][number]> = [
+  type DetailRow = IAnalyticsDetails["records"][number];
+  const right = (title: string): ColumnDef<DetailRow, unknown>["header"] => () => <div className="text-right">{title}</div>;
+  const num = (id: string, title: string, render: (row: DetailRow) => React.ReactNode, minWidth?: number): ColumnDef<DetailRow, unknown> => ({
+    id,
+    header: right(title),
+    meta: { minWidth },
+    cell: ({ row }) => <div className="text-right">{render(row.original)}</div>
+  });
+  const columns: ColumnDef<DetailRow, unknown>[] = [
     {
-      title: "Host",
-      dataIndex: "hostName",
-      key: "hostName",
-      width: 250,
-      render: (value: string) => <Button type="link" style={{ padding: 0 }} onClick={() => navigate(`/resource/hosts/view/${encodeURIComponent(value)}`)}>{value}</Button>
+      id: "hostName",
+      header: "Host",
+      meta: { minWidth: 250 },
+      cell: ({ row }) => <Button variant="link" className="h-auto p-0" onClick={() => navigate(`/resource/hosts/view/${encodeURIComponent(row.original.hostName)}`)}>{row.original.hostName}</Button>
     },
     {
-      title: "统计时间",
-      dataIndex: "period",
-      key: "period",
-      width: 170,
-      render: (value: number) => <LocalTime timestamp={value} format={data?.grain === "day" ? "YYYY-MM-DD" : data?.grain === "hour" ? "YYYY-MM-DD HH:00" : "YYYY-MM-DD HH:mm"} />
+      id: "period",
+      header: "统计时间",
+      meta: { minWidth: 170 },
+      cell: ({ row }) => <LocalTime timestamp={row.original.period} format={data?.grain === "day" ? "YYYY-MM-DD" : data?.grain === "hour" ? "YYYY-MM-DD HH:00" : "YYYY-MM-DD HH:mm"} />
     },
-    { title: "请求次数", dataIndex: "requestCounts", align: "right", render: formatNumber },
-    { title: "错误", dataIndex: "errorRequests", align: "right", render: formatNumber },
-    { title: "错误率", dataIndex: "errorRate", align: "right", render: formatPercent },
-    { title: "流入", dataIndex: "inboundBytes", align: "right", render: formatBytes },
-    { title: "流出", dataIndex: "outboundBytes", align: "right", render: formatBytes },
-    { title: "总流量", dataIndex: "totalBytes", align: "right", render: formatBytes },
-    { title: "平均延迟", dataIndex: "avgDurationMs", align: "right", render: (value: number) => `${formatNumber(value)} ms` },
-    { title: "P95", dataIndex: "p95Ms", align: "right", render: (value: number | null) => value == null ? "不可用" : `${formatNumber(value)} ms` },
-    { title: "状态", dataIndex: "isPartial", width: 108, render: (value: boolean) => value ? <Tag color="gold">实时汇总中</Tag> : <Tag color="green">完整</Tag> }
+    num("requestCounts", "请求次数", (r) => formatNumber(r.requestCounts)),
+    num("errorRequests", "错误", (r) => formatNumber(r.errorRequests)),
+    num("errorRate", "错误率", (r) => formatPercent(r.errorRate)),
+    num("inboundBytes", "流入", (r) => formatBytes(r.inboundBytes)),
+    num("outboundBytes", "流出", (r) => formatBytes(r.outboundBytes)),
+    num("totalBytes", "总流量", (r) => formatBytes(r.totalBytes)),
+    num("avgDurationMs", "平均延迟", (r) => `${formatNumber(r.avgDurationMs)} ms`),
+    num("p95Ms", "P95", (r) => r.p95Ms == null ? "不可用" : `${formatNumber(r.p95Ms)} ms`),
+    {
+      id: "isPartial",
+      header: "状态",
+      meta: { minWidth: 108 },
+      cell: ({ row }) => row.original.isPartial ? <Badge variant="warning">实时汇总中</Badge> : <Badge variant="success">完整</Badge>
+    }
   ];
-  const page: TablePaginationConfig = {
-    current: data?.paging.pageIndex ?? pagination.pageIndex,
-    pageSize: data?.paging.pageSize ?? pagination.pageSize,
-    total: data?.paging.total ?? 0,
-    showSizeChanger: true,
-    pageSizeOptions: [...PAGE_SIZE_OPTIONS]
-  };
   const totalRequests = (data?.records ?? []).reduce((sum, item) => sum + item.requestCounts, 0);
   const totalBytes = (data?.records ?? []).reduce((sum, item) => sum + item.totalBytes, 0);
 
@@ -107,15 +111,21 @@ const List: React.FC = () => {
         ]}
       />
       <SectionCard title="Host 流量明细" description={`每条记录对应一个 Host 在一个${trafficGrainLabel(data?.grain)}统计周期内的聚合数据。`}>
-        <Table
-          rowKey="id"
-          loading={loading}
+        <DataTable
           columns={columns}
-          dataSource={data?.records ?? []}
-          pagination={page}
-          scroll={{ x: 1460 }}
-          size="small"
-          onChange={(next) => setPagination({ pageIndex: next.current ?? DEFAULT_PAGE_INDEX, pageSize: next.pageSize ?? DEFAULT_PAGE_SIZE })}
+          data={data?.records ?? []}
+          getRowId={(record) => String(record.id)}
+          loading={loading}
+          manualPagination
+          pagination={{ pageIndex: (data?.paging.pageIndex ?? pagination.pageIndex) - 1, pageSize: data?.paging.pageSize ?? pagination.pageSize }}
+          onPaginationChange={(updater) => {
+            const current = { pageIndex: (data?.paging.pageIndex ?? pagination.pageIndex) - 1, pageSize: data?.paging.pageSize ?? pagination.pageSize };
+            const next = typeof updater === "function" ? updater(current) : updater;
+            setPagination({ pageIndex: next.pageIndex + 1, pageSize: next.pageSize });
+          }}
+          total={data?.paging.total ?? 0}
+          showPagination
+          pageSizeOptions={PAGE_SIZE_OPTIONS.map(Number)}
         />
       </SectionCard>
     </HostTrafficPage>

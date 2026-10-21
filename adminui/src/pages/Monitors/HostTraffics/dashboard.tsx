@@ -1,6 +1,6 @@
-import { SPACE } from "@/utils/spacing";
-import { InfoCircleOutlined } from "@ant-design/icons";
-import { Card, Col, Row, Statistic, Tooltip } from "antd";
+import { Card, CardContent, Statistic, Tooltip, TooltipContent, TooltipTrigger } from "@modra/react";
+import { Info } from "lucide-react";
+import { StatDot } from "@/ui/monParts";
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { HostTrafficFilters, filtersFromSearchParams, filtersToSearchParams } from "./shared";
@@ -64,18 +64,35 @@ export const useHostTrafficWorkspace = (): HostTrafficWorkspaceValue => {
 };
 
 export const HostTrafficKpiCards: React.FC<{ items: HostTrafficKpiItem[]; loading?: boolean }> = ({ items, loading = false }) => (
-  <Row gutter={[SPACE.space3, SPACE.space3]}>
-    {items.map((item) => (
-      <Col key={item.title} xs={24} sm={12} xl={6}>
-        <Card loading={loading} className={`host-traffic-kpi host-traffic-kpi--${item.tone ?? "flow"}`}>
-          <Statistic
-            title={item.detail ? <Tooltip title={item.detail}><span className="host-traffic-kpi__title">{item.title}<InfoCircleOutlined aria-label={item.detail} /></span></Tooltip> : item.title}
-            value={item.value}
-          />
+  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+    {items.map((item) => {
+      const title = (
+        <span className="flex items-center gap-1.5 whitespace-nowrap">
+          <StatDot tone={item.tone ?? "flow"} />
+          {item.detail ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-flex cursor-help items-center gap-[5px]">{item.title}<Info className="size-[11px] text-muted-foreground" aria-label={item.detail} /></span>
+              </TooltipTrigger>
+              <TooltipContent>{item.detail}</TooltipContent>
+            </Tooltip>
+          ) : item.title}
+        </span>
+      );
+      return (
+        <Card key={item.title} className="h-full">
+          <CardContent className="px-[14px] py-[10px] pt-[10px]">
+            <Statistic
+              className="flex items-center justify-between gap-2 space-y-0 [&>div:last-child]:min-w-0 [&>div:last-child]:break-all [&>div:last-child]:text-right [&>div:last-child]:text-[21px] [&>div:last-child]:leading-tight"
+              title={title}
+              value={item.value}
+              loading={loading}
+            />
+          </CardContent>
         </Card>
-      </Col>
-    ))}
-  </Row>
+      );
+    })}
+  </div>
 );
 
 export const useHostTrafficFilters = () => {
