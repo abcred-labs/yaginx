@@ -173,3 +173,14 @@ export const MonDescriptions: React.FC<{
     ))}
   </dl>
 );
+
+/** 面板内的紧凑指标：Modra 的 Statistic 数值偏大，带单位的值在窄卡片里会换行或互相覆盖。 */
+export const MonStat: React.FC<{ title: React.ReactNode; value: React.ReactNode; suffix?: React.ReactNode; className?: string }> = ({ title, value, suffix, className }) => (
+  <div className={cx('min-w-0 space-y-1', className)}>
+    <div className="truncate text-xs text-muted-foreground">{title}</div>
+    <div className="truncate text-lg font-semibold leading-tight tabular-nums">
+      {value}
+      {suffix ? <span className="ms-1 text-xs font-normal text-muted-foreground">{suffix}</span> : null}
+    </div>
+  </div>
+);
