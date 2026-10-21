@@ -91,9 +91,6 @@ Go 运行时。
 cd gateway
 go test -count=1 ./...
 go vet ./...
-go run ./cmd/contractlint
-go run ./cmd/contractcheck
-go run ./cmd/proxycheck
 
 cd ../adminui
 pnpm install --frozen-lockfile
@@ -108,9 +105,7 @@ npx --yes pnpm@8.15.9 run build
 ```
 
 PostgreSQL 集成测试、ACME/Pebble 测试、systemd 安装与升级演练、性能浸泡测试以及生产
-流量演练需要隔离的 Linux 环境。验收标准记录在
-[`gateway/tests/e2e/r5-functional-rc-report.md`](gateway/tests/e2e/r5-functional-rc-report.md)
-和 [`gateway/tests/e2e/r6-cutover-observation.md`](gateway/tests/e2e/r6-cutover-observation.md)。
+流量演练需要隔离的 Linux 环境，结果记录在发布记录中。
 
 ## 许可证
 
