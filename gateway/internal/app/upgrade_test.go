@@ -99,6 +99,7 @@ func TestManualUpgradeFlagsStillParse(t *testing.T) {
 	for _, args := range [][]string{
 		{"--check", "--version", "1.2.3"}, {"--version", "1.2.3"},
 		{"--migrate-database"}, {"--no-restart"}, {"--skip-preflight-health"},
+		{"--check", "--github-mirror", "https://github-mirror.example.invalid", "--release-assets-mirror", "https://assets-mirror.example.invalid"},
 	} {
 		var stdout, stderr bytes.Buffer
 		args = append(args, "--config", filepath.Join(t.TempDir(), "missing.json"))

@@ -563,8 +563,8 @@ Header、Query 参数和 JSON 字段；只有错误请求持久化受大小限�
 | `observability.otlp.protocol` / `insecure` | `grpc` / `false` | — | `grpc` 或 `http/protobuf` |
 | `observability.otlp.sampleRatio` / `exportTimeout` | `0.01` / `5s` | — | 采样率 0–1；导出超时 |
 | `upgrade.manifestURL` | 当前公开 latest manifest | `YAGINX_UPGRADE_MANIFEST_URL` | HTTPS release manifest |
-| `upgrade.githubMirror` | 空 | `YAGINX_GITHUB_MIRROR` | 可选 HTTPS 镜像，替换 `https://github.com`；中国大陆用 `https://github-mirror.abc.red` |
-| `upgrade.releaseAssetsMirror` | 空 | `YAGINX_RELEASE_ASSETS_MIRROR` | 可选 HTTPS 镜像，替换 `https://release-assets.githubusercontent.com`；中国大陆用 `https://gh-release-assets.abc.red` |
+| `upgrade.githubMirror` | 空 | `YAGINX_GITHUB_MIRROR`、`--github-mirror` | 可选 HTTPS 镜像，替换 `https://github.com`；中国大陆用 `https://github-mirror.abc.red` |
+| `upgrade.releaseAssetsMirror` | 空 | `YAGINX_RELEASE_ASSETS_MIRROR`、`--release-assets-mirror` | 可选 HTTPS 镜像，替换 `https://release-assets.githubusercontent.com`；中国大陆用 `https://gh-release-assets.abc.red` |
 | `upgrade.component` / `upgrade.packageName` | `yaginx` / `yaginx` | — | 固定值 |
 | `upgrade.stateDirectory` / `upgrade.lockFile` | `/var/lib/yaginx/upgrade` / `/run/yaginx/upgrade.lock` | — | 绝对路径 |
 | `upgrade.downloadTimeout` / `upgrade.readinessTimeout` | `10m` / `90s` | — | 下载与升级就绪超时 |

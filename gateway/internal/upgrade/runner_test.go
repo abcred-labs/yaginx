@@ -183,6 +183,28 @@ func TestGetRewritesGitHubAndReleaseAssetRedirectsToMirrors(t *testing.T) {
 	}
 }
 
+func TestLogMirrorsReportsConfiguredValues(t *testing.T) {
+	cfg := Config{GitHubMirror: "https://github-mirror.example.invalid", ReleaseAssetsMirror: "https://assets-mirror.example.invalid"}
+	var out strings.Builder
+	(&Runner{}).logMirrors(cfg, &out, nil)
+	for _, want := range []string{cfg.GitHubMirror, cfg.ReleaseAssetsMirror} {
+		if !strings.Contains(out.String(), want) {
+			t.Fatalf("check output %q missing %q", out.String(), want)
+		}
+	}
+	out.Reset()
+	logger := newOperationLogger(&out, "", time.Now)
+	(&Runner{}).logMirrors(cfg, &out, logger)
+	if !strings.Contains(out.String(), "stage=mirror.config") || !strings.Contains(out.String(), cfg.GitHubMirror) {
+		t.Fatalf("logger output = %q", out.String())
+	}
+	out.Reset()
+	(&Runner{}).logMirrors(Config{}, &out, nil)
+	if out.Len() != 0 {
+		t.Fatalf("unexpected output %q", out.String())
+	}
+}
+
 func TestGetWithoutMirrorsUsesOriginalURLs(t *testing.T) {
 	doer := &recordingDoer{responses: map[string]*http.Response{
 		DefaultManifestURL: {StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader("ok"))},
@@ -736,4 +758,21 @@ func testRunner(server *httptest.Server, current string) *Runner {
 		}
 		return nil, fmt.Errorf("unexpected %s", name)
 	}}
+}
+
+func TestGetFollowsPermanentAndTemporaryRedirectStatuses(t *testing.T) {
+	for _, status := range []int{http.StatusMovedPermanently, http.StatusFound, http.StatusSeeOther, http.StatusTemporaryRedirect, http.StatusPermanentRedirect} {
+		doer := &recordingDoer{responses: map[string]*http.Response{
+			DefaultManifestURL: {StatusCode: status, Header: http.Header{"Location": {"https://github.com/abcred-labs/yaginx/releases/download/v1.2.3/latest-release.json"}}, Body: io.NopCloser(strings.NewReader(""))},
+			"https://github.com/abcred-labs/yaginx/releases/download/v1.2.3/latest-release.json": {StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader("ok"))},
+		}}
+		response, err := (&Runner{Client: doer}).get(context.Background(), Config{}, DefaultManifestURL)
+		if err != nil {
+			t.Fatalf("status %d: %v", status, err)
+		}
+		response.Body.Close()
+		if len(doer.requests) != 2 {
+			t.Fatalf("status %d requests=%q", status, doer.requests)
+		}
+	}
 }

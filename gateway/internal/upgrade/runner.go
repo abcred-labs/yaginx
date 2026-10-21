@@ -118,6 +118,7 @@ func (r *Runner) check(ctx context.Context, cfg Config, out io.Writer, logger *o
 	if err := r.validatePlatform(true); err != nil {
 		return Release{}, false, err
 	}
+	r.logMirrors(cfg, out, logger)
 	logger.Event("check.current", "detecting installed version")
 	current, err := r.currentVersion(ctx)
 	if err != nil {
@@ -575,6 +576,19 @@ func (r *Runner) download(ctx context.Context, cfg Config, sourceURL, expectedSH
 	}
 	logger.Event("download.complete", "kind=%s bytes=%d total=%d elapsed=%s checksum=verified", prefix, downloaded.Load(), response.ContentLength, r.now().Sub(started).Round(time.Millisecond))
 	return file.Name(), nil
+}
+
+// logMirrors reports the download mirrors in effect. The operation logger
+// already writes to out during installs; check-only runs have no logger.
+func (r *Runner) logMirrors(cfg Config, out io.Writer, logger *operationLogger) {
+	if cfg.GitHubMirror == "" && cfg.ReleaseAssetsMirror == "" {
+		return
+	}
+	if logger != nil {
+		logger.Event("mirror.config", "github_mirror=%q release_assets_mirror=%q", cfg.GitHubMirror, cfg.ReleaseAssetsMirror)
+	} else if out != nil {
+		fmt.Fprintf(out, "using download mirrors: github_mirror=%q release_assets_mirror=%q\n", cfg.GitHubMirror, cfg.ReleaseAssetsMirror)
+	}
 }
 
 // get follows at most maxRedirects HTTPS redirects itself so every hop can be
