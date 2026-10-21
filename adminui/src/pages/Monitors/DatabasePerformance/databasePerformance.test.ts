@@ -37,8 +37,8 @@ describe("database performance page", () => {
 
 describe("top sql panel", () => {
   it("renders a summary row and opens the detail drawer on click", () => {
-    expect(topSqlPanel).toContain("summarizeSql(value)");
-    expect(topSqlPanel).toContain("onClick: () => setDetail(record)");
+    expect(topSqlPanel).toContain("summarizeSql(record.query)");
+    expect(topSqlPanel).toContain("onClick={() => setDetail(record)}");
     expect(topSqlPanel).toContain("top-sql-${index}");
     expect(topSqlPanel).toContain("未生成");
   });

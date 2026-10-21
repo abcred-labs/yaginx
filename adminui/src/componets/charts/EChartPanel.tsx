@@ -1,8 +1,8 @@
 import type { EChartsOption } from "echarts";
-import { Card, Empty, Spin, Typography } from "antd";
+import { Empty, Spin } from "@modra/react";
 import React from "react";
 import ReactECharts from "echarts-for-react";
-import "./chart.less";
+import { MonCard } from "@/ui/monParts";
 
 interface EChartPanelProps {
   title: React.ReactNode;
@@ -27,18 +27,19 @@ const EChartPanel: React.FC<EChartPanelProps> = ({
   hint,
   emptyHeight
 }) => {
+  const showChart = !loading && !isEmpty && Boolean(option);
   return (
-    <Card className="chart-panel" title={title} extra={extra}>
+    <MonCard title={title} extra={extra} className="h-full">
       <div
-        className={`chart-panel__body ${!loading && !isEmpty ? "chart-panel__body--chart" : ""}`}
+        className={showChart ? "block" : "flex items-center justify-center"}
         style={{ minHeight: `${!loading && (isEmpty || !option) && emptyHeight ? emptyHeight : height}px` }}
       >
         {loading ? (
-          <Spin size="large" />
-        ) : isEmpty || !option ? (
-          <div className="chart-panel__empty">
+          <Spin size="lg" />
+        ) : !showChart ? (
+          <div className="text-center">
             <Empty description={emptyDescription} />
-            {hint ? <Typography.Text type="secondary" className="chart-panel__hint">{hint}</Typography.Text> : null}
+            {hint ? <span className="mt-2 block text-sm text-muted-foreground">{hint}</span> : null}
           </div>
         ) : (
           <ReactECharts
@@ -47,11 +48,11 @@ const EChartPanel: React.FC<EChartPanelProps> = ({
             lazyUpdate
             opts={{ renderer: "svg" }}
             style={{ height: `${height}px` }}
-            className="chart-panel__echart"
+            className="w-full"
           />
         )}
       </div>
-    </Card>
+    </MonCard>
   );
 };
 

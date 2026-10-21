@@ -1,12 +1,13 @@
 import { getAnalyticsDomains, getWebsiteAnalytics, type IAnalyticsDomain, type IAnalyticsSubjectView } from "@/api/analytics";
-import { Alert, Button, Card, Col, DatePicker, Descriptions, Empty, Progress, Row, Segmented, Space, Spin, Statistic, Table, Tag, Typography } from "antd";
-import { ArrowRightOutlined, ReloadOutlined } from "@ant-design/icons";
-import { Dayjs } from "dayjs";
+import { Badge, Button, Card, CardContent, DataTable, Empty, Progress, Spin, Statistic } from "@modra/react";
+import type { ColumnDef } from "@tanstack/react-table";
+import { ArrowRight, RefreshCw } from "lucide-react";
 import React, { useEffect, useMemo, useState } from "react";
 import type { EChartsOption } from "echarts";
 import { useNavigate, useParams } from "react-router-dom";
 import { LocalTime } from "@/componets/LocalTime";
-import { SectionCard, SignalTag, WorkbenchPage } from "@/componets/Workbench";
+import { SectionCard, SignalTag, WorkbenchPage } from "@/ui/workbench";
+import { MonAlert, MonCard, MonDateTimeRange, MonDescriptions, MonSegmented, type MonDayjsRange } from "@/ui/monParts";
 import EChartPanel from "@/componets/charts/EChartPanel";
 import { buildAnalyticsTrendOption } from "@/componets/charts/analyticsTrend";
 import { chartPalette, useAppearance } from "@/appearance";
@@ -38,7 +39,7 @@ const WebsiteAnalytics: React.FC = () => {
   const { effectiveTheme } = useAppearance();
   const colors = chartPalette(effectiveTheme);
   const [range, setRange] = useState(defaultResourceViewWindowSeconds);
-  const [customRange, setCustomRange] = useState<[Dayjs | null, Dayjs | null] | null>(null);
+  const [customRange, setCustomRange] = useState<MonDayjsRange | null>(null);
   const [data, setData] = useState<IAnalyticsSubjectView | null>();
   const [hostStats, setHostStats] = useState<IAnalyticsDomain[]>([]);
   const [loadingOverview, setLoadingOverview] = useState(true);
@@ -73,22 +74,56 @@ const WebsiteAnalytics: React.FC = () => {
   const topHost = hostStats[0];
   const latencyWarning = (kpis?.maxDurationMs ?? 0) > 30000 || (kpis?.p95Ms ?? 0) > 30000;
 
-  return <WorkbenchPage eyebrow="OBSERVABILITY / WEBSITE / ANALYTICS" title={data?.website?.name || "站点分析"} backTo={websiteEditPath(id)} description="聚合当前站点所有 Host 的流量、错误、延迟、证书覆盖和数据质量信号。" extra={<Space wrap><Segmented options={presets} value={range} onChange={(value) => { setCustomRange(null); setRange(Number(value)); }} /><DatePicker.RangePicker showTime value={customRange} onChange={(value) => setCustomRange(value as [Dayjs | null, Dayjs | null] | null)} /><Button icon={<ReloadOutlined />} onClick={load}>刷新</Button><Button onClick={() => navigate(websiteEditPath(id))}>配置站点</Button></Space>}>
+  const hostColumns: ColumnDef<IAnalyticsDomain, unknown>[] = [
+    { id: "domain", header: "Host", cell: ({ row }) => <Button variant="link" className="h-auto p-0" onClick={() => navigate(`/resource/hosts/view/${encodeURIComponent(row.original.domain)}`)}>{row.original.domain}</Button> },
+    { id: "requests", header: "请求", cell: ({ row }) => formatNumber(row.original.requests) },
+    { id: "errorRate", header: "错误率", cell: ({ row }) => formatPercent(row.original.errorRate) },
+    { id: "p95Ms", header: "P95", cell: ({ row }) => metric(row.original.p95Ms, " ms") }
+  ];
+  const kpiCards = [
+    ["请求总计", formatNumber(kpis?.requests)], ["当前吞吐", metric(kpis?.requestsPerSecond, " req/s")], ["错误率", formatPercent(toNumber(kpis?.errorRate))],
+    ["P50 / P95 / P99", `${metric(kpis?.p50Ms, " ms")} / ${metric(kpis?.p95Ms, " ms")} / ${metric(kpis?.p99Ms, " ms")}`], ["入站 / 出站", `${formatBytes(toNumber(kpis?.inboundBytes))} / ${formatBytes(toNumber(kpis?.outboundBytes))}`], ["平均 / 最大耗时", `${metric(kpis?.avgDurationMs, " ms")} / ${metric(kpis?.maxDurationMs, " ms")}`]
+  ];
+  const chipButton = "cursor-pointer";
+
+  return <WorkbenchPage eyebrow="OBSERVABILITY / WEBSITE / ANALYTICS" title={data?.website?.name || "站点分析"} backTo={websiteEditPath(id)} description="聚合当前站点所有 Host 的流量、错误、延迟、证书覆盖和数据质量信号。" extra={<>
+    <MonSegmented options={presets} value={range} ariaLabel="统计窗口" onChange={(value) => { setCustomRange(null); setRange(value); }} />
+    <MonDateTimeRange value={customRange} onChange={setCustomRange} className="w-[320px]" />
+    <Button variant="outline" onClick={load}><RefreshCw className="size-4" aria-hidden="true" />刷新</Button>
+    <Button variant="outline" onClick={() => navigate(websiteEditPath(id))}>配置站点</Button>
+  </>}>
     {loadingOverview && !data ? <Spin /> : !data ? <Empty description="站点不存在或已删除" /> : <>
-      {error ? <Alert type="error" showIcon message={error} style={{ marginBottom: "var(--space-3)" }} /> : null}
-      <SectionCard title="站点主机" description="点击 Host 可进入单 Host 的完整排查视图。"><Descriptions size="small" column={{ xs: 1, md: 2 }}>{(data.hosts ?? []).map((host) => <Descriptions.Item key={host.host} label={<Button type="link" style={{ padding: 0 }} onClick={() => navigate(`/resource/hosts/view/${encodeURIComponent(host.host)}`)}>{host.host}</Button>}><SignalTag tone={host.certificate ? "success" : "warning"}>{host.certificate ? <>证书有效至 <LocalTime timestamp={host.certificate.notAfter} /></> : "未发现有效证书"}</SignalTag></Descriptions.Item>)}</Descriptions></SectionCard>
-      <SectionCard title="分析状态" description="数据覆盖与采集延迟始终随窗口展示。"><Space wrap><SignalTag tone={overview?.isPartial ? "warning" : "success"}>{quality}</SignalTag><Typography.Text type="secondary">来源：{overview?.source || "站点汇总"}</Typography.Text><Button type="link" onClick={() => openHistory({ from: window.from, to: window.to })}>查看窗口请求 <ArrowRightOutlined /></Button></Space></SectionCard>
-      {latencyWarning ? <Alert type="warning" showIcon message="检测到异常耗时" description="P95 或最大耗时超过 30 秒。请结合客户端取消、上游超时和统计桶完整度判断是否为真实慢请求。" style={{ marginBottom: "var(--space-3)" }} /> : null}
-      <Row gutter={[12, 12]}>{[
-        ["请求总计", formatNumber(kpis?.requests)], ["当前吞吐", metric(kpis?.requestsPerSecond, " req/s")], ["错误率", formatPercent(toNumber(kpis?.errorRate))],
-        ["P50 / P95 / P99", `${metric(kpis?.p50Ms, " ms")} / ${metric(kpis?.p95Ms, " ms")} / ${metric(kpis?.p99Ms, " ms")}`], ["入站 / 出站", `${formatBytes(toNumber(kpis?.inboundBytes))} / ${formatBytes(toNumber(kpis?.outboundBytes))}`], ["平均 / 最大耗时", `${metric(kpis?.avgDurationMs, " ms")} / ${metric(kpis?.maxDurationMs, " ms")}`]
-      ].map(([title, value]) => <Col xs={12} md={8} xl={4} key={title}><Card size="small"><Statistic title={title} value={value} /></Card></Col>)}</Row>
-      <Row gutter={[12, 12]} style={{ marginTop: 12 }}><Col xs={24} xl={16}><EChartPanel title="请求与错误趋势" loading={loadingOverview} isEmpty={!data.timeseries.points.length} option={data.timeseries.points.length ? buildAnalyticsTrendOption(data.timeseries.points, colors) : undefined} height={340} emptyDescription="当前窗口暂无观测数据" /></Col><Col xs={24} xl={8}><Card title="延迟摘要" loading={loadingOverview} style={{ height: 388 }}><Progress type="dashboard" percent={Math.min(100, Math.round((kpis?.latencyCoverageRate ?? 0) * 100))} format={(percent) => `${percent}%`} /><Descriptions size="small" column={1}><Descriptions.Item label="P50">{metric(kpis?.p50Ms, " ms")}</Descriptions.Item><Descriptions.Item label="P95">{metric(kpis?.p95Ms, " ms")}</Descriptions.Item><Descriptions.Item label="P99">{metric(kpis?.p99Ms, " ms")}</Descriptions.Item></Descriptions></Card></Col></Row>
-      <Row gutter={[12, 12]} style={{ marginTop: 12 }}><Col xs={24} xl={12}><Card title="Host 排名" extra={<Typography.Text type="secondary">按请求量</Typography.Text>}><Table size="small" loading={loadingHosts} pagination={false} rowKey="domain" dataSource={hostStats} columns={[{ title: "Host", dataIndex: "domain", render: (value: string) => <Button type="link" style={{ padding: 0 }} onClick={() => navigate(`/resource/hosts/view/${encodeURIComponent(value)}`)}>{value}</Button> }, { title: "请求", dataIndex: "requests", render: (value: number) => formatNumber(value) }, { title: "错误率", dataIndex: "errorRate", render: (value: number) => formatPercent(value) }, { title: "P95", dataIndex: "p95Ms", render: (value: number | null) => metric(value, " ms") }]} /></Card></Col><Col xs={24} xl={12}><EChartPanel title="延迟分位" loading={loadingHosts} option={topHost ? latencyOption(topHost, colors) : undefined} isEmpty={!topHost} height={260} emptyDescription="暂无 Host 延迟数据" /></Col></Row>
-      <Row gutter={[12, 12]} style={{ marginTop: 12 }}><Col xs={24} md={8}><Card title="状态码分布" size="small">{(overview?.statusBreakdown ?? []).map((item) => {
-        const isStatusFamily = /^[1-6]xx$/i.test(item.type);
-        return <Tag key={item.type} color={item.type.startsWith("5") || item.type.startsWith("6") ? "red" : "blue"} style={{ marginBottom: 8, cursor: isStatusFamily ? "pointer" : "default" }} onClick={isStatusFamily ? () => openHistory({ statusCodePattern: item.type, from: window.from, to: window.to }) : undefined}>{item.type}: {formatNumber(item.value)}</Tag>;
-      })}</Card></Col><Col xs={24} md={8}><Card title="错误分布" size="small">{(overview?.errorBreakdown ?? []).length ? overview?.errorBreakdown.map((item) => <Tag key={item.type} color="volcano" style={{ marginBottom: 8, cursor: "pointer" }} onClick={() => openHistory({ errorCode: item.type, from: window.from, to: window.to })}>{item.type}: {formatNumber(item.value)}</Tag>) : <Typography.Text type="secondary">当前窗口没有错误记录</Typography.Text>}</Card></Col><Col xs={24} md={8}><Card title="采集覆盖" size="small"><Descriptions size="small" column={1}><Descriptions.Item label="数据延迟">{formatNumber(overview?.dataLagSeconds)} 秒</Descriptions.Item><Descriptions.Item label="延迟覆盖率">{formatPercent(kpis?.latencyCoverageRate)}</Descriptions.Item><Descriptions.Item label="活跃 Host">{formatNumber(data.hosts.length)}</Descriptions.Item></Descriptions>{overview?.isPartial ? <Tag color="gold">当前窗口包含未完成统计桶</Tag> : <Tag color="green">统计完整</Tag>}</Card></Col></Row>
+      {error ? <MonAlert type="error" message={error} /> : null}
+      <SectionCard title="站点主机" description="点击 Host 可进入单 Host 的完整排查视图。"><MonDescriptions columnsClass="md:grid-cols-2" items={(data.hosts ?? []).map((host) => ({ key: host.host, label: <Button variant="link" className="h-auto p-0" onClick={() => navigate(`/resource/hosts/view/${encodeURIComponent(host.host)}`)}>{host.host}</Button>, children: <SignalTag tone={host.certificate ? "success" : "warning"}>{host.certificate ? <>证书有效至 <LocalTime timestamp={host.certificate.notAfter} /></> : "未发现有效证书"}</SignalTag> }))} /></SectionCard>
+      <SectionCard title="分析状态" description="数据覆盖与采集延迟始终随窗口展示。"><div className="flex flex-wrap items-center gap-2"><SignalTag tone={overview?.isPartial ? "warning" : "success"}>{quality}</SignalTag><span className="text-sm text-muted-foreground">来源：{overview?.source || "站点汇总"}</span><Button variant="link" onClick={() => openHistory({ from: window.from, to: window.to })}>查看窗口请求 <ArrowRight className="size-4" aria-hidden="true" /></Button></div></SectionCard>
+      {latencyWarning ? <MonAlert type="warning" message="检测到异常耗时" description="P95 或最大耗时超过 30 秒。请结合客户端取消、上游超时和统计桶完整度判断是否为真实慢请求。" /> : null}
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">{kpiCards.map(([title, value]) => <Card key={title}><CardContent className="p-4"><Statistic title={title} value={value} /></CardContent></Card>)}</div>
+      <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
+        <div className="xl:col-span-2"><EChartPanel title="请求与错误趋势" loading={loadingOverview} isEmpty={!data.timeseries.points.length} option={data.timeseries.points.length ? buildAnalyticsTrendOption(data.timeseries.points, colors) : undefined} height={340} emptyDescription="当前窗口暂无观测数据" /></div>
+        <MonCard title="延迟摘要" loading={loadingOverview} className="min-h-[388px]">
+          <div className="mb-3"><div className="mb-1 text-sm text-muted-foreground">延迟覆盖率 {Math.min(100, Math.round((kpis?.latencyCoverageRate ?? 0) * 100))}%</div><Progress value={Math.min(100, Math.round((kpis?.latencyCoverageRate ?? 0) * 100))} /></div>
+          <MonDescriptions columnsClass="grid-cols-1" items={[{ key: "p50", label: "P50", children: metric(kpis?.p50Ms, " ms") }, { key: "p95", label: "P95", children: metric(kpis?.p95Ms, " ms") }, { key: "p99", label: "P99", children: metric(kpis?.p99Ms, " ms") }]} />
+        </MonCard>
+      </div>
+      <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+        <MonCard title="Host 排名" extra={<span className="text-sm text-muted-foreground">按请求量</span>}>
+          <DataTable columns={hostColumns} data={hostStats} getRowId={(record) => record.domain} loading={loadingHosts} />
+        </MonCard>
+        <EChartPanel title="延迟分位" loading={loadingHosts} option={topHost ? latencyOption(topHost, colors) : undefined} isEmpty={!topHost} height={260} emptyDescription="暂无 Host 延迟数据" />
+      </div>
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+        <MonCard title="状态码分布"><div className="flex flex-wrap gap-2">{(overview?.statusBreakdown ?? []).map((item) => {
+          const isStatusFamily = /^[1-6]xx$/i.test(item.type);
+          const variant = item.type.startsWith("5") || item.type.startsWith("6") ? "destructive" : "info";
+          const label = `${item.type}: ${formatNumber(item.value)}`;
+          return isStatusFamily
+            ? <button key={item.type} type="button" onClick={() => openHistory({ statusCodePattern: item.type, from: window.from, to: window.to })}><Badge variant={variant} className={chipButton}>{label}</Badge></button>
+            : <Badge key={item.type} variant={variant}>{label}</Badge>;
+        })}</div></MonCard>
+        <MonCard title="错误分布">{(overview?.errorBreakdown ?? []).length ? <div className="flex flex-wrap gap-2">{overview?.errorBreakdown.map((item) => <button key={item.type} type="button" onClick={() => openHistory({ errorCode: item.type, from: window.from, to: window.to })}><Badge variant="warning" className={chipButton}>{item.type}: {formatNumber(item.value)}</Badge></button>)}</div> : <span className="text-sm text-muted-foreground">当前窗口没有错误记录</span>}</MonCard>
+        <MonCard title="采集覆盖"><MonDescriptions columnsClass="grid-cols-1" items={[{ key: "lag", label: "数据延迟", children: `${formatNumber(overview?.dataLagSeconds)} 秒` }, { key: "coverage", label: "延迟覆盖率", children: formatPercent(kpis?.latencyCoverageRate) }, { key: "hosts", label: "活跃 Host", children: formatNumber(data.hosts.length) }]} />
+          <div className="mt-2">{overview?.isPartial ? <Badge variant="warning">当前窗口包含未完成统计桶</Badge> : <Badge variant="success">统计完整</Badge>}</div></MonCard>
+      </div>
     </>}
   </WorkbenchPage>;
 };

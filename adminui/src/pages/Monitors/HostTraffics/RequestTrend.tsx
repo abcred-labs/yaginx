@@ -1,9 +1,9 @@
-import { SPACE } from "@/utils/spacing";
 import { overviewSection, getAnalyticsOverview, type IAnalyticsOverview, type IAnalyticsPoint } from "@/api/analytics";
 import { chartPalette, useAppearance } from "@/appearance";
 import EChartPanel from "@/componets/charts/EChartPanel";
 import { formatNumber } from "@/utils/formatters";
-import { Alert, Button, Col, Row } from "antd";
+import { Button } from "@modra/react";
+import { MonAlert } from "@/ui/monParts";
 import React, { useEffect, useState } from "react";
 import { HostTrafficPage } from "./HostTrafficPage";
 import { buildRequestTrendOption } from "./chartOptions";
@@ -89,9 +89,9 @@ const RequestTrend: React.FC = () => {
           }
         ]}
       />
-      {error ? <Alert type="error" showIcon message={error} action={<Button size="small" onClick={refresh}>重试</Button>} /> : null}
-      <Row gutter={[SPACE.space3, SPACE.space3]}>
-        <Col xs={24}>
+      {error ? <MonAlert type="error" message={error} action={<Button size="sm" variant="outline" onClick={refresh}>重试</Button>} /> : null}
+      <div className="grid grid-cols-1 gap-3 xl:grid-cols-24">
+        <div className="xl:col-span-24">
           <EChartPanel
             title="请求量趋势"
             hint={`按${trafficGrainLabel(grain)}聚合；空心点表示当前桶仍在实时汇总。`}
@@ -102,8 +102,8 @@ const RequestTrend: React.FC = () => {
             emptyHeight={180}
             emptyDescription="当前筛选范围内暂无请求记录"
           />
-        </Col>
-      </Row>
+        </div>
+      </div>
     </HostTrafficPage>
   );
 };
