@@ -10,6 +10,7 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "test": "vitest run",
+    "test:e2e": "pnpm run build && playwright test",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -44,6 +45,7 @@
   "devDependencies": {
     "@ant-design/icons": "5.3.7",
     "@loadable/component": "^5.15.2",
+    "@playwright/test": "1.64.1",
     "@types/loadable__component": "^5.13.4",
     "@types/node": "^26.6.5",
     "@types/qs": "^6.9.7",

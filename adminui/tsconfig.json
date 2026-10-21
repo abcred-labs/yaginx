@@ -38,6 +38,8 @@
     "typings/**/*",
     "config/**/*",
     "vite.config.ts",
+    "playwright.config.ts",
+    "e2e/**/*",
     "mock/_createProductionServer.ts"
   ],
   "exclude": [
