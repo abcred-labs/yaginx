@@ -40,6 +40,8 @@ const statusColor: Record<GatewayNode["status"], string> = {
   disabled: "red",
 };
 
+const DEFAULT_CIDRS = ["127.0.0.1/32", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "100.64.0.0/10"];
+
 const validCIDR = (value: string): boolean => {
   const [address, prefix, extra] = value.trim().split("/");
   if (!address || !prefix || extra !== undefined || !/^\d+$/.test(prefix)) return false;
@@ -64,6 +66,12 @@ const RuntimeSettings: React.FC = () => {
     }
     if (currentStatus.code === 200) setStatus(currentStatus.data);
     if (access.code === 200) setAccessContext(access.data);
+    // 已保存的共享配置可能不含这两个列表（服务端按默认值生效），此时用生效值回填，
+    // 否则表单为空会被保存校验拒绝。
+    const effective = access.code === 200 && access.data?.allowedCIDRs?.length ? access.data.allowedCIDRs : DEFAULT_CIDRS;
+    const emptyList = (path: string[]) => !(form.getFieldValue(path) ?? []).length;
+    if (emptyList(["management", "allowedCIDRs"])) form.setFieldValue(["management", "allowedCIDRs"], effective);
+    if (emptyList(["listeners", "proxyProtocol", "trustedCIDRs"])) form.setFieldValue(["listeners", "proxyProtocol", "trustedCIDRs"], DEFAULT_CIDRS);
   };
 
   useEffect(() => { void load(); }, []);
@@ -74,8 +82,12 @@ const RuntimeSettings: React.FC = () => {
     const trusted = (values.listeners?.proxyProtocol?.trustedCIDRs ?? []).map((cidr: string) => cidr.trim()).filter(Boolean);
     values.management = { ...values.management, allowedCIDRs: cidrs };
     values.listeners = { ...values.listeners, proxyProtocol: { ...values.listeners?.proxyProtocol, trustedCIDRs: trusted } };
-    if (cidrs.length === 0 || trusted.length === 0 || cidrs.some((cidr: string) => !validCIDR(cidr)) || trusted.some((cidr: string) => !validCIDR(cidr))) {
-      notification.error({ message: "请输入至少一个有效的管理 CIDR" });
+    if (cidrs.length === 0 || cidrs.some((cidr: string) => !validCIDR(cidr))) {
+      notification.error({ message: "请输入至少一个有效的管理 CIDR（每行一个）" });
+      return;
+    }
+    if (trusted.length === 0 || trusted.some((cidr: string) => !validCIDR(cidr))) {
+      notification.error({ message: "请输入至少一个有效的 PROXY 信任网段 CIDR（每行一个）" });
       return;
     }
     Modal.confirm({
