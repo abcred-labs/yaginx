@@ -8,7 +8,7 @@ require (
 	github.com/go-chi/chi/v5 v5.2.3
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.11.0
-	github.com/pires/go-proxyproto v0.8.1
+	github.com/pires/go-proxyproto v0.15.0
 	github.com/pressly/goose/v3 v3.26.0
 	github.com/prometheus/client_golang v1.25.0
 	github.com/quic-go/quic-go v0.63.0
@@ -21,7 +21,6 @@ require (
 	go.opentelemetry.io/otel/trace v1.47.0
 	golang.org/x/net v0.61.0
 	golang.org/x/term v0.47.0
-	gopkg.in/yaml.v3 v3.0.1
 	software.sslmate.com/src/go-pkcs12 v0.6.0
 )
 
@@ -31,6 +30,7 @@ require (
 	github.com/mattn/go-isatty v0.0.24 // indirect
 	go.opentelemetry.io/otel/log v1.47.0 // indirect
 	golang.org/x/mod v0.41.0 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
 require (
