@@ -4,10 +4,10 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { DEFAULT_PAGE_SIZE, IApiRspEnvelop, PAGE_SIZE_OPTIONS, Page } from '@/api/apiTypes';
 import { buildServerPageRequest } from './serverPageRequest';
 
-export interface ServerDataTableProps<T> {
+export interface ServerDataTableProps<T, R = Record<string, unknown>> {
   columns: ColumnDef<T, unknown>[];
   /** 接收含 pageIndex（从 1 开始）、pageSize 与过滤条件的请求体。 */
-  searchAction: (request: Record<string, unknown>) => Promise<IApiRspEnvelop<Page<T>>>;
+  searchAction: (request: R) => Promise<IApiRspEnvelop<Page<T>>>;
   getRowId: (row: T) => string;
   /** 外部过滤条件；引用变化时回到第一页。 */
   filter?: Record<string, unknown>;
@@ -25,7 +25,7 @@ export const columnFiltersToRequest = (filters: ColumnFiltersState): Record<stri
 
 const PAGE_SIZE_NUMBERS = PAGE_SIZE_OPTIONS.map(Number);
 
-const ServerDataTable = <T,>(props: ServerDataTableProps<T>) => {
+const ServerDataTable = <T, R = Record<string, unknown>>(props: ServerDataTableProps<T, R>) => {
   const { searchAction, filter, reloadKey, onPageDataChange } = props;
   // DataTable 的 pageIndex 从 0 开始，API 从 1 开始，只在请求边界换算。
   const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: DEFAULT_PAGE_SIZE });
@@ -47,7 +47,7 @@ const ServerDataTable = <T,>(props: ServerDataTableProps<T>) => {
       pageIndex: pagination.pageIndex + 1,
       pageSize: pagination.pageSize,
     });
-    searchAction(request)
+    searchAction(request as R)
       .then((response) => {
         if (cancelled || response.code !== 200) return;
         setRows(response.data.records);

@@ -2,9 +2,9 @@ import { IIPBlacklistRule, IIPProfile, ipBlacklistRemove, ipBlacklistSearch, ipB
 import { LocalTime } from "@/componets/LocalTime";
 import ServerDataTable from "@/ui/ServerDataTable";
 import { confirmDanger } from "@/ui/confirmAction";
-import { notifySuccess } from "@/ui/notify";
+import { notifySuccess, notifyWarning } from "@/ui/notify";
 import { DataToolbar, WorkbenchPage } from "@/ui/workbench";
-import { Badge, Button, CopyableText, Input, RowActions, Switch, toast } from "@modra/react";
+import { Badge, Button, CopyableText, Input, RowActions, Switch } from "@modra/react";
 import type { ColumnDef } from "@tanstack/react-table";
 import React, { useMemo, useState } from "react";
 import IPProfileDrawer, { type IPBlacklistScope } from "../IPProfileDrawer";
@@ -38,7 +38,7 @@ const IPBlacklistList: React.FC = () => {
   const addRule = async () => {
     const value = cidr.trim();
     if (!value) {
-      toast({ variant: "warning", title: "请输入 IP 或 CIDR" });
+      notifyWarning("请输入 IP 或 CIDR");
       return;
     }
     setAdding(true);
@@ -170,7 +170,7 @@ const IPBlacklistList: React.FC = () => {
       <ServerDataTable<IIPBlacklistRule>
         columns={columns}
         getRowId={(row) => String(row.id)}
-        searchAction={ipBlacklistSearch as never}
+        searchAction={ipBlacklistSearch}
         reloadKey={refreshTable}
         filter={filters}
       />

@@ -8,3 +8,6 @@ export const notifyError = (title: string, description?: string) =>
 
 export const notifySuccess = (title: string, description?: string) =>
   toast({ variant: 'success', title, description, duration: DURATION_MS });
+
+export const notifyWarning = (title: string, description?: string) =>
+  toast({ variant: 'warning', title, description, duration: DURATION_MS });

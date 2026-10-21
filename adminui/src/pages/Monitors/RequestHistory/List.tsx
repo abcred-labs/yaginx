@@ -715,7 +715,7 @@ export const RequestHistoryList: React.FC<RequestHistoryListProps> = ({ fixedHos
       <ServerDataTable<IRequestHistoryListItem>
         columns={columns}
         getRowId={(row) => String(row.id)}
-        searchAction={requestHistorySearch as never}
+        searchAction={requestHistorySearch}
         reloadKey={refreshTable}
         filter={externalFilterCondition}
         onPageDataChange={setCurrentPageRecords}
