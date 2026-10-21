@@ -1,6 +1,6 @@
 import React, { Suspense } from 'react';
 import { Outlet } from 'react-router-dom';
-import Loading from '../componets/Loading';
+import Loading from '../components/Loading';
 const RootLayout: React.FC = () => {
   return <Suspense fallback={<Loading />}><Outlet /></Suspense>
 };

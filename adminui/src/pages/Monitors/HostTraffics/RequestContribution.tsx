@@ -1,6 +1,6 @@
 import { getAnalyticsContributions, type IAnalyticsContributions } from "@/api/analytics";
 import { chartPalette, useAppearance } from "@/appearance";
-import EChartPanel from "@/componets/charts/EChartPanel";
+import EChartPanel from "@/components/charts/EChartPanel";
 import { formatNumber, formatPercent } from "@/utils/formatters";
 import React, { useEffect, useState } from "react";
 import { HostTrafficPage } from "./HostTrafficPage";

@@ -4,8 +4,7 @@ import React from 'react';
 import { usePublishPageMeta } from '@/layouts/PageMeta';
 
 /**
- * 页面骨架：与旧 componets/Workbench 保持同名同参，页面迁移时只需改 import 路径。
- * 全部页面迁完后旧文件删除，这里成为唯一实现。
+ * 页面骨架：WorkbenchPage 发布顶栏面包屑，SectionCard、DataToolbar、SignalTag、InfoHint 提供各页共用的卡片与提示。
  */
 
 export type SignalTone = 'flow' | 'success' | 'warning' | 'danger' | 'neutral';

@@ -16,6 +16,8 @@ pnpm install --frozen-lockfile
 pnpm run api:check
 pnpm test
 pnpm run build
+pnpm exec playwright install chromium   # once
+pnpm exec playwright test
 cd ../yaginx-docs-site
 npx --yes pnpm@8.15.9 install --frozen-lockfile
 npx --yes pnpm@8.15.9 run typecheck
@@ -23,6 +25,13 @@ npx --yes pnpm@8.15.9 run build
 cd ..
 node scripts/check-doc-links.mjs
 ```
+
+The admin UI uses the Modra component library, installed from
+`https://npm.feinian.net/` (read access needs no credentials; see
+`adminui/.npmrc`). The Playwright smoke tests run against the production build
+and intercept `/api` in the browser, so they need no backend. To run the dev
+server against a gateway, set `VITE_PROXY_HTTP` (default
+`http://127.0.0.1:9090/`).
 
 Migration files are append-only after release. A schema change must include a
 forward migration, rollback or recovery notes where applicable, and tests for

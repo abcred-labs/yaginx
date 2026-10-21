@@ -1,6 +1,6 @@
 import { getResourceCatalog, IResourceCatalog, IResourceHost, ResourceCatalogStatus, ResourceCatalogWebsiteAssociation } from "@/api/analytics";
 import { DEFAULT_PAGE_INDEX, DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS } from "@/api/apiTypes";
-import { LocalTime } from "@/componets/LocalTime";
+import { LocalTime } from "@/components/LocalTime";
 import { DataToolbar, SignalTag, WorkbenchPage } from "@/ui/workbench";
 import { MonAlert } from "@/ui/monParts";
 import { Button, DataTable, Input, Select, SelectClearButton, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@modra/react";

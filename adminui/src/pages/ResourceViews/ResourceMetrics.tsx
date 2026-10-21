@@ -1,5 +1,5 @@
-import EChartPanel from "@/componets/charts/EChartPanel";
-import { buildAnalyticsTrendOption } from "@/componets/charts/analyticsTrend";
+import EChartPanel from "@/components/charts/EChartPanel";
+import { buildAnalyticsTrendOption } from "@/components/charts/analyticsTrend";
 import { IAnalyticsOverview, IAnalyticsTimeseries } from "@/api/analytics";
 import { chartPalette, useAppearance } from "@/appearance";
 import { formatBytes, formatNumber, formatPercent, toNumber } from "@/utils/formatters";

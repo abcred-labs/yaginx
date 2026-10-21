@@ -268,7 +268,31 @@ yaginx 只有约 48 个文件依赖 antd，直接原生迁移的总成本不高�
 - “数据库性能”页没有发布页面标题，顶栏面包屑会停留在上一个页面的标题。
 - 开发代理目标是占位值 `https:///`，任何 `/api` 请求都会让 Vite 开发服务器崩溃（阶段 1 已记录）。
 
-### 阶段 3：收尾（约 2～3 天）
+### 阶段 3 执行结果（2026-10-21）
+
+冒烟用例（先做）：
+- 新增 Playwright 冒烟用例 22 条（`adminui/e2e/smoke.e2e.ts`），针对 `pnpm build` 的产物运行，`/api` 在浏览器里被拦截，不需要后端。覆盖：登录校验与跳转、13 个页面逐一打开且无控制台错误、深浅色与侧栏切换、站点列表与进入配置、站点工作区各分区（未改动时保存的请求体与加载内容一致、改名后出现未保存提示）、运行配置保存、API 凭据创建、请求追踪详情抽屉、会话撤销确认。
+- 用例固定在生产构建上跑：开发服务器下 `brotli-wasm` 的 wasm 文件会被当成 HTML 返回，请求追踪页会报 `WebAssembly.instantiate` 错误，生产构建没有这个问题。
+- CI 的 adminui 任务在构建后安装 Chromium 并运行用例，失败时上传报告。本地用 `PW_CHANNEL=chrome pnpm exec playwright test` 复用系统浏览器。
+
+清理：
+- 删除 antd、`@ant-design/*`、Less 相关依赖和配置（`vite-plugin-imp`、`less-vars-to-js`、`config/theme`），以及已无引用的 `ahooks`、`lodash`、`uuid`、`snakecase-keys`、`@loadable/component`。
+- 删除旧的 `Workbench`、`ServerPagedTable`、`PagedTableList`、`TableOperationMenus`、`ColumnSearchProps`、`tableCompact`、`renderTableItem`、`AppFooter`、`EmptyRouteLayout`，`global.less`、`responsive.less`、`legacy.css`，以及不再使用的 Space Grotesk 字体。
+- `appearance.tsx` 只保留 Modra 主题；字体声明移到 `styles/fonts.css`，字体族通过 Tailwind 的 `@theme` 设置，`body` 的底色和文字色改用 Modra 令牌。
+- 目录 `componets` 改名为 `components`，`woker.js` 改名为 `worker.js`。
+- 开发代理目标不再是占位值 `https:///`，改为读环境变量 `VITE_PROXY_HTTP`，默认 `http://127.0.0.1:9090/`。该变量只在 Vite 配置里读取，不能放进会打进浏览器包的 `constant.ts`。
+- 更新 `README.md`、`README.zh-CN.md`、`CONTRIBUTING.md`、`THIRD_PARTY_NOTICES.md`（说明 Modra 来自 `npm.feinian.net`）。
+
+结果：`dist` 从约 5.1 MB 降到约 3.9 MB；`tsc`、32 个单元测试文件（102 个用例）、构建、22 条冒烟用例全部通过。
+
+仍未完成：
+- 图标仍是 `lucide-react`：`@feinian/fontawesome-free-react` 还没有发布到 `npm.feinian.net`，发布后再决定是否替换。
+- 主入口 CSS 仍约 500 KB（gzip 66 KB），需要 Modra 侧提供只含默认品牌的令牌入口。
+- `@modra/react` 声明的 `echarts` peer 是 `^5.5.0`，yaginx 用 6.1.0，pnpm 会给出 peer 警告。
+- 站点工作区的新增项默认值、ACME 证书申请与证书详情对话框、恢复备份的真实文件上传、状态码气泡的悬停交互，没有自动化用例。
+- 没有连真实后端验证。
+
+### 阶段 3：收尾（原计划）（约 2～3 天）
 
 - 移除 antd 及相关依赖、Less 配置、死代码，重命名 `componets` 与 `woker.js`。
 - 更新 `README.md`、`README.zh-CN.md`、`CONTRIBUTING.md`、`docs/release-packaging.md` 的构建说明。

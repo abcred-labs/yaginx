@@ -1,6 +1,5 @@
 import dayjs from 'dayjs';
 import { ConfigEnv, UserConfig } from 'vite'
-import { themeVariables } from './config/theme';
 import { PORT, VITE_BASE_PATH, VITE_DROP_CONSOLE } from './config/constant';
 import path from 'path';
 import { createProxy } from './config/vite/proxy';
@@ -15,25 +14,11 @@ const __APP_INFO__ = {
 };
 
 // https://vitejs.dev/config/
-// export default defineConfig({
-//   plugins: [react()]
-// })
 export default ({ command, mode }: ConfigEnv): UserConfig => {
-  const isBuild = command === 'build';
-
   console.log({ command, mode });
   return {
     base: VITE_BASE_PATH,
-    // plugins: createVitePlugins(mode, isBuild),
     plugins: [react(), tailwindcss()],
-    css: {
-      preprocessorOptions: {
-        less: {
-          javascriptEnabled: true,
-          modifyVars: themeVariables,
-        },
-      },
-    },
     resolve: {
       alias: [
         { find: /^~/, replacement: path.resolve(__dirname, './') },

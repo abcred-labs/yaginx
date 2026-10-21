@@ -2,7 +2,7 @@ import React, { createContext, useContext, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { DEFAULT_AUTH_INFO, IAuthInfo, useAccessStore } from "@/store/accessStore";
 import { logout as apiLogout } from "@/api/account";
-import workerScript from "@/woker";
+import workerScript from "@/worker";
 export interface IAuthContext {
   authInfo: IAuthInfo,
   isAuthorized: boolean,

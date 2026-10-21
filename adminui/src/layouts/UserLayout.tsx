@@ -4,7 +4,7 @@ import React, { Suspense, useEffect, useMemo, useState } from 'react';
 import { Link, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { ErrorBoundary } from 'react-error-boundary';
 import { IAuthContext, useAuth } from './RootAuthProvider';
-import Loading from '@/componets/Loading';
+import Loading from '@/components/Loading';
 import MenuIcon from '@/ui/menuIcons';
 import SidebarAccount from './SidebarAccount';
 import AppTopbar from './AppTopbar';

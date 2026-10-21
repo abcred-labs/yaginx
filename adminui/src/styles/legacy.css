@@ -1,2 +1,0 @@
-/* antd 的全局 reset 放进低优先级的 legacy 层，避免盖过 Modra 的工具类；antd 页面迁完后整个文件删除。 */
-@import "antd/dist/reset.css" layer(legacy);

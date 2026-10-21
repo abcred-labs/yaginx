@@ -1,5 +1,5 @@
 import { IIPBlacklistRule, IIPProfile, ipBlacklistRemove, ipBlacklistSearch, ipBlacklistUpsert } from "@/api/accessControl";
-import { LocalTime } from "@/componets/LocalTime";
+import { LocalTime } from "@/components/LocalTime";
 import ServerDataTable from "@/ui/ServerDataTable";
 import { confirmDanger } from "@/ui/confirmAction";
 import { notifySuccess, notifyWarning } from "@/ui/notify";

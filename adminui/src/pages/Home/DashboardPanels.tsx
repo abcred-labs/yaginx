@@ -1,6 +1,6 @@
 import { getAnalyticsOverview, getDatabasePerformance, getGatewayDiagnosticsOverview, overviewSection, type IAnalyticsModeMetrics, type IAnalyticsOverview, type IAnalyticsPoint, type IDatabasePerformance, type IGatewayDiagnosticsOverview } from "@/api/analytics";
-import EChartPanel from "@/componets/charts/EChartPanel";
-import { buildAnalyticsTrendOption } from "@/componets/charts/analyticsTrend";
+import EChartPanel from "@/components/charts/EChartPanel";
+import { buildAnalyticsTrendOption } from "@/components/charts/analyticsTrend";
 import { formatBytes, formatNumber, formatPercent } from "@/utils/formatters";
 import { Badge, Button, Empty, Progress } from "@modra/react";
 import React, { useEffect, useMemo, useState } from "react";

@@ -1,6 +1,6 @@
 import { ipBlacklistLookup, ipBlacklistUpsert } from "@/api/accessControl";
 import { requestHistoryGet, requestHistorySearch, type IRequestHistoryDetail, type IRequestHistoryListItem } from "@/api/requestHistory";
-import { LocalTime } from "@/componets/LocalTime";
+import { LocalTime } from "@/components/LocalTime";
 import ServerDataTable from "@/ui/ServerDataTable";
 import { ClearableSelect } from "@/ui/reqFilters";
 import { notifySuccess } from "@/ui/notify";

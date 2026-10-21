@@ -1,6 +1,6 @@
 import { getDomainAnalytics, type IAnalyticsSubjectView } from "@/api/analytics";
 import { defaultResourceViewWindowSeconds } from "./resourceViewDefaults";
-import { LocalTime } from "@/componets/LocalTime";
+import { LocalTime } from "@/components/LocalTime";
 import { SectionCard, SignalTag, WorkbenchPage } from "@/ui/workbench";
 import { MonAlert, MonDateTimeRange, MonDescriptions, MonSegmented, type MonDayjsRange } from "@/ui/monParts";
 import { Button, Spin } from "@modra/react";

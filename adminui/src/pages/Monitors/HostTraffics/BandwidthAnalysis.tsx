@@ -1,6 +1,6 @@
 import { overviewSection, getAnalyticsOverview, type IAnalyticsDomain, type IAnalyticsOverview, type IAnalyticsPoint } from "@/api/analytics";
 import { chartPalette, useAppearance } from "@/appearance";
-import EChartPanel from "@/componets/charts/EChartPanel";
+import EChartPanel from "@/components/charts/EChartPanel";
 import { formatBytes, formatPercent } from "@/utils/formatters";
 import { Button } from "@modra/react";
 import { MonAlert } from "@/ui/monParts";

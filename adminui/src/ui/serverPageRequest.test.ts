@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildServerPageRequest } from "@/ui/serverPageRequest";
+import { buildServerPageRequest } from "./serverPageRequest";
 
 describe("buildServerPageRequest", () => {
   it("removes Ant Design pagination fields from the API request", () => {

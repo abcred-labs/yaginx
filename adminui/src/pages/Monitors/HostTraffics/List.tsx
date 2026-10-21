@@ -1,6 +1,6 @@
 import { getAnalyticsDetails, type IAnalyticsDetails } from "@/api/analytics";
 import { DEFAULT_PAGE_INDEX, DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS } from "@/api/apiTypes";
-import { LocalTime } from "@/componets/LocalTime";
+import { LocalTime } from "@/components/LocalTime";
 import { SectionCard } from "@/ui/workbench";
 import { formatBytes, formatNumber, formatPercent } from "@/utils/formatters";
 import { Badge, Button, DataTable } from "@modra/react";
