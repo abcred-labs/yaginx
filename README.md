@@ -24,6 +24,10 @@ image and a database-free rescue runtime.
 Upgrades are manual: first run `yaginx upgrade --check --version <semver>`, then
 `sudo yaginx upgrade --version <semver>` during a maintenance window. Database
 migrations require the administrator to explicitly add `--migrate-database`.
+Behind the Great Firewall, pass download mirrors with
+`--github-mirror https://github-mirror.abc.red --release-assets-mirror https://gh-release-assets.abc.red`
+(these override `YAGINX_GITHUB_MIRROR` / `YAGINX_RELEASE_ASSETS_MIRROR` and the
+`upgrade.*Mirror` settings).
 Automatic upgrade timers and CLI controls have been removed; see the
 [migration runbook](docs/go-version-new-install-runbook.md#removing-the-legacy-upgrade-timer)
 for older installations.

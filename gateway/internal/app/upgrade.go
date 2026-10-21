@@ -50,6 +50,8 @@ func runUpgrade(args []string, stdout, stderr io.Writer) int {
 	manifestURL := flags.String("manifest-url", "", "release manifest URL (package-only mode)")
 	stateDirectory := flags.String("state-directory", "", "upgrade state directory (package-only mode)")
 	lockFile := flags.String("lock-file", "", "upgrade lock file (package-only mode)")
+	githubMirror := flags.String("github-mirror", "", "GitHub mirror base URL (overrides upgrade.githubMirror and YAGINX_GITHUB_MIRROR)")
+	releaseAssetsMirror := flags.String("release-assets-mirror", "", "release assets mirror base URL (overrides upgrade.releaseAssetsMirror and YAGINX_RELEASE_ASSETS_MIRROR)")
 	path := flags.String("config", runtimeConfigPath(), "runtime configuration")
 	if err := flags.Parse(args); err != nil || len(flags.Args()) != 0 {
 		return upgradeUsage(stderr)
@@ -86,6 +88,12 @@ func runUpgrade(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "configuration warning: %s\n", warning)
 	}
 	cfg.Config.TargetVersion = strings.TrimSpace(*targetVersion)
+	if value := strings.TrimSpace(*githubMirror); value != "" {
+		cfg.Config.GitHubMirror = value
+	}
+	if value := strings.TrimSpace(*releaseAssetsMirror); value != "" {
+		cfg.Config.ReleaseAssetsMirror = value
+	}
 	runner := upgrade.New()
 	if *migrateDatabase {
 		executable, executableErr := os.Executable()
@@ -266,6 +274,6 @@ func upgradeSystemCommand(ctx context.Context, name string, args ...string) ([]b
 	return upgrade.New().Command(ctx, name, args...)
 }
 func upgradeUsage(stderr io.Writer) int {
-	fmt.Fprintln(stderr, "usage: yaginx upgrade [--check] [--version <semver>] [--migrate-database] [--skip-preflight-health] [--no-restart] [--package-only] [--manifest-url <url>] [--state-directory <dir>] [--lock-file <file>] [--config <file>] | verify --candidate <file> | rollback --current <file> --previous <file>")
+	fmt.Fprintln(stderr, "usage: yaginx upgrade [--check] [--version <semver>] [--migrate-database] [--skip-preflight-health] [--no-restart] [--package-only] [--manifest-url <url>] [--github-mirror <url>] [--release-assets-mirror <url>] [--state-directory <dir>] [--lock-file <file>] [--config <file>] | verify --candidate <file> | rollback --current <file> --previous <file>")
 	return 2
 }
