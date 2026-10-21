@@ -1,286 +1,266 @@
-﻿import {
-  LockOutlined,
-  UserOutlined,
-} from '@ant-design/icons';
 import {
-  LoginFormPage,
-  ProConfigProvider,
-  ProFormCheckbox,
-  ProFormText,
-} from '@ant-design/pro-components';
-import { Button, Form, Input, Modal, Tabs, notification, theme } from 'antd';
+  AuthLayout, Button, Checkbox, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
+  Form, FormControl, FormField, FormItem, FormLabel, FormMessage, Input, Steps, StepsItem,
+} from '@modra/react';
+import { Lock, User } from 'lucide-react';
 import React, { useState } from 'react';
+import { useForm } from 'react-hook-form';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { login, resetPasswordRecovery, startPasswordRecovery, verifyPasswordRecoveryEmail } from '@/api/account';
 import { useAuth } from '@/layouts/RootAuthProvider';
+import { notifySuccess } from '@/ui/notify';
 import { isSafeRedirect } from '@/utils/safeRedirect';
 
-const Page = () => {
-  const { token } = theme.useToken();
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-  const [forgotOpen, setForgotOpen] = useState(false);
-  const [forgotStep, setForgotStep] = useState(0);
-  const [forgotLoading, setForgotLoading] = useState(false);
-  const [forgotRecoveryId, setForgotRecoveryId] = useState('');
+interface LoginValues {
+  email: string;
+  password: string;
+  autoLogin: boolean;
+}
+
+interface RecoveryValues {
+  accountEmail: string;
+  email: string;
+  code: string;
+  newPassword: string;
+  confirmPassword: string;
+}
+
+const RECOVERY_STEPS = ['账号', '验证邮箱', '设置新密码'];
+
+const IconInput = React.forwardRef<HTMLInputElement, React.ComponentProps<typeof Input> & { icon: React.ReactNode }>(
+  ({ icon, className, ...props }, ref) => (
+    <div className="relative">
+      <span className="pointer-events-none absolute inset-y-0 start-3 flex items-center text-muted-foreground">{icon}</span>
+      <Input ref={ref} size="lg" className={`ps-9 ${className ?? ''}`} {...props} />
+    </div>
+  ),
+);
+IconInput.displayName = 'IconInput';
+
+const PasswordRecoveryDialog: React.FC<{ open: boolean; onClose: () => void }> = ({ open, onClose }) => {
+  const [step, setStep] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [recoveryId, setRecoveryId] = useState('');
   const [maskedEmail, setMaskedEmail] = useState('');
-  const [forgotForm] = Form.useForm();
+  const form = useForm<RecoveryValues>({
+    defaultValues: { accountEmail: '', email: '', code: '', newPassword: '', confirmPassword: '' },
+  });
 
+  const close = () => {
+    setStep(0);
+    setRecoveryId('');
+    setMaskedEmail('');
+    form.reset();
+    onClose();
+  };
+
+  const next = async () => {
+    const fields: (keyof RecoveryValues)[][] = [['accountEmail'], ['email'], ['code', 'newPassword', 'confirmPassword']];
+    if (!(await form.trigger(fields[step]))) return;
+    const values = form.getValues();
+    setLoading(true);
+    try {
+      if (step === 0) {
+        const rsp = await startPasswordRecovery({ accountEmail: values.accountEmail });
+        if (rsp && rsp.code === 200) {
+          setRecoveryId(rsp.data.recoveryId);
+          setMaskedEmail(rsp.data.maskedEmail);
+          setStep(1);
+        }
+      } else if (step === 1) {
+        const rsp = await verifyPasswordRecoveryEmail({ recoveryId, email: values.email });
+        if (rsp && rsp.code === 200) {
+          notifySuccess('验证码已发送', '请前往该账号的邮箱查收。');
+          setStep(2);
+        }
+      } else {
+        const rsp = await resetPasswordRecovery({
+          recoveryId,
+          code: values.code,
+          newPassword: values.newPassword,
+          confirmPassword: values.confirmPassword,
+        });
+        if (rsp && rsp.code === 200) {
+          notifySuccess('密码已重置', '请使用新密码登录。');
+          close();
+        }
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(nextOpen) => { if (!nextOpen) close(); }}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>重置密码</DialogTitle>
+        </DialogHeader>
+        <Steps>
+          {RECOVERY_STEPS.map((title, index) => (
+            <StepsItem key={title} title={title} status={index < step ? 'complete' : index === step ? 'current' : 'pending'} />
+          ))}
+        </Steps>
+        <Form {...form} layout="vertical">
+          <form className="flex flex-col gap-4" onSubmit={(event) => { event.preventDefault(); void next(); }}>
+            {step === 0 && (
+              <FormField
+                control={form.control}
+                name="accountEmail"
+                rules={{ required: '请输入账号邮箱' }}
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>账号邮箱</FormLabel>
+                    <FormControl><Input {...field} placeholder="name@example.com" /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
+            {step === 1 && (
+              <>
+                <p className="text-sm text-muted-foreground">请输入完整邮箱以验证：{maskedEmail}</p>
+                <FormField
+                  control={form.control}
+                  name="email"
+                  rules={{ required: '请输入完整邮箱' }}
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>完整邮箱</FormLabel>
+                      <FormControl><Input {...field} placeholder="name@example.com" /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </>
+            )}
+            {step === 2 && (
+              <>
+                <FormField
+                  control={form.control}
+                  name="code"
+                  rules={{ required: '请输入验证码' }}
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>验证码</FormLabel>
+                      <FormControl><Input {...field} placeholder="6 位验证码" maxLength={6} /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="newPassword"
+                  rules={{ required: '请输入新密码' }}
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>新密码</FormLabel>
+                      <FormControl><Input {...field} type="password" placeholder="新密码" autoComplete="new-password" /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="confirmPassword"
+                  rules={{
+                    required: '请再次输入新密码',
+                    validate: (value, values) => value === values.newPassword || '两次输入的密码不一致',
+                  }}
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>确认新密码</FormLabel>
+                      <FormControl><Input {...field} type="password" placeholder="再次输入新密码" autoComplete="new-password" /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </>
+            )}
+            <button type="submit" className="hidden" aria-hidden="true" tabIndex={-1} />
+          </form>
+        </Form>
+        <DialogFooter>
+          <Button variant="outline" onClick={close}>取消</Button>
+          {step > 0 && <Button variant="outline" onClick={() => setStep((s) => s - 1)}>上一步</Button>}
+          <Button loading={loading} onClick={() => void next()}>{step < 2 ? '继续' : '重置密码'}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+const Login: React.FC = () => {
+  const [forgotOpen, setForgotOpen] = useState(false);
   const { login: localLogin }: any = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const form = useForm<LoginValues>({ defaultValues: { email: '', password: '', autoLogin: false } });
 
-  const onSubmit = async (values: any) => {
-    const rsp = await login({ email: values.email, password: values.password, remember: !!values.autoLogin });
-    if (rsp === null) {
-      // 网络/传输层异常：FetchJson 已经弹过错误通知，这里无需重复处理。
-      return;
-    }
-    if (rsp.code !== 200) {
-      // 业务失败（含 401 等）：FetchJson 已经弹过通知，留在登录页让用户重试即可。
-      return;
-    }
+  const onSubmit = async (values: LoginValues) => {
+    const rsp = await login({ email: values.email, password: values.password, remember: values.autoLogin });
+    // 传输层异常或业务失败（含 401）时 FetchJson 已经弹过通知，留在登录页让用户重试即可。
+    if (rsp === null || rsp.code !== 200) return;
     localLogin(rsp.data);
     const redirect = searchParams.get('redirect');
     navigate(isSafeRedirect(redirect) ? redirect : '/', { replace: true });
   };
 
-  const onSubmitFailed = (errorInfo: any) => {
-    console.log('Failed:', errorInfo);
-  };
-
-  const resetForgotState = () => {
-    setForgotStep(0);
-    setForgotRecoveryId('');
-    setMaskedEmail('');
-    forgotForm.resetFields();
-  };
-
-  const openForgotDialog = () => {
-    resetForgotState();
-    setForgotOpen(true);
-  };
-
-  const closeForgotDialog = () => {
-    setForgotOpen(false);
-    resetForgotState();
-  };
-
-  const handleForgotNext = async () => {
-    setForgotLoading(true);
-    try {
-      if (forgotStep === 0) {
-        const values = await forgotForm.validateFields(['accountEmail']);
-        const rsp = await startPasswordRecovery({ accountEmail: values.accountEmail });
-        if (rsp && rsp.code === 200) {
-          setForgotRecoveryId(rsp.data.recoveryId);
-          setMaskedEmail(rsp.data.maskedEmail);
-          setForgotStep(1);
-        }
-        return;
-      }
-
-      if (forgotStep === 1) {
-        const values = await forgotForm.validateFields(['email']);
-        const rsp = await verifyPasswordRecoveryEmail({
-          recoveryId: forgotRecoveryId,
-          email: values.email,
-        });
-        if (rsp && rsp.code === 200) {
-          notification.success({ message: '验证码已发送', description: '请前往该账号的邮箱查收。' });
-          setForgotStep(2);
-        }
-        return;
-      }
-
-      const values = await forgotForm.validateFields(['code', 'newPassword', 'confirmPassword']);
-      const rsp = await resetPasswordRecovery({
-        recoveryId: forgotRecoveryId,
-        code: values.code,
-        newPassword: values.newPassword,
-        confirmPassword: values.confirmPassword,
-      });
-
-      if (rsp && rsp.code === 200) {
-        notification.success({
-          message: '密码已重置',
-          description: '请使用新密码登录。',
-        });
-        closeForgotDialog();
-      }
-    } finally {
-      setForgotLoading(false);
-    }
-  };
-
   return (
-    <div
-      className="login-page"
-    >
-      <LoginFormPage
-        title="YAGINX"
-        onFinish={onSubmit}
-        onFinishFailed={onSubmitFailed}
-        subTitle="网关运维控制台"
-        submitter={{ searchConfig: { submitText: '登录' } }}
-      >
-        <ProFormText
-          name="email"
-          fieldProps={{
-            size: 'large',
-            prefix: (
-              <UserOutlined
-                style={{
-                  color: token.colorText,
-                }}
-                className={'prefixIcon'}
+    <>
+      <AuthLayout title="YAGINX" description="网关运维控制台">
+        <Form {...form} layout="vertical">
+          <form className="flex flex-col gap-4" onSubmit={form.handleSubmit(onSubmit)} noValidate>
+            <FormField
+              control={form.control}
+              name="email"
+              rules={{ required: '请输入邮箱地址', pattern: { value: EMAIL_PATTERN, message: '请输入有效的邮箱地址' } }}
+              render={({ field }) => (
+                <FormItem>
+                  <FormControl>
+                    <IconInput {...field} icon={<User className="size-4" />} type="email" placeholder="邮箱地址" aria-label="邮箱地址" autoComplete="username" />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="password"
+              rules={{ required: '请输入密码' }}
+              render={({ field }) => (
+                <FormItem>
+                  <FormControl>
+                    <IconInput {...field} icon={<Lock className="size-4" />} type="password" placeholder="密码" aria-label="密码" autoComplete="current-password" />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <div className="flex items-center justify-between text-sm">
+              <FormField
+                control={form.control}
+                name="autoLogin"
+                render={({ field }) => (
+                  <label className="flex cursor-pointer items-center gap-2">
+                    <Checkbox checked={field.value} onCheckedChange={(checked) => field.onChange(checked === true)} />
+                    保持登录
+                  </label>
+                )}
               />
-            ),
-          }}
-          placeholder={'邮箱地址'}
-          rules={[
-            {
-              required: true,
-              message: '请输入邮箱地址',
-            },
-            {
-              type: 'email',
-              message: '请输入有效的邮箱地址',
-            },
-          ]}
-        />
-        <ProFormText.Password
-          name="password"
-          fieldProps={{
-            size: 'large',
-            prefix: (
-              <LockOutlined
-                style={{
-                  color: token.colorText,
-                }}
-                className={'prefixIcon'}
-              />
-            ),
-          }}
-          placeholder={'密码'}
-          rules={[
-            {
-              required: true,
-              message: '请输入密码',
-            },
-          ]}
-        />
-        <div
-          style={{
-            marginBlockEnd: 24,
-          }}
-        >
-          <ProFormCheckbox noStyle name="autoLogin">
-            保持登录
-          </ProFormCheckbox>
-          <a
-            onClick={openForgotDialog}
-            style={{
-              float: 'right',
-            }}
-          >
-            重置密码
-          </a>
-        </div>
-      </LoginFormPage>
-
-      <Modal
-        open={forgotOpen}
-        title="重置密码"
-        onCancel={closeForgotDialog}
-        footer={[
-          <Button key="cancel" onClick={closeForgotDialog}>取消</Button>,
-          forgotStep > 0 ? (
-            <Button key="prev" onClick={() => setForgotStep((s) => s - 1)}>上一步</Button>
-          ) : null,
-          <Button key="next" type="primary" loading={forgotLoading} onClick={handleForgotNext}>
-            {forgotStep < 2 ? '继续' : '重置密码'}
-          </Button>,
-        ]}
-        destroyOnClose
-      >
-        <Tabs
-          activeKey={String(forgotStep)}
-          items={[
-            { key: '0', label: '账号' },
-            { key: '1', label: '验证邮箱' },
-            { key: '2', label: '设置新密码' },
-          ]}
-        />
-        <Form form={forgotForm} layout="vertical">
-          {forgotStep === 0 && (
-            <Form.Item
-              label="账号邮箱"
-              name="accountEmail"
-              rules={[{ required: true, message: '请输入账号邮箱' }]}
-            >
-              <Input placeholder="name@example.com" />
-            </Form.Item>
-          )}
-
-          {forgotStep === 1 && (
-            <>
-              <div style={{ marginBottom: 'var(--space-3)' }}>请输入完整邮箱以验证：{maskedEmail}</div>
-              <Form.Item
-                label="完整邮箱"
-                name="email"
-                rules={[{ required: true, message: '请输入完整邮箱' }]}
-              >
-                <Input placeholder="name@example.com" />
-              </Form.Item>
-            </>
-          )}
-
-          {forgotStep === 2 && (
-            <>
-              <Form.Item
-                label="验证码"
-                name="code"
-                rules={[{ required: true, message: '请输入验证码' }]}
-              >
-                <Input placeholder="6 位验证码" maxLength={6} />
-              </Form.Item>
-              <Form.Item
-                label="新密码"
-                name="newPassword"
-                rules={[{ required: true, message: '请输入新密码' }]}
-              >
-                <Input.Password placeholder="新密码" />
-              </Form.Item>
-              <Form.Item
-                label="确认新密码"
-                name="confirmPassword"
-                dependencies={["newPassword"]}
-                rules={[
-                  { required: true, message: '请再次输入新密码' },
-                  ({ getFieldValue }) => ({
-                    validator(_, value) {
-                      if (!value || getFieldValue('newPassword') === value) {
-                        return Promise.resolve();
-                      }
-                      return Promise.reject(new Error('两次输入的密码不一致'));
-                    },
-                  }),
-                ]}
-              >
-                <Input.Password placeholder="再次输入新密码" />
-              </Form.Item>
-            </>
-          )}
+              <button type="button" className="text-primary hover:underline" onClick={() => setForgotOpen(true)}>
+                重置密码
+              </button>
+            </div>
+            <Button type="submit" size="lg" loading={form.formState.isSubmitting}>登录</Button>
+          </form>
         </Form>
-      </Modal>
-    </div>
+      </AuthLayout>
+      <PasswordRecoveryDialog open={forgotOpen} onClose={() => setForgotOpen(false)} />
+    </>
   );
 };
 
-export default () => {
-  return (
-    <ProConfigProvider>
-      <Page />
-    </ProConfigProvider>
-  );
-};
+export default Login;

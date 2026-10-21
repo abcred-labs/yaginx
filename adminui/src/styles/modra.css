@@ -1,3 +1,4 @@
+@layer theme, base, legacy, components, utilities;
 @import "tailwindcss";
 @import "@modra/tailwind-preset";
 @source "../../node_modules/@modra/react/dist";

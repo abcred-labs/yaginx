@@ -125,7 +125,7 @@ const UserLayout: React.FC = () => {
         )}
       >
         <div className="mx-auto w-full max-w-screen-2xl p-4 md:p-6">
-          <ErrorBoundary FallbackComponent={ErrorFallback} onReset={() => window.location.reload()}>
+          <ErrorBoundary FallbackComponent={ErrorFallback} resetKeys={[location.pathname]} onReset={() => window.location.reload()}>
             <Suspense fallback={<Loading />}>
               <Outlet />
             </Suspense>

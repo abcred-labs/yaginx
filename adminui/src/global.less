@@ -273,12 +273,6 @@ body { background: var(--app-canvas); color: var(--app-ink); font-family: 'Noto 
 .app-error-state p { color: var(--app-muted); }
 .app-error-state__action { padding: 9px 14px; border: 0; border-radius: 8px; background: var(--app-flow); color: #fff; cursor: pointer; }
 
-.login-page { position: relative; display: grid; min-height: 100vh; overflow: hidden; place-items: center; background: var(--app-canvas); }
-.login-page::before { position: absolute; inset: -22% auto auto -8%; width: min(70vw, 900px); aspect-ratio: 1; border: 1px solid color-mix(in srgb, var(--app-flow) 22%, transparent); border-radius: 50%; box-shadow: 0 0 0 52px color-mix(in srgb, var(--app-flow) 4%, transparent), 0 0 0 124px color-mix(in srgb, var(--app-signal) 2%, transparent); content: ''; }
-.login-page::after { position: absolute; right: -10vw; bottom: 14vh; width: min(56vw, 760px); height: 2px; background: linear-gradient(90deg, transparent, var(--app-signal), var(--app-flow), transparent); box-shadow: 0 -22px 0 color-mix(in srgb, var(--app-signal) 25%, transparent), 0 22px 0 color-mix(in srgb, var(--app-flow) 20%, transparent); content: ''; transform: rotate(-16deg); }
-.login-page .ant-pro-form-login-page { position: relative; z-index: 1; min-height: 100vh; background: transparent; }
-.login-page .ant-pro-form-login-page-container { border: 1px solid var(--app-border); border-radius: 18px; background: color-mix(in srgb, var(--app-surface) 92%, transparent); box-shadow: var(--app-shadow); backdrop-filter: blur(12px); }
-.login-page .ant-pro-form-login-page-title { color: var(--app-ink); font-family: 'Space Grotesk', sans-serif; font-weight: 700; letter-spacing: .12em; }
 
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; transition-duration: .01ms !important; } }
 @media (max-width: 767px) { .app-content { min-height: calc(100vh - 76px); margin: var(--space-2); } .app-page-header .ant-page-header-heading-extra { margin-left: 0; } }

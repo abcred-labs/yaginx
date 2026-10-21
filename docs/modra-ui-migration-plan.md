@@ -233,6 +233,17 @@ yaginx 只有约 48 个文件依赖 antd，直接原生迁移的总成本不高�
 5. 站点管理：列表、创建、编辑及六个分区（hosts、routes、transforms、responses、access、history）。
 6. 仪表盘 Home。
 
+### 阶段 2 进度
+
+批次 1（登录、账号、关于）已完成：
+- `Login.tsx`、`System/AuthInfo.tsx` 改用 Modra 的 `AuthLayout`、`Form`（react-hook-form）、`Dialog`、`Steps`、`DataTable`，确认对话框改用 `confirmDanger`。已用模拟后端验证登录跳转、校验提示、重置密码的分步流程、会话撤销确认与提示。
+- `About` 与 `AccessDenied` 没有任何引用，直接删除，没有迁移。`Loading`、`NoFound` 改为 Modra/Tailwind 实现，删除 `Loading.less`。
+- 新增 `src/ui/workbench.tsx`：与旧 `componets/Workbench` 同名同参的 Modra 版页面骨架（`WorkbenchPage`、`SectionCard`、`InfoHint`、`SignalTag`、`DataToolbar`），后续页面只需把 import 路径从 `@/componets/Workbench` 改到 `@/ui/workbench`。所有页面迁完后删除旧文件。
+
+共存期发现并修复的问题：
+- antd 的 `reset.css` 没有分层，其中的 `button { color: inherit }` 会盖过 Modra 的工具类，导致主按钮文字变成深色。解决办法：`styles/modra.css` 先声明层顺序 `theme, base, legacy, components, utilities`，再用 `styles/legacy.css` 把 antd 的 reset 引入 `legacy` 层。antd 页面全部迁完后删除 `legacy.css`。
+- `UserLayout` 的 `ErrorBoundary` 在切换路由后不会复位（迁移前就如此），一个页面出错后，导航到别的页面仍显示错误。已加 `resetKeys={[location.pathname]}`。
+
 ### 阶段 3：收尾（约 2～3 天）
 
 - 移除 antd 及相关依赖、Less 配置、死代码，重命名 `componets` 与 `woker.js`。
