@@ -1,23 +1,28 @@
 import { getDatabasePerformance, type DatabaseHealthLevel, type IDatabasePerformance } from "@/api/analytics";
 import { formatBytes, formatNumber } from "@/utils/formatters";
-import { SPACE } from "@/utils/spacing";
-import { Alert, Badge, Button, Card, Col, Row, Statistic, Table, Tooltip, Typography } from "antd";
-import type { ColumnsType } from "antd/es/table";
+import { Badge, Button, DataTable, Statistic, Tooltip, TooltipContent, TooltipTrigger } from "@modra/react";
+import type { ColumnDef, PaginationState } from "@tanstack/react-table";
 import dayjs from "dayjs";
 import React, { useEffect, useState } from "react";
+import { MonAlert, MonBar, MonCard, StatDot, cx, eyebrowClass, toneDotClass } from "@/ui/monParts";
 import { CapabilityBar } from "./CapabilityBar";
 import { MetricGrid } from "./MetricGrid";
 import { TopSqlPanel } from "./TopSqlPanel";
 import { formatCount, formatRate } from "./topSql";
-import "./databasePerformance.less";
 
 const refreshIntervalMs = 15_000;
 const deadTupleWarnRatio = 0.2;
 
-const healthStatus: Record<DatabaseHealthLevel, { label: string; status: "success" | "warning" | "error" }> = {
-  healthy: { label: "健康", status: "success" },
-  warning: { label: "注意", status: "warning" },
-  critical: { label: "严重", status: "error" }
+const healthStatus: Record<DatabaseHealthLevel, { label: string; variant: "success" | "warning" | "destructive" }> = {
+  healthy: { label: "健康", variant: "success" },
+  warning: { label: "注意", variant: "warning" },
+  critical: { label: "严重", variant: "destructive" }
+};
+
+const healthDot: Record<DatabaseHealthLevel, keyof typeof toneDotClass> = {
+  healthy: "signal",
+  warning: "warning",
+  critical: "alert"
 };
 
 const formatTimestamp = (value: number) => value > 0 ? dayjs.unix(value).format("YYYY-MM-DD HH:mm:ss") : "暂无";
@@ -38,11 +43,54 @@ const formatSince = (value: number) => {
 };
 
 const Section: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
-  <section className="database-performance__section">
-    <h2 className="signal-eyebrow database-performance__section-label">{label}</h2>
+  <section className="flex flex-col gap-2">
+    <h2 className={cx("mx-0 mb-0 mt-2 flex items-center gap-2 after:h-px after:flex-1 after:bg-border after:content-['']", eyebrowClass)}>{label}</h2>
     {children}
   </section>
 );
+
+type TableRow = IDatabasePerformance["tables"][number];
+
+const rightAligned = (title: string): ColumnDef<TableRow, unknown>["header"] => () => <div className="text-right">{title}</div>;
+
+const tableColumns: ColumnDef<TableRow, unknown>[] = [
+  { id: "name", header: "表", meta: { minWidth: 200 }, cell: ({ row }) => <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">{row.original.name}</code> },
+  { id: "sizeBytes", header: rightAligned("容量"), meta: { minWidth: 100 }, cell: ({ row }) => <div className="text-right">{formatBytes(row.original.sizeBytes)}</div> },
+  { id: "liveTuples", header: rightAligned("活元组"), meta: { minWidth: 100 }, cell: ({ row }) => <div className="text-right">{formatCount(row.original.liveTuples)}</div> },
+  { id: "deadTuples", header: rightAligned("死元组"), meta: { minWidth: 100 }, cell: ({ row }) => <div className="text-right">{formatCount(row.original.deadTuples)}</div> },
+  {
+    id: "deadTupleRatio",
+    header: "死元组比例",
+    meta: { minWidth: 140 },
+    cell: ({ row }) => {
+      const value = row.original.deadTupleRatio;
+      const warn = value >= deadTupleWarnRatio;
+      return (
+        <div className="flex items-center gap-2">
+          <MonBar ratio={value} tone={warn ? "warning" : "flow"} />
+          <b className={cx("font-mono text-xs font-medium", warn ? "text-warning" : "text-foreground")}>{formatRate(value)}</b>
+        </div>
+      );
+    }
+  },
+  {
+    id: "maintenance",
+    header: "最近维护",
+    meta: { minWidth: 140 },
+    cell: ({ row }) => {
+      const record = row.original;
+      const latest = Math.max(record.lastAutovacuumAt, record.lastAutoanalyzeAt);
+      return (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="cursor-help font-mono text-xs text-foreground underline decoration-dotted underline-offset-[3px]">{formatSince(latest)}</span>
+          </TooltipTrigger>
+          <TooltipContent>autovacuum：{formatTimestamp(record.lastAutovacuumAt)}<br />autoanalyze：{formatTimestamp(record.lastAutoanalyzeAt)}</TooltipContent>
+        </Tooltip>
+      );
+    }
+  }
+];
 
 const DatabasePerformance: React.FC = () => {
   const [snapshot, setSnapshot] = useState<IDatabasePerformance>();
@@ -51,6 +99,7 @@ const DatabasePerformance: React.FC = () => {
   const [stale, setStale] = useState(false);
   const [error, setError] = useState<string>();
   const [refreshToken, setRefreshToken] = useState(0);
+  const [tablePagination, setTablePagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 8 });
   const refresh = () => setRefreshToken((value) => value + 1);
 
   useEffect(() => {
@@ -93,138 +142,111 @@ const DatabasePerformance: React.FC = () => {
     return () => controller.abort();
   }, [refreshToken]);
 
-  const tableColumns: ColumnsType<IDatabasePerformance["tables"][number]> = [
-    { title: "表", dataIndex: "name", width: 200, render: (value) => <Typography.Text code>{value}</Typography.Text> },
-    { title: "容量", dataIndex: "sizeBytes", width: 100, align: "right", render: formatBytes },
-    { title: "活元组", dataIndex: "liveTuples", width: 100, align: "right", render: formatCount },
-    { title: "死元组", dataIndex: "deadTuples", width: 100, align: "right", render: formatCount },
-    {
-      title: "死元组比例",
-      dataIndex: "deadTupleRatio",
-      width: 140,
-      render: (value: number) => (
-        <div className={`ratio-bar${value >= deadTupleWarnRatio ? " ratio-bar--warning" : ""}`}>
-          <span className="ratio-bar__track"><i style={{ width: `${Math.min(100, value * 100)}%` }} /></span>
-          <b>{formatRate(value)}</b>
-        </div>
-      )
-    },
-    {
-      title: "最近维护",
-      key: "maintenance",
-      width: 140,
-      render: (_, record) => {
-        const latest = Math.max(record.lastAutovacuumAt, record.lastAutoanalyzeAt);
-        return (
-          <Tooltip title={<>autovacuum：{formatTimestamp(record.lastAutovacuumAt)}<br />autoanalyze：{formatTimestamp(record.lastAutoanalyzeAt)}</>}>
-            <span className="database-performance__since">{formatSince(latest)}</span>
-          </Tooltip>
-        );
-      }
-    }
-  ];
-
   const level = snapshot?.health.level ?? "healthy";
   const health = healthStatus[level];
   const poolUsage = snapshot?.pool.usageRate ?? 0;
   const ioAvailable = snapshot?.io.available ?? false;
+  const tables = snapshot?.tables ?? [];
+
+  // 数值卡与概览页同构：标题前小圆点表状态。
+  const StatTitle: React.FC<{ tone: keyof typeof toneDotClass; children: React.ReactNode }> = ({ tone, children }) => (
+    <span className="flex items-center gap-1.5"><StatDot tone={tone} />{children}</span>
+  );
+  const noteClass = "text-sm text-muted-foreground";
 
   return (
-    <div className="database-performance">
-      <header className="database-performance__header">
+    <div className="flex flex-col gap-3">
+      <header className="flex flex-col items-start justify-between gap-4 md:flex-row md:items-end">
         <div>
-          <Typography.Title level={3}>数据库性能</Typography.Title>
-          <Typography.Text type="secondary">每 15 秒刷新，只读取当前 Yaginx 节点连接池与 PostgreSQL 统计视图。</Typography.Text>
+          <h3 className="m-0 text-xl font-semibold">数据库性能</h3>
+          <span className={noteClass}>每 15 秒刷新，只读取当前 Yaginx 节点连接池与 PostgreSQL 统计视图。</span>
         </div>
-        <div className="database-performance__actions">
-          {snapshot ? <Typography.Text type={stale ? "warning" : "secondary"}>{stale ? "数据已过期" : `更新于 ${formatTimestamp(snapshot.asOf)}`}</Typography.Text> : null}
-          <Button onClick={refresh} loading={refreshing}>立即刷新</Button>
+        <div className="flex w-full items-center justify-between gap-3 md:w-auto md:justify-start">
+          {snapshot ? <span className={cx("text-sm", stale ? "text-warning" : "text-muted-foreground")}>{stale ? "数据已过期" : `更新于 ${formatTimestamp(snapshot.asOf)}`}</span> : null}
+          <Button variant="outline" onClick={refresh} loading={refreshing}>立即刷新</Button>
         </div>
       </header>
 
       <CapabilityBar capabilities={snapshot?.capabilities} />
 
-      {error ? <Alert type="error" showIcon message={error} action={<Button size="small" onClick={refresh}>重试</Button>} /> : null}
+      {error ? <MonAlert type="error" message={error} action={<Button size="sm" variant="outline" onClick={refresh}>重试</Button>} /> : null}
 
       <Section label="概览">
-        <Row gutter={[SPACE.space3, SPACE.space3]}>
-          <Col xs={24} sm={12} xl={6}>
-            <Card loading={loading} className={`database-performance__card database-performance__card--${level}`}>
-              <Statistic title="数据库健康" value={health.label} />
-              <Badge status={health.status} text={snapshot?.health.reasons.join("；") || "未发现阈值告警"} />
-            </Card>
-          </Col>
-          <Col xs={24} sm={12} xl={6}>
-            <Card loading={loading} className={`database-performance__card${poolUsage >= 0.8 ? " database-performance__card--warning" : ""}`}>
-              <Statistic title="连接池使用率" value={formatRate(poolUsage)} />
-              <span className="ratio-bar ratio-bar--wide"><span className="ratio-bar__track"><i style={{ width: `${Math.min(100, poolUsage * 100)}%` }} /></span></span>
-              <Typography.Text type="secondary">已借出 {formatNumber(snapshot?.pool.acquired)} / 上限 {formatNumber(snapshot?.pool.max)}</Typography.Text>
-            </Card>
-          </Col>
-          <Col xs={24} sm={12} xl={6}>
-            <Card loading={loading} className={`database-performance__card${(snapshot?.activity.lockWaits ?? 0) > 0 ? " database-performance__card--warning" : ""}`}>
-              <Statistic title="锁等待" value={formatNumber(snapshot?.activity.lockWaits)} />
-              <Typography.Text type="secondary">最长 {formatNumber(snapshot?.activity.maxLockWaitSeconds)} 秒</Typography.Text>
-            </Card>
-          </Col>
-          <Col xs={24} sm={12} xl={6}>
-            <Card loading={loading} className="database-performance__card">
-              <Statistic title="缓存命中率" value={formatRate(snapshot?.database.cacheHitRate)} />
-              <Typography.Text type="secondary">统计重置：{formatTimestamp(snapshot?.database.statsResetAt ?? 0)}</Typography.Text>
-            </Card>
-          </Col>
-        </Row>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <MonCard loading={loading} className="h-full">
+            <Statistic title={<StatTitle tone={healthDot[level]}>数据库健康</StatTitle>} value={health.label} />
+            <div className="mt-2"><Badge variant={health.variant}>{snapshot?.health.reasons.join("；") || "未发现阈值告警"}</Badge></div>
+          </MonCard>
+          <MonCard loading={loading} className="h-full">
+            <Statistic title={<StatTitle tone={poolUsage >= 0.8 ? "warning" : "signal"}>连接池使用率</StatTitle>} value={formatRate(poolUsage)} />
+            <div className="my-2 flex"><MonBar ratio={poolUsage} /></div>
+            <span className={noteClass}>已借出 {formatNumber(snapshot?.pool.acquired)} / 上限 {formatNumber(snapshot?.pool.max)}</span>
+          </MonCard>
+          <MonCard loading={loading} className="h-full">
+            <Statistic title={<StatTitle tone={(snapshot?.activity.lockWaits ?? 0) > 0 ? "warning" : "signal"}>锁等待</StatTitle>} value={formatNumber(snapshot?.activity.lockWaits)} />
+            <span className={noteClass}>最长 {formatNumber(snapshot?.activity.maxLockWaitSeconds)} 秒</span>
+          </MonCard>
+          <MonCard loading={loading} className="h-full">
+            <Statistic title={<StatTitle tone="signal">缓存命中率</StatTitle>} value={formatRate(snapshot?.database.cacheHitRate)} />
+            <span className={noteClass}>统计重置：{formatTimestamp(snapshot?.database.statsResetAt ?? 0)}</span>
+          </MonCard>
+        </div>
       </Section>
 
       <Section label="运行态">
-        <Row gutter={[SPACE.space3, SPACE.space3]}>
-          <Col xs={24} xl={12}>
-            <Card title="连接与会话" loading={loading} className="database-performance__panel">
+        <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+          <MonCard title="连接与会话" loading={loading} className="h-full">
+            <MetricGrid
+              items={[
+                { label: "数据库连接", value: formatNumber(snapshot?.database.connections) },
+                { label: "活跃会话", value: formatNumber(snapshot?.activity.active) },
+                { label: "空闲会话", value: formatNumber(snapshot?.activity.idle) },
+                { label: "事务中空闲", value: formatNumber(snapshot?.activity.idleInTransaction), tone: (snapshot?.activity.idleInTransaction ?? 0) > 0 ? "warning" : "default", hint: "长时间处于事务中的空闲会话会阻塞 autovacuum。" },
+                { label: "未授予锁", value: formatNumber(snapshot?.activity.ungrantedLocks), tone: (snapshot?.activity.ungrantedLocks ?? 0) > 0 ? "warning" : "default" },
+                { label: "连接池空闲", value: formatNumber(snapshot?.pool.idle) }
+              ]}
+            />
+          </MonCard>
+          <MonCard title="I/O、缓存与临时文件" loading={loading} className="h-full">
+            <MetricGrid
+              items={[
+                { label: "缓存命中", value: formatRate(snapshot?.database.cacheHitRate) },
+                { label: "临时文件", value: formatNumber(snapshot?.database.tempFiles), tone: (snapshot?.database.tempFiles ?? 0) > 0 ? "warning" : "default" },
+                { label: "临时文件容量", value: formatBytes(snapshot?.database.tempBytes) },
+                { label: "死锁", value: formatNumber(snapshot?.database.deadlocks), tone: (snapshot?.database.deadlocks ?? 0) > 0 ? "alert" : "default" }
+              ]}
+            />
+            {ioAvailable ? (
               <MetricGrid
+                className="mt-3 border-t border-dashed border-border pt-3"
                 items={[
-                  { label: "数据库连接", value: formatNumber(snapshot?.database.connections) },
-                  { label: "活跃会话", value: formatNumber(snapshot?.activity.active) },
-                  { label: "空闲会话", value: formatNumber(snapshot?.activity.idle) },
-                  { label: "事务中空闲", value: formatNumber(snapshot?.activity.idleInTransaction), tone: (snapshot?.activity.idleInTransaction ?? 0) > 0 ? "warning" : "default", hint: "长时间处于事务中的空闲会话会阻塞 autovacuum。" },
-                  { label: "未授予锁", value: formatNumber(snapshot?.activity.ungrantedLocks), tone: (snapshot?.activity.ungrantedLocks ?? 0) > 0 ? "warning" : "default" },
-                  { label: "连接池空闲", value: formatNumber(snapshot?.pool.idle) }
+                  { label: "I/O 读取", value: formatCount(snapshot?.io.reads) },
+                  { label: "I/O 写入", value: formatCount(snapshot?.io.writes) },
+                  { label: "读取耗时", value: `${formatNumber(snapshot?.io.readMs)} ms` },
+                  { label: "写入耗时", value: `${formatNumber(snapshot?.io.writeMs)} ms` }
                 ]}
               />
-            </Card>
-          </Col>
-          <Col xs={24} xl={12}>
-            <Card title="I/O、缓存与临时文件" loading={loading} className="database-performance__panel">
-              <MetricGrid
-                items={[
-                  { label: "缓存命中", value: formatRate(snapshot?.database.cacheHitRate) },
-                  { label: "临时文件", value: formatNumber(snapshot?.database.tempFiles), tone: (snapshot?.database.tempFiles ?? 0) > 0 ? "warning" : "default" },
-                  { label: "临时文件容量", value: formatBytes(snapshot?.database.tempBytes) },
-                  { label: "死锁", value: formatNumber(snapshot?.database.deadlocks), tone: (snapshot?.database.deadlocks ?? 0) > 0 ? "alert" : "default" }
-                ]}
-              />
-              {ioAvailable ? (
-                <MetricGrid
-                  items={[
-                    { label: "I/O 读取", value: formatCount(snapshot?.io.reads) },
-                    { label: "I/O 写入", value: formatCount(snapshot?.io.writes) },
-                    { label: "读取耗时", value: `${formatNumber(snapshot?.io.readMs)} ms` },
-                    { label: "写入耗时", value: `${formatNumber(snapshot?.io.writeMs)} ms` }
-                  ]}
-                />
-              ) : (
-                <Typography.Text type="secondary" className="database-performance__panel-note">
-                  pg_stat_io 不可用，无法拆分读写次数与 I/O 耗时。
-                </Typography.Text>
-              )}
-            </Card>
-          </Col>
-        </Row>
+            ) : (
+              <span className="mt-3 block border-t border-dashed border-border pt-3 text-xs text-muted-foreground">
+                pg_stat_io 不可用，无法拆分读写次数与 I/O 耗时。
+              </span>
+            )}
+          </MonCard>
+        </div>
       </Section>
 
       <Section label="存储">
-        <Card title="表维护与容量" loading={loading}>
-          <Table rowKey="name" size="small" columns={tableColumns} dataSource={snapshot?.tables ?? []} pagination={{ pageSize: 8, size: "small", hideOnSinglePage: true, showSizeChanger: false }} scroll={{ x: 760 }} />
-        </Card>
+        <MonCard title="表维护与容量" loading={loading}>
+          <DataTable
+            columns={tableColumns}
+            data={tables}
+            getRowId={(record) => record.name}
+            pagination={tablePagination}
+            onPaginationChange={setTablePagination}
+            showPagination={tables.length > tablePagination.pageSize}
+            pageSizeOptions={[8]}
+          />
+        </MonCard>
       </Section>
 
       <Section label="查询">
