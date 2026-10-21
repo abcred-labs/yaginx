@@ -244,6 +244,30 @@ yaginx 只有约 48 个文件依赖 antd，直接原生迁移的总成本不高�
 - antd 的 `reset.css` 没有分层，其中的 `button { color: inherit }` 会盖过 Modra 的工具类，导致主按钮文字变成深色。解决办法：`styles/modra.css` 先声明层顺序 `theme, base, legacy, components, utilities`，再用 `styles/legacy.css` 把 antd 的 reset 引入 `legacy` 层。antd 页面全部迁完后删除 `legacy.css`。
 - `UserLayout` 的 `ErrorBoundary` 在切换路由后不会复位（迁移前就如此），一个页面出错后，导航到别的页面仍显示错误。已加 `resetKeys={[location.pathname]}`。
 
+批次 2 到 6（其余全部页面）已完成（2026-10-21）：
+- 系统设置（运行配置、SMTP、节点）、API 凭据、ACME 订单由我迁移；监控与首页、请求历史与 IP 黑名单、站点管理分别由三个并行的 agent 在独立 worktree 里迁移，再合并到 `feat/modra-spike`，没有冲突。
+- 全部页面和布局已不再 import `antd` 或 `@ant-design/*`。仍引用 antd 的只剩：`appearance.tsx`（antd 主题）、`layouts/EmptyRouteLayout.tsx`、`layouts/AppFooter.tsx`，以及不再被页面使用的旧工具 `componets/{Workbench,ServerPagedTable,PagedTableList,TableOperationMenus,ColumnSearchProps,tableCompact}` 与 `ModelCrudViews/renderTableItem`，这些都留给阶段 3 删除。
+- 新增共享文件：`ui/siteFields.tsx`（站点表单字段包装）、`ui/monParts.tsx`（监控页的卡片、分段控件、紧凑指标 `MonStat` 等）、`ui/reqFilters.tsx`（带清除按钮的 Select）。
+
+验证：
+- `tsc --noEmit`、`pnpm test`（32 个文件，102 个用例）、`pnpm build` 通过。
+- 用模拟后端在浏览器里逐页验证：运行配置（含默认值回填、添加当前 IP、保存确认与请求体）、节点、通知、API 凭据（创建、校验、令牌提示）、ACME（订单列表与日志抽屉）、请求追踪（列表与详情抽屉）、IP 黑名单、站点列表、站点创建、站点工作区的全部分区、首页、流量分析的各个标签、数据库性能、Host 资源与详情，均能正常渲染且无控制台错误。
+- 站点工作区的保存请求体与迁移前的旧页面逐字段对比，在未改动其它字段的情形下完全一致。
+- 没有验证：真实后端；站点工作区里新增上游、新增静态响应、新增转换键时的默认值和校验；Host 的 ACME 证书申请与证书详情对话框；恢复备份的真实文件上传；请求追踪里状态码气泡的悬停交互；暗色模式下逐页检查；Playwright 冒烟用例。
+
+迁移时没能 1:1 还原的行为（已确认可以接受，或需要产品确认）：
+- 站点列表去掉了行号列；行操作从拆分按钮改为 “查看分析”“配置” 直接显示，“查看规则”“删除”放进更多菜单。
+- 状态码气泡改为 Radix Popover（悬停延迟 160ms 打开、120ms 关闭）；Top SQL 只有摘要单元格可点击打开详情，不再整行可点。
+- Modra 没有 AutoComplete，代理转换的键名用输入框加 `<datalist>`；Switch 没有内部文字，开关状态文字放在旁边；Select 没有干净的清除按钮，用 `SelectClearButton` 或“全部/不选择”选项代替。
+- 时间范围选择器由 antd `RangePicker` 换成 `DateTimeRangePicker`，没有秒，预设通过 `presets` 属性提供。
+- 一处顺带修复：站点工作区左侧导航的“概览”不再在所有子页面都高亮。
+
+首页指标改用紧凑版 `MonStat`：Modra 的 `Statistic` 数值字号偏大，带单位的值在窄卡片里会换行或互相覆盖。
+
+迁移前就存在、这次没改的问题：
+- “数据库性能”页没有发布页面标题，顶栏面包屑会停留在上一个页面的标题。
+- 开发代理目标是占位值 `https:///`，任何 `/api` 请求都会让 Vite 开发服务器崩溃（阶段 1 已记录）。
+
 ### 阶段 3：收尾（约 2～3 天）
 
 - 移除 antd 及相关依赖、Less 配置、死代码，重命名 `componets` 与 `woker.js`。
