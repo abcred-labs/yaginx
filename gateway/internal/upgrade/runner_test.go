@@ -776,3 +776,23 @@ func TestGetFollowsPermanentAndTemporaryRedirectStatuses(t *testing.T) {
 		}
 	}
 }
+
+func TestFindChecksumAcceptsBareAndAbsolutePaths(t *testing.T) {
+	const digest = "fe2f3be58094e1dd1f2d6ee5e18fbbbbb7dab7677f840181944e0f2abf9b5283"
+	for name, body := range map[string]string{
+		"bare":     digest + "  yaginx_0.3.0_amd64.deb\n",
+		"absolute": "1edb4b847d901e8c818258e58e0a0db6aeaf411bac612d4583adb91655c6e993  /home/runner/work/yaginx/artifacts/0.3.0/install-yaginx.sh\n" + digest + "  /home/runner/work/yaginx/artifacts/0.3.0/yaginx_0.3.0_amd64.deb\n",
+		"binary":   digest + " *yaginx_0.3.0_amd64.deb\n",
+	} {
+		got, ok := findChecksum(body, "yaginx_0.3.0_amd64.deb")
+		if !ok || got != digest {
+			t.Fatalf("%s: got %q ok=%v", name, got, ok)
+		}
+	}
+	if _, ok := findChecksum("abc  yaginx_0.3.0_amd64.deb\n", "yaginx_0.3.0_amd64.deb"); ok {
+		t.Fatal("malformed digest must not match")
+	}
+	if _, ok := findChecksum(digest+"  yaginx-core_0.3.0_amd64.deb\n", "yaginx_0.3.0_amd64.deb"); ok {
+		t.Fatal("different package must not match")
+	}
+}

@@ -29,7 +29,9 @@ done
 cp "$root/deploy/install-yaginx.sh" "$out/install-yaginx.sh"
 cp "$root/deploy/install-yaginx-core.sh" "$out/install-yaginx-core.sh"
 
-sha256sum "$out"/* > "$out/checksums-$version.txt"
+# 记录相对文件名：升级器按包文件名匹配回滚校验和，绝对路径会让它永远匹配不上。
+checksums=$(cd "$out" && sha256sum -- *)
+printf '%s\n' "$checksums" > "$out/checksums-$version.txt"
 sha256=$(sha256sum "$out/yaginx_${version}_amd64.deb" | awk '{print $1}')
 core_sha=$(sha256sum "$out/yaginx-core_${version}_amd64.deb" | awk '{print $1}')
 published=$(date -u +%Y-%m-%dT%H:%M:%SZ)

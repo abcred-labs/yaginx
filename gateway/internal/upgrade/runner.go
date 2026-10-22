@@ -504,13 +504,8 @@ func (r *Runner) checksumFor(ctx context.Context, cfg Config, version string) (s
 		return "", err
 	}
 	name := filepath.Base(r.packageURL(version))
-	for _, line := range strings.Split(string(body), "\n") {
-		fields := strings.Fields(line)
-		if len(fields) == 2 && fields[1] == name && len(fields[0]) == 64 {
-			if _, err := hex.DecodeString(fields[0]); err == nil {
-				return strings.ToLower(fields[0]), nil
-			}
-		}
+	if checksum, ok := findChecksum(string(body), name); ok {
+		return checksum, nil
 	}
 	return "", fmt.Errorf("rollback checksum for %s is missing", name)
 }
@@ -794,6 +789,25 @@ func compare(current, candidate string) (int, error) {
 	}
 	return a.Compare(b), nil
 }
+
+// findChecksum 在 sha256sum 输出里按文件名查找校验和。早期发布的清单记录的是 CI 上的绝对路径，
+// 所以只比较路径的最后一段。
+func findChecksum(body, name string) (string, bool) {
+	for _, line := range strings.Split(body, "\n") {
+		fields := strings.Fields(line)
+		if len(fields) != 2 || len(fields[0]) != 64 {
+			continue
+		}
+		if filepath.Base(strings.TrimPrefix(fields[1], "*")) != name {
+			continue
+		}
+		if _, err := hex.DecodeString(fields[0]); err == nil {
+			return strings.ToLower(fields[0]), true
+		}
+	}
+	return "", false
+}
+
 func checksumFile(path string) (string, error) {
 	file, err := os.Open(path)
 	if err != nil {
