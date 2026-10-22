@@ -151,6 +151,7 @@ test.describe('已登录', () => {
       { id: 's2', userAgent: 'Safari', clientIp: '10.0.0.9', lastUsedAt: new Date().toISOString(), current: false, remembered: false },
     ]);
     await page.goto('/#/systems/account');
+    await page.getByRole('tab', { name: '活跃会话' }).click();
     await page.getByRole('row', { name: /Safari/ }).getByRole('button', { name: '退出' }).click();
     await page.getByRole('alertdialog').getByRole('button', { name: '确定' }).click();
     await expect.poll(() => api.lastWrite('/api/account/sessions/s2/revoke')).not.toBeUndefined();
