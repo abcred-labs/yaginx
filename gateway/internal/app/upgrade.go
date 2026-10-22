@@ -67,7 +67,7 @@ func runUpgrade(args []string, stdout, stderr io.Writer) int {
 	var cfg loadedUpgradeConfig
 	var err error
 	if *packageOnly {
-		cfg.Config = upgrade.Config{ManifestURL: *manifestURL, LockFile: *lockFile, StateDirectory: *stateDirectory, DownloadTimeout: 10 * time.Minute, GitHubMirror: os.Getenv("YAGINX_GITHUB_MIRROR"), ReleaseAssetsMirror: os.Getenv("YAGINX_RELEASE_ASSETS_MIRROR")}
+		cfg.Config = upgrade.Config{ManifestURL: *manifestURL, LockFile: *lockFile, StateDirectory: *stateDirectory, DownloadTimeout: 30 * time.Minute, GitHubMirror: os.Getenv("YAGINX_GITHUB_MIRROR"), ReleaseAssetsMirror: os.Getenv("YAGINX_RELEASE_ASSETS_MIRROR")}
 		if cfg.Config.ManifestURL == "" {
 			cfg.Config.ManifestURL = upgrade.DefaultManifestURL
 		}

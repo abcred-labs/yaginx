@@ -573,7 +573,7 @@
         "packageName": { "const": "yaginx", "default": "yaginx" },
         "stateDirectory": { "$ref": "#/$defs/absolutePath", "default": "/var/lib/yaginx/upgrade" },
         "lockFile": { "$ref": "#/$defs/absolutePath", "default": "/run/yaginx/upgrade.lock" },
-        "downloadTimeout": { "$ref": "#/$defs/duration", "default": "10m" },
+        "downloadTimeout": { "$ref": "#/$defs/duration", "default": "30m" },
         "readinessTimeout": { "$ref": "#/$defs/duration", "default": "90s" },
         "supportedOS": { "const": "linux", "default": "linux" },
         "supportedArchitectures": {

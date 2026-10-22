@@ -796,3 +796,15 @@ func TestFindChecksumAcceptsBareAndAbsolutePaths(t *testing.T) {
 		t.Fatal("different package must not match")
 	}
 }
+
+func TestFormatProgressReportsPercentSpeedAndETA(t *testing.T) {
+	got := formatProgress(1024*100, 1024*400, 10*time.Second)
+	for _, want := range []string{"percent=25.0%", "speed=10KB/s", "eta=30s", "elapsed=10s"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("progress %q missing %q", got, want)
+		}
+	}
+	if unknown := formatProgress(2048, -1, 2*time.Second); strings.Contains(unknown, "percent") || strings.Contains(unknown, "eta") {
+		t.Fatalf("unknown length must omit percent and eta: %q", unknown)
+	}
+}

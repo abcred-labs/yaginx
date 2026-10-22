@@ -562,7 +562,7 @@ func (r *Runner) download(ctx context.Context, cfg Config, sourceURL, expectedSH
 				case <-done:
 					return
 				case <-ticker.C:
-					logger.Event("download.progress", "kind=%s bytes=%d total=%d elapsed=%s", prefix, downloaded.Load(), response.ContentLength, r.now().Sub(started).Round(time.Second))
+					logger.Event("download.progress", "kind=%s %s", prefix, formatProgress(downloaded.Load(), response.ContentLength, r.now().Sub(started)))
 				}
 			}
 		}()
@@ -825,6 +825,24 @@ func findChecksum(body, name string) (string, bool) {
 	return "", false
 }
 
+// formatProgress renders "bytes=… total=… percent=… speed=… eta=… elapsed=…"; percent and eta are
+// omitted when the server did not send a Content-Length.
+func formatProgress(done, total int64, elapsed time.Duration) string {
+	out := fmt.Sprintf("bytes=%d total=%d", done, total)
+	var speed float64
+	if elapsed > 0 {
+		speed = float64(done) / elapsed.Seconds()
+	}
+	if total > 0 {
+		out += fmt.Sprintf(" percent=%.1f%%", float64(done)*100/float64(total))
+	}
+	out += fmt.Sprintf(" speed=%.0fKB/s", speed/1024)
+	if total > done && speed > 0 {
+		out += fmt.Sprintf(" eta=%s", (time.Duration(float64(total-done) / speed * float64(time.Second))).Round(time.Second))
+	}
+	return out + fmt.Sprintf(" elapsed=%s", elapsed.Round(time.Second))
+}
+
 func checksumFile(path string) (string, error) {
 	file, err := os.Open(path)
 	if err != nil {
@@ -838,6 +856,6 @@ func checksumFile(path string) (string, error) {
 	return hex.EncodeToString(hash.Sum(nil)), nil
 }
 func DefaultConfig() Config {
-	return Config{ManifestURL: DefaultManifestURL, LockFile: "/run/yaginx/upgrade.lock", StateDirectory: "/var/lib/yaginx/upgrade", DownloadTimeout: 10 * time.Minute, ReadyTimeout: 90 * time.Second, ReadyURL: "http://127.0.0.1:9090/health/ready"}
+	return Config{ManifestURL: DefaultManifestURL, LockFile: "/run/yaginx/upgrade.lock", StateDirectory: "/var/lib/yaginx/upgrade", DownloadTimeout: 30 * time.Minute, ReadyTimeout: 90 * time.Second, ReadyURL: "http://127.0.0.1:9090/health/ready"}
 }
 func VersionPath() string { return filepath.Clean(VersionFile) }
