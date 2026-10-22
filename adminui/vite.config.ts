@@ -1,11 +1,11 @@
 import dayjs from 'dayjs';
 import { ConfigEnv, UserConfig } from 'vite'
-import { themeVariables } from './config/theme';
 import { PORT, VITE_BASE_PATH, VITE_DROP_CONSOLE } from './config/constant';
 import path from 'path';
 import { createProxy } from './config/vite/proxy';
 import pkg from './package.json';
 import react from '@vitejs/plugin-react-swc';
+import tailwindcss from '@tailwindcss/vite';
 
 const { dependencies, devDependencies, name, version } = pkg;
 const __APP_INFO__ = {
@@ -14,25 +14,13 @@ const __APP_INFO__ = {
 };
 
 // https://vitejs.dev/config/
-// export default defineConfig({
-//   plugins: [react()]
-// })
 export default ({ command, mode }: ConfigEnv): UserConfig => {
-  const isBuild = command === 'build';
-
   console.log({ command, mode });
   return {
     base: VITE_BASE_PATH,
-    // plugins: createVitePlugins(mode, isBuild),
-    plugins: [react()],
-    css: {
-      preprocessorOptions: {
-        less: {
-          javascriptEnabled: true,
-          modifyVars: themeVariables,
-        },
-      },
-    },
+    plugins: [react(), tailwindcss()],
+    // brotli-wasm 带 wasm 文件，经预构建后路径会失效，开发模式下请求落到 index.html。
+    optimizeDeps: { exclude: ['brotli-wasm'] },
     resolve: {
       alias: [
         { find: /^~/, replacement: path.resolve(__dirname, './') },

@@ -2,7 +2,7 @@
   "compilerOptions": {
     "target": "ESNext",
     "module": "ESNext",
-    "moduleResolution": "Node",
+    "moduleResolution": "Bundler",
     "lib": [
       "DOM",
       "DOM.Iterable",
@@ -38,6 +38,8 @@
     "typings/**/*",
     "config/**/*",
     "vite.config.ts",
+    "playwright.config.ts",
+    "e2e/**/*",
     "mock/_createProductionServer.ts"
   ],
   "exclude": [

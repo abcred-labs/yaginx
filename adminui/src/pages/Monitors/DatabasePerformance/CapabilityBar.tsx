@@ -1,7 +1,8 @@
 import type { IDatabaseCapability, IDatabasePerformance } from "@/api/analytics";
-import { CheckCircleFilled, ExclamationCircleFilled, MinusCircleFilled } from "@ant-design/icons";
-import { Tooltip } from "antd";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@modra/react";
+import { CircleAlert, CircleCheck, CircleMinus } from "@/ui/icons";
 import React from "react";
+import { cx, eyebrowClass } from "@/ui/monParts";
 
 const pgStatStatementsMissingReason = "pg_stat_statements extension is not installed";
 
@@ -23,28 +24,36 @@ export const capabilitySummary = (name: string, capability?: IDatabaseCapability
   return { title: `${name} 不可用`, description: capability.reason || "当前节点未能确认该项能力。" };
 };
 
+const badgeTone = {
+  on: "border-success/40 text-success",
+  warn: "border-warning/50 bg-warning/10 text-warning",
+  off: "text-muted-foreground"
+} as const;
+
 const CapabilityBadge: React.FC<{ name: string; capability?: IDatabaseCapability; optional?: boolean }> = ({ name, capability, optional }) => {
   const summary = capabilitySummary(name, capability);
   const state = capability?.enabled ? "on" : optional ? "off" : "warn";
-  const icon = state === "on"
-    ? <CheckCircleFilled />
-    : state === "off"
-      ? <MinusCircleFilled />
-      : <ExclamationCircleFilled />;
+  const Icon = state === "on" ? CircleCheck : state === "off" ? CircleMinus : CircleAlert;
 
   return (
-    <Tooltip title={<><b>{summary.title}</b><br />{summary.description}</>}>
-      <span className={`capability-bar__badge capability-bar__badge--${state}`} tabIndex={0}>
-        {icon}
-        <code>{name}</code>
-      </span>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span
+          className={cx("inline-flex cursor-help items-center gap-1.5 rounded-full border border-border bg-card px-2.5 py-0.5 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", badgeTone[state])}
+          tabIndex={0}
+        >
+          <Icon className="size-3.5" aria-hidden="true" />
+          <code className="bg-transparent font-mono text-[11px]">{name}</code>
+        </span>
+      </TooltipTrigger>
+      <TooltipContent><b>{summary.title}</b><br />{summary.description}</TooltipContent>
     </Tooltip>
   );
 };
 
 export const CapabilityBar: React.FC<{ capabilities?: IDatabasePerformance["capabilities"] }> = ({ capabilities }) => (
-  <div className="capability-bar">
-    <span className="capability-bar__label">统计能力</span>
+  <div className="flex flex-wrap items-center gap-2">
+    <span className={eyebrowClass}>统计能力</span>
     <CapabilityBadge name="pg_stat_statements" capability={capabilities?.pgStatStatements} />
     <CapabilityBadge name="pg_stat_io" capability={capabilities?.pgStatIO} optional />
     <CapabilityBadge name="track_io_timing" capability={capabilities?.trackIOTiming} optional />

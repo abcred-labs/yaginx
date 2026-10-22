@@ -1,8 +1,8 @@
-import { Dropdown, Segmented, Space, Typography } from "antd";
-import { LoadingOutlined } from "@ant-design/icons";
-import type { MenuProps } from "antd";
+import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from "@modra/react";
+import { ChevronDown, Spinner } from "@/ui/icons";
 import React, { useState } from "react";
-import { WorkbenchPage } from "@/componets/Workbench";
+import { WorkbenchPage } from "@/ui/workbench";
+import { MonSegmented, eyebrowClass } from "@/ui/monParts";
 import { AnalyticsDashboard } from "./AnalyticsDashboard";
 import {
   AutoRefreshInterval,
@@ -14,7 +14,6 @@ import {
   isAutoRefreshInterval,
   refreshButtonText
 } from "./refreshMode";
-import "./index.less";
 
 const windowOptions = [
   { label: "15 分钟", value: 15 * 60 },
@@ -42,7 +41,7 @@ const Home: React.FC = () => {
     requestRefresh("manual");
   };
 
-  const handleRefreshMenuClick: MenuProps["onClick"] = ({ key }) => {
+  const handleRefreshMenuClick = (key: string) => {
     const seconds = Number(key);
     if (!isAutoRefreshInterval(seconds)) {
       return;
@@ -51,35 +50,43 @@ const Home: React.FC = () => {
     requestRefresh("auto");
   };
 
-  const refreshMenu: MenuProps = {
-    items: autoRefreshIntervals.map((seconds) => ({ key: String(seconds), label: `每 ${seconds} 秒自动刷新` })),
-    onClick: handleRefreshMenuClick,
-    selectable: true,
-    selectedKeys: autoRefreshSeconds ? [String(autoRefreshSeconds)] : []
-  };
-
   return (
     <WorkbenchPage
-      className="dashboard-page"
       eyebrow="GATEWAY / CANONICAL TRAFFIC"
       title="网关流量概览"
       description="所有指标均由 Go 网关贡献表物化；窗口未积累完整时会明确显示为收集中。"
-      extra={<Space wrap>
-        <Segmented options={windowOptions} value={range} onChange={(value) => setRange(Number(value))} />
-        <Dropdown.Button menu={refreshMenu} onClick={handlePrimaryRefresh}>
-          {refreshMode.kind === "auto" && isAutoRefreshing
-            ? <><LoadingOutlined spin /> {refreshButtonText(refreshMode, isAutoRefreshing)}</>
-            : refreshButtonText(refreshMode, isAutoRefreshing)}
-        </Dropdown.Button>
-      </Space>}
+      extra={<>
+        <MonSegmented options={windowOptions} value={range} onChange={setRange} ariaLabel="统计窗口" />
+        <div className="inline-flex">
+          <Button variant="outline" className="rounded-r-none" onClick={handlePrimaryRefresh}>
+            {refreshMode.kind === "auto" && isAutoRefreshing
+              ? <><Spinner className="size-4 animate-spin" aria-hidden="true" /> {refreshButtonText(refreshMode, isAutoRefreshing)}</>
+              : refreshButtonText(refreshMode, isAutoRefreshing)}
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="icon" className="-ml-px rounded-l-none" aria-label="自动刷新间隔">
+                <ChevronDown className="size-4" aria-hidden="true" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuRadioGroup value={autoRefreshSeconds ? String(autoRefreshSeconds) : ""} onValueChange={handleRefreshMenuClick}>
+                {autoRefreshIntervals.map((seconds) => (
+                  <DropdownMenuRadioItem key={seconds} value={String(seconds)}>{`每 ${seconds} 秒自动刷新`}</DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </>}
     >
-      <div className="dashboard-hero">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border bg-card px-5 py-4 text-foreground max-md:px-4">
         <div>
-          <span className="dashboard-hero__eyebrow">单一数据源</span>
-          <Typography.Title level={3} className="dashboard-hero__title">请求信号正在汇聚</Typography.Title>
-          <Typography.Paragraph className="dashboard-hero__desc">
+          <span className={`${eyebrowClass} inline-flex items-center gap-1.5 before:size-1.5 before:rounded-full before:bg-success before:content-['']`}>单一数据源</span>
+          <h3 className="mb-1 mt-1 text-lg font-semibold tracking-tight">请求信号正在汇聚</h3>
+          <p className="m-0 max-w-[720px] text-[13px] text-muted-foreground">
             当前窗口：{windowOptions.find((item) => item.value === range)?.label}{selectedDomain ? ` · 已聚焦 ${selectedDomain}` : " · 全部域名"}
-          </Typography.Paragraph>
+          </p>
         </div>
       </div>
       <AnalyticsDashboard

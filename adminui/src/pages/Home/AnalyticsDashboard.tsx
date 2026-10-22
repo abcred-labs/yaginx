@@ -1,7 +1,7 @@
-import { Button, Card, Col, Row, Space, Tag, Typography } from "antd";
+import { Badge, Button } from "@modra/react";
 import React, { useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { SPACE } from "@/utils/spacing";
+import { MonCard } from "@/ui/monParts";
 import { DatabaseHealthPanel, GatewayHealthPanel, TrafficBreakdownPanel, TrafficKpiPanel, TrafficTrendPanel } from "./DashboardPanels";
 import { RefreshRequestKind } from "./refreshMode";
 
@@ -26,15 +26,21 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ range, r
   const kpiLoading = useCallback((loading: boolean) => notifyPanelLoading("kpi", loading), [notifyPanelLoading]);
   const trendLoading = useCallback((loading: boolean) => notifyPanelLoading("trend", loading), [notifyPanelLoading]);
   const breakdownLoading = useCallback((loading: boolean) => notifyPanelLoading("breakdown", loading), [notifyPanelLoading]);
-  return <section className="dashboard-panels">
+  return <section className="flex flex-col gap-3">
     <TrafficKpiPanel range={range} selectedDomain={selectedDomain} refreshKey={refreshKey} autoRefreshSeconds={autoRefreshSeconds} onLoadingChange={kpiLoading} />
-    <Row gutter={[SPACE.space3, SPACE.space3]}>
-      <Col xs={24} xl={16}><TrafficTrendPanel range={range} selectedDomain={selectedDomain} refreshKey={refreshKey} autoRefreshSeconds={autoRefreshSeconds} onLoadingChange={trendLoading} /></Col>
-      <Col xs={24} xl={8}><Space direction="vertical" size={SPACE.space3} style={{ width: "100%" }}><GatewayHealthPanel /><DatabaseHealthPanel /></Space></Col>
-    </Row>
+    <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
+      <div className="xl:col-span-2"><TrafficTrendPanel range={range} selectedDomain={selectedDomain} refreshKey={refreshKey} autoRefreshSeconds={autoRefreshSeconds} onLoadingChange={trendLoading} /></div>
+      <div className="flex flex-col gap-3"><GatewayHealthPanel /><DatabaseHealthPanel /></div>
+    </div>
     <TrafficBreakdownPanel range={range} selectedDomain={selectedDomain} refreshKey={refreshKey} autoRefreshSeconds={autoRefreshSeconds} onLoadingChange={breakdownLoading} />
-    <Card title="运行状态与下一步">
-      <Space wrap><Tag color="green">各面板独立刷新</Tag><Typography.Text type="secondary">基础设施每 15 秒更新，流量面板跟随当前窗口刷新。</Typography.Text><Button type="primary" onClick={() => navigate("/monitor/traffic/request-trend")}>打开流量分析</Button><Button onClick={() => navigate("/monitor/requestHistory/list")}>查看请求追踪</Button><Button onClick={() => navigate("/resource/hosts")}>探索 Host 资源</Button></Space>
-    </Card>
+    <MonCard title="运行状态与下一步">
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge variant="success">各面板独立刷新</Badge>
+        <span className="text-sm text-muted-foreground">基础设施每 15 秒更新，流量面板跟随当前窗口刷新。</span>
+        <Button onClick={() => navigate("/monitor/traffic/request-trend")}>打开流量分析</Button>
+        <Button variant="outline" onClick={() => navigate("/monitor/requestHistory/list")}>查看请求追踪</Button>
+        <Button variant="outline" onClick={() => navigate("/resource/hosts")}>探索 Host 资源</Button>
+      </div>
+    </MonCard>
   </section>;
 };

@@ -484,6 +484,12 @@ func normalizeWebsiteSearchFilter(filter management.WebsiteSearchFilter) managem
 	return filter
 }
 
+// jsonArrayOrEmpty wraps a jsonb expression so that NULL or non-array values
+// iterate as an empty array instead of failing jsonb_array_elements.
+func jsonArrayOrEmpty(expr string) string {
+	return "CASE WHEN jsonb_typeof(" + expr + ") = 'array' THEN " + expr + " ELSE '[]'::jsonb END"
+}
+
 func websiteSearchQuery(filter management.WebsiteSearchFilter) (string, []any, string) {
 	filter = normalizeWebsiteSearchFilter(filter)
 	query := websiteResponseQuery
@@ -495,16 +501,31 @@ func websiteSearchQuery(filter management.WebsiteSearchFilter) (string, []any, s
 		where = append(where, `(COALESCE(w.specifications->>'defaultHost', '') ILIKE `+placeholder+`
 OR EXISTS (
     SELECT 1
-    FROM jsonb_array_elements_text(
-        CASE WHEN jsonb_typeof(w.hosts) = 'array' THEN w.hosts ELSE '[]'::jsonb END
-    ) AS host(value)
+    FROM jsonb_array_elements_text(`+jsonArrayOrEmpty("w.hosts")+`) AS host(value)
     WHERE host.value ILIKE `+placeholder+`
+)
+OR EXISTS (
+    SELECT 1
+    FROM jsonb_array_elements(`+jsonArrayOrEmpty("w.specifications->'hostBindings'")+`) AS binding
+    WHERE COALESCE(binding->>'hostname', '') ILIKE `+placeholder+`
 ))`)
 	}
 	if filter.Upstream != "" {
 		args = append(args, "%"+filter.Upstream+"%")
 		placeholder := "CAST($" + strconv.Itoa(len(args)) + " AS text)"
-		where = append(where, `COALESCE(w.specifications->>'defaultDestination', '') ILIKE `+placeholder)
+		// 旧版只有 defaultDestination；新版的转发规则直连地址和上游池端点也要能搜到。
+		where = append(where, `(COALESCE(w.specifications->>'defaultDestination', '') ILIKE `+placeholder+`
+OR EXISTS (
+    SELECT 1
+    FROM jsonb_array_elements(`+jsonArrayOrEmpty("w.proxy_rules")+`) AS rule
+    WHERE COALESCE(rule->>'destination', '') ILIKE `+placeholder+`
+)
+OR EXISTS (
+    SELECT 1
+    FROM jsonb_array_elements(`+jsonArrayOrEmpty("w.specifications->'upstreamPools'")+`) AS pool,
+         jsonb_array_elements(`+jsonArrayOrEmpty("pool->'endpoints'")+`) AS endpoint
+    WHERE COALESCE(endpoint->>'address', '') ILIKE `+placeholder+`
+))`)
 	}
 	if filter.HasCertificate != nil {
 		if *filter.HasCertificate {

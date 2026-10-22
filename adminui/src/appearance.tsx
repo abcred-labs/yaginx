@@ -1,5 +1,6 @@
-import { ConfigProvider, theme } from 'antd';
-import type { ThemeConfig } from 'antd';
+import { ConfigProvider as ModraConfigProvider, ThemeProvider as ModraThemeProvider } from '@modra/react';
+import type { ThemeOverride } from '@modra/react';
+import { zhCN } from '@modra/react/locale/zh-CN';
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 
 export type ThemePreference = 'system' | 'light' | 'dark';
@@ -22,62 +23,19 @@ const getStoredPreference = (): ThemePreference => {
   return stored === 'light' || stored === 'dark' || stored === 'system' ? stored : 'system';
 };
 
-export const buildTheme = (effectiveTheme: EffectiveTheme): ThemeConfig => {
+/** yaginx 的品牌色与语义色，覆盖 Modra 默认主题。 */
+export const buildModraTheme = (effectiveTheme: EffectiveTheme): ThemeOverride => {
   const isDark = effectiveTheme === 'dark';
-
+  const primary = isDark ? '#76a8ff' : '#2575ff';
   return {
-    algorithm: isDark ? theme.darkAlgorithm : theme.defaultAlgorithm,
-    token: {
-      colorPrimary: isDark ? '#76a8ff' : '#2575ff',
-      colorInfo: isDark ? '#76a8ff' : '#2575ff',
-      colorSuccess: isDark ? '#48d3bd' : '#00a88f',
-      colorWarning: isDark ? '#f0b661' : '#e99a2f',
-      colorError: isDark ? '#ff918b' : '#d54b45',
-      colorBgBase: isDark ? '#0d1524' : '#f4f7fb',
-      colorTextBase: isDark ? '#edf4ff' : '#172033',
-      colorBorder: isDark ? '#2a3a53' : '#dbe4ef',
-      borderRadius: 10,
-      borderRadiusLG: 14,
-      fontFamily: '"Noto Sans SC", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-      fontSize: 14,
-      wireframe: false,
-      controlHeight: 30,
-      controlHeightSM: 22,
-      controlHeightLG: 36,
-    },
-    components: {
-      Layout: {
-        bodyBg: isDark ? '#0d1524' : '#f4f7fb',
-        headerBg: isDark ? '#121e31' : '#ffffff',
-        siderBg: isDark ? '#0b1220' : '#ffffff',
-        triggerBg: isDark ? '#0b1220' : '#ffffff',
-      },
-      Menu: {
-        itemBg: isDark ? '#0b1220' : '#ffffff',
-        subMenuItemBg: isDark ? '#0b1220' : '#ffffff',
-        itemColor: isDark ? '#edf4ff' : '#172033',
-        itemHoverColor: isDark ? '#76a8ff' : '#2575ff',
-        itemHoverBg: isDark ? '#142842' : '#edf3ff',
-        itemSelectedColor: isDark ? '#76a8ff' : '#2575ff',
-        itemSelectedBg: isDark ? '#173b68' : '#e6efff',
-        darkItemBg: '#0b1220',
-        darkSubMenuItemBg: '#0b1220',
-        darkItemColor: '#edf4ff',
-        darkItemHoverColor: '#76a8ff',
-        darkItemHoverBg: '#142842',
-        darkItemSelectedColor: '#76a8ff',
-        darkItemSelectedBg: '#173b68',
-        itemBorderRadius: 8,
-      },
-      Card: {
-        headerBg: 'transparent',
-      },
-      Table: {
-        headerBg: isDark ? '#18243a' : '#f7f9fc',
-        headerColor: isDark ? '#dbe7fa' : '#526176',
-        cellPaddingBlockSM: 6,
-        cellPaddingInlineSM: 8,
-      },
+    color: {
+      primary,
+      primaryForeground: isDark ? '#0d1524' : '#ffffff',
+      ring: primary,
+      info: primary,
+      success: isDark ? '#48d3bd' : '#00a88f',
+      warning: isDark ? '#f0b661' : '#e99a2f',
+      destructive: isDark ? '#ff918b' : '#d54b45',
     },
   };
 };
@@ -97,6 +55,7 @@ export const AppearanceProvider: React.FC<React.PropsWithChildren> = ({ children
   useEffect(() => {
     document.documentElement.dataset.theme = effectiveTheme;
     document.documentElement.style.colorScheme = effectiveTheme;
+    document.documentElement.classList.toggle('dark', effectiveTheme === 'dark');
   }, [effectiveTheme]);
 
   const setPreference = (nextPreference: ThemePreference) => {
@@ -105,13 +64,15 @@ export const AppearanceProvider: React.FC<React.PropsWithChildren> = ({ children
   };
 
   const value = useMemo(() => ({ preference, effectiveTheme, setPreference }), [preference, effectiveTheme]);
-  const antTheme = useMemo(() => buildTheme(effectiveTheme), [effectiveTheme]);
+  const modraTheme = useMemo(() => buildModraTheme(effectiveTheme), [effectiveTheme]);
 
   return (
     <AppearanceContext.Provider value={value}>
-      <ConfigProvider theme={antTheme}>
-        {children}
-      </ConfigProvider>
+      <ModraThemeProvider theme={modraTheme} applyToRoot>
+        <ModraConfigProvider locale={zhCN} size="admin">
+          {children}
+        </ModraConfigProvider>
+      </ModraThemeProvider>
     </AppearanceContext.Provider>
   );
 };

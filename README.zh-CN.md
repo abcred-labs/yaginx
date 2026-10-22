@@ -100,6 +100,7 @@ pnpm install --frozen-lockfile
 pnpm run api:check
 pnpm test -- --run
 pnpm run build
+pnpm exec playwright test
 
 cd ../yaginx-docs-site
 npx --yes pnpm@8.15.9 install --frozen-lockfile

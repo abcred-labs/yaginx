@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildTheme, chartPalette } from './appearance';
+import { buildModraTheme, chartPalette } from './appearance';
 
 describe('chartPalette', () => {
   it('keeps flow, signal, and alert roles distinct in light mode', () => {
@@ -15,18 +15,14 @@ describe('chartPalette', () => {
   });
 });
 
-describe('buildTheme', () => {
-  it('configures a legible light sidebar menu', () => {
-    const menu = buildTheme('light').components?.Menu;
-    expect(menu?.itemBg).toBe('#ffffff');
-    expect(menu?.itemColor).toBe('#172033');
-    expect(menu?.itemSelectedBg).toBe('#e6efff');
+describe('buildModraTheme', () => {
+  it('uses the yaginx brand blue and a lighter variant in dark mode', () => {
+    expect(buildModraTheme('light').color?.primary).toBe('#2575ff');
+    expect(buildModraTheme('dark').color?.primary).toBe('#76a8ff');
   });
 
-  it('configures the dark sidebar menu with distinct active states', () => {
-    const menu = buildTheme('dark').components?.Menu;
-    expect(menu?.darkItemBg).toBe('#0b1220');
-    expect(menu?.darkItemHoverBg).toBe('#142842');
-    expect(menu?.darkItemSelectedBg).toBe('#173b68');
+  it('keeps primary text legible on the primary surface', () => {
+    expect(buildModraTheme('light').color?.primaryForeground).toBe('#ffffff');
+    expect(buildModraTheme('dark').color?.primaryForeground).toBe('#0d1524');
   });
 });
