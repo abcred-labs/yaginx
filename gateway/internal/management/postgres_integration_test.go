@@ -352,6 +352,38 @@ VALUES($1,NULL,$2::jsonb,$3::jsonb,$4::jsonb,$5::jsonb,clock_timestamp(),clock_t
 	if got := call(t, router, http.MethodPost, "/api/website/search", authz, map[string]any{"upstream": "FILTER-upstream"}); got.Code != http.StatusOK || !containsWebsite(pageRecords(got.Data), filterSiteID) {
 		t.Fatalf("upstream filter=%#v", got)
 	}
+	// 新版编辑器只写主机绑定、转发规则和上游池，不再填 defaultHost / hosts / defaultDestination。
+	bindingSite := call(t, router, http.MethodPost, "/api/website/upsert", authz, map[string]any{
+		"name": "binding-only-site",
+		"hostBindings": []map[string]any{
+			{"hostname": "bound-only.example.invalid", "enabled": true, "role": "primary", "accessMode": "proxy"},
+		},
+		"upstreamPools": []map[string]any{
+			{"id": "pool-a", "name": "pool", "strategy": "weightedRoundRobin", "endpoints": []map[string]any{
+				{"address": "http://pool-endpoint.example.invalid:8080", "weight": 1, "enabled": true},
+			}},
+		},
+		"proxyRules": []map[string]any{
+			{"name": "direct", "isEnabled": true, "pathPattern": "/direct/", "destination": "http://rule-destination.example.invalid"},
+			{"name": "pooled", "isEnabled": true, "isFallback": true, "upstreamPoolId": "pool-a"},
+		},
+	})
+	if bindingSite.Code != http.StatusOK {
+		t.Fatalf("binding website=%#v", bindingSite)
+	}
+	bindingSiteID := fmt.Sprint(bindingSite.Data.(map[string]any)["id"])
+	for name, query := range map[string]map[string]any{
+		"host binding":     {"domain": "BOUND-only"},
+		"rule destination": {"upstream": "RULE-destination"},
+		"pool endpoint":    {"upstream": "pool-ENDPOINT"},
+	} {
+		if got := call(t, router, http.MethodPost, "/api/website/search", authz, query); got.Code != http.StatusOK || !containsWebsite(pageRecords(got.Data), bindingSiteID) {
+			t.Fatalf("%s filter=%#v", name, got)
+		}
+	}
+	if got := call(t, router, http.MethodPost, "/api/website/search", authz, map[string]any{"domain": "bound-only", "upstream": "no-such-upstream"}); got.Code != http.StatusOK || containsWebsite(pageRecords(got.Data), bindingSiteID) {
+		t.Fatalf("combined filters must both match: %#v", got)
+	}
 	if got := call(t, router, http.MethodPost, "/api/website/search", authz, map[string]any{"hasCertificate": true}); got.Code != http.StatusOK || !containsWebsite(pageRecords(got.Data), strconv.FormatInt(legacyIDs[activeDomain], 10)) || containsWebsite(pageRecords(got.Data), filterSiteID) {
 		t.Fatalf("certificate-present filter=%#v", got)
 	}
