@@ -97,7 +97,9 @@ async function performRequest<T>({
   try {
     rawResponse = await Fetch(`${PREFIX}${url}`, opts, retryCount, authHeader);
   } catch (error) {
-    if (!ignoreGlobalError) {
+    // 页面切换时主动取消的请求不是故障，不弹错误提示。
+    const cancelled = error instanceof DOMException && error.name === "AbortError";
+    if (!ignoreGlobalError && !cancelled) {
       showTransportError(error);
     }
     throw error;

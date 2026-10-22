@@ -51,7 +51,7 @@ export type Icon = React.FC<IconProps>;
 
 const make = (definition: IconDefinition, displayName: string): Icon => {
   const Component: Icon = ({ className, ...props }) => (
-    <FontAwesomeIcon icon={definition} className={className} aria-hidden={props.title ? undefined : 'true'} {...props} />
+    <FontAwesomeIcon icon={definition} className={className ? `fill-current ${className}` : 'fill-current'} aria-hidden={props.title ? undefined : 'true'} {...props} />
   );
   Component.displayName = displayName;
   return Component;
