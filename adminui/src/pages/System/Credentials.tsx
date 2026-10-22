@@ -3,7 +3,7 @@ import {
   DialogFooter, DialogHeader, DialogTitle, Form, FormControl, FormField, FormItem, FormLabel, FormMessage, Input,
 } from '@modra/react';
 import type { ColumnDef } from '@tanstack/react-table';
-import { Ban, Plus, RefreshCw, X } from 'lucide-react';
+import { Ban, Plus, RefreshCw, X } from '@/ui/icons';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import {

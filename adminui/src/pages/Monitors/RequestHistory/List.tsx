@@ -39,7 +39,7 @@ import {
   type DescriptionItem
 } from "@modra/react";
 import type { ColumnDef } from "@tanstack/react-table";
-import { Check, Copy, Download, MoreHorizontal, Search } from "lucide-react";
+import { Check, Copy, Download, MoreHorizontal, Search } from "@/ui/icons";
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { formatBytes, formatNumber } from "@/utils/formatters";

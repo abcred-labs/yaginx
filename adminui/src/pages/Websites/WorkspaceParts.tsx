@@ -1,5 +1,5 @@
 import { Button } from '@modra/react';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2 } from '@/ui/icons';
 import React from 'react';
 import type { UseFormReturn } from 'react-hook-form';
 import type { WebsiteUpsertInput } from '@/api/website';

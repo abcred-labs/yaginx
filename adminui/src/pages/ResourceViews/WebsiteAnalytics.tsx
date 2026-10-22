@@ -1,7 +1,7 @@
 import { getAnalyticsDomains, getWebsiteAnalytics, type IAnalyticsDomain, type IAnalyticsSubjectView } from "@/api/analytics";
 import { Badge, Button, Card, CardContent, DataTable, Empty, Progress, Spin, Statistic } from "@modra/react";
 import type { ColumnDef } from "@tanstack/react-table";
-import { ArrowRight, RefreshCw } from "lucide-react";
+import { ArrowRight, RefreshCw } from "@/ui/icons";
 import React, { useEffect, useMemo, useState } from "react";
 import type { EChartsOption } from "echarts";
 import { useNavigate, useParams } from "react-router-dom";

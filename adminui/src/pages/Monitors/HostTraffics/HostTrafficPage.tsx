@@ -1,6 +1,6 @@
 import { Badge, Button, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Switch } from "@modra/react";
 import dayjs, { type Dayjs } from "dayjs";
-import { Search } from "lucide-react";
+import { Search } from "@/ui/icons";
 import React, { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { DataToolbar, WorkbenchPage } from "@/ui/workbench";

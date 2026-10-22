@@ -1,6 +1,6 @@
 import type { IDatabaseCapability, IDatabasePerformance } from "@/api/analytics";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@modra/react";
-import { CircleAlert, CircleCheck, CircleMinus } from "lucide-react";
+import { CircleAlert, CircleCheck, CircleMinus } from "@/ui/icons";
 import React from "react";
 import { cx, eyebrowClass } from "@/ui/monParts";
 

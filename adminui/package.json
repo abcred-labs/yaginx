@@ -14,9 +14,10 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@modra/react": "0.0.162",
-    "@modra/tailwind-preset": "0.0.162",
-    "@modra/tokens": "0.0.162",
+    "@feinian/fontawesome-free-react": "6.4.0",
+    "@modra/react": "0.0.166",
+    "@modra/tailwind-preset": "0.0.166",
+    "@modra/tokens": "0.0.166",
     "@tailwindcss/vite": "4.3.3",
     "@tanstack/react-table": "8.21.3",
     "brotli-wasm": "^3.0.1",
@@ -24,7 +25,6 @@
     "echarts": "^6.1.0",
     "echarts-for-react": "^3.0.2",
     "fflate": "^0.8.3",
-    "lucide-react": "0.468.0",
     "react": "18.3.1",
     "react-day-picker": "10.0.1",
     "react-dom": "18.3.1",

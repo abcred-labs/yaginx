@@ -292,6 +292,10 @@ yaginx 只有约 48 个文件依赖 antd，直接原生迁移的总成本不高�
 - 站点工作区的新增项默认值、ACME 证书申请与证书详情对话框、恢复备份的真实文件上传、状态码气泡的悬停交互，没有自动化用例。
 - 没有连真实后端验证。
 
+### 图标与升级（2026-10-22）
+
+`@feinian/fontawesome-free-react@6.4.0` 已发布到 `npm.feinian.net`。图标从 lucide 换成 Font Awesome Free，所有页面只从 `src/ui/icons.tsx` 取图标（按需导入单个图标，产物里没有整个图标库），移除 `lucide-react` 直接依赖。同时 Modra 升到 `0.0.166`。`tsc`、102 个单元测试、构建、22 条冒烟用例通过，站点列表页目视确认图标正常（实心图标比原先的线性图标更粗）。CC BY 4.0 署名已写入 `THIRD_PARTY_NOTICES.md`。主入口 CSS 约 525 KB（gzip 67 KB），令牌入口体积问题仍在。
+
 ### 阶段 3：收尾（原计划）（约 2～3 天）
 
 - 移除 antd 及相关依赖、Less 配置、死代码，重命名 `componets` 与 `woker.js`。

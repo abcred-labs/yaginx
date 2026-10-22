@@ -1,5 +1,5 @@
 import { Card, CardContent, Statistic, Tooltip, TooltipContent, TooltipTrigger } from "@modra/react";
-import { Info } from "lucide-react";
+import { Info } from "@/ui/icons";
 import { StatDot } from "@/ui/monParts";
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";

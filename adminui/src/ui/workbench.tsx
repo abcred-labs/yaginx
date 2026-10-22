@@ -1,5 +1,5 @@
 import { Badge, Card, CardContent, CardHeader, CardTitle, Tooltip, TooltipContent, TooltipTrigger } from '@modra/react';
-import { CircleAlert, CircleCheck, CircleX, Info } from 'lucide-react';
+import { CircleAlert, CircleCheck, CircleX, Info } from '@/ui/icons';
 import React from 'react';
 import { usePublishPageMeta } from '@/layouts/PageMeta';
 

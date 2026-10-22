@@ -1,5 +1,5 @@
 import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from "@modra/react";
-import { ChevronDown, Loader2 } from "lucide-react";
+import { ChevronDown, Spinner } from "@/ui/icons";
 import React, { useState } from "react";
 import { WorkbenchPage } from "@/ui/workbench";
 import { MonSegmented, eyebrowClass } from "@/ui/monParts";
@@ -60,7 +60,7 @@ const Home: React.FC = () => {
         <div className="inline-flex">
           <Button variant="outline" className="rounded-r-none" onClick={handlePrimaryRefresh}>
             {refreshMode.kind === "auto" && isAutoRefreshing
-              ? <><Loader2 className="size-4 animate-spin" aria-hidden="true" /> {refreshButtonText(refreshMode, isAutoRefreshing)}</>
+              ? <><Spinner className="size-4 animate-spin" aria-hidden="true" /> {refreshButtonText(refreshMode, isAutoRefreshing)}</>
               : refreshButtonText(refreshMode, isAutoRefreshing)}
           </Button>
           <DropdownMenu>

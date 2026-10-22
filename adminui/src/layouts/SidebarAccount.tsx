@@ -3,7 +3,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
   useSiderToggle,
 } from '@modra/react';
-import { ChevronUp, LogOut, Moon, UserRound, Sun, Timer } from 'lucide-react';
+import { ChevronUp, LogOut, Moon, UserRound, Sun, Timer } from '@/ui/icons';
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppearance } from '@/appearance';

@@ -2,7 +2,7 @@ import {
   AuthLayout, Button, Checkbox, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
   Form, FormControl, FormField, FormItem, FormLabel, FormMessage, Input, Steps, StepsItem,
 } from '@modra/react';
-import { Lock, User } from 'lucide-react';
+import { Lock, User } from '@/ui/icons';
 import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useNavigate, useSearchParams } from 'react-router-dom';

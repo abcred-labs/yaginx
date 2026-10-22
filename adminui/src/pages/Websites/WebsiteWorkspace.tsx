@@ -1,5 +1,5 @@
 import { Alert, AlertDescription, AlertTitle, Button, Card, CardContent, CardHeader, CardTitle, Empty, Form, FormList, Spin } from '@modra/react';
-import { Save } from 'lucide-react';
+import { Save } from '@/ui/icons';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { NavLink, useNavigate, useParams } from 'react-router-dom';

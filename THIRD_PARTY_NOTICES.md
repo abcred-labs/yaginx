@@ -13,7 +13,10 @@ repositories, with one exception: the Modra UI packages (`@modra/react`,
 `@modra/tokens`, `@modra/tailwind-preset`, MIT) are served read-only and
 without authentication from `https://npm.feinian.net/`, configured in
 `adminui/.npmrc`. Their Radix UI, class-variance-authority and lucide-react
-(ISC) dependencies come from the public npm registry. Their upstream license and copyright notices remain authoritative
+(ISC) dependencies come from the public npm registry. Icons come from
+`@feinian/fontawesome-free-react`, generated from Font Awesome Free 6.4.0
+(icons CC BY 4.0, code MIT, https://fontawesome.com/license/free), served from
+the same registry. Their upstream license and copyright notices remain authoritative
 and must be included in generated release SBOMs. The release workflow runs the
 SBOM and license checks on every tag. Fonts and other bundled assets retain the
 license files shipped with their upstream package; no private asset is required

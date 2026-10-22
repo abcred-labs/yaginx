@@ -1,5 +1,5 @@
 import { Button, Tooltip, TooltipContent, TooltipTrigger } from '@modra/react';
-import { ArrowLeft, Moon, Sun } from 'lucide-react';
+import { ArrowLeft, Moon, Sun } from '@/ui/icons';
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppearance } from '@/appearance';

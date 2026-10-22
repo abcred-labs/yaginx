@@ -1,12 +1,12 @@
 import {
   Ban, ClipboardList, Database, Globe, Home, LineChart, Mail, Network, Plug, Radar,
   Settings, ShieldCheck, TriangleAlert,
-} from 'lucide-react';
-import type { LucideIcon } from 'lucide-react';
+} from '@/ui/icons';
+import type { Icon } from '@/ui/icons';
 import React from 'react';
 
-/** router/menu.ts 里的 icon 字段仍沿用历史名称，这里统一映射到 lucide 图标。 */
-const ICONS: Record<string, LucideIcon> = {
+/** router/menu.ts 里的 icon 字段仍沿用历史名称，这里统一映射到 ui/icons 的图标。 */
+const ICONS: Record<string, Icon> = {
   HomeOutlined: Home,
   ClusterOutlined: Network,
   GlobalOutlined: Globe,

@@ -3,7 +3,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@modra/react';
 import type { ColumnDef } from '@tanstack/react-table';
-import { Download, Trash2, Upload } from 'lucide-react';
+import { Download, Trash2, Upload } from '@/ui/icons';
 import React, { useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { requireInt64String } from '@/api/identifier';
