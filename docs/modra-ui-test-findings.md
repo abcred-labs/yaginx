@@ -14,9 +14,19 @@
 | 一个页面出错后，切到别的页面仍显示错误 | `ErrorBoundary` 不随路由复位 | 加 `resetKeys` |
 | antd 全局样式盖过 Modra 按钮文字色 | reset 样式不在层里 | 已随 antd 一并移除 |
 
+## 一（续）、已修复（第二批，2026-10-22）
+
+| 问题 | 提交 | 核对方式 |
+|---|---|---|
+| 开发模式 `brotli-wasm` 报错 | `a86d758` | `optimizeDeps.exclude`；重启开发服务器后请求追踪页 wasm 文件正常加载（304），无控制台错误 |
+| 首页趋势图右侧纵轴重叠 | `a86d758` | Latency 轴外移并加宽 grid；真实数据下截图确认两列刻度分开；新增单元测试 |
+| 数据库性能页面包屑停在上一页 | `a86d758` | 页面发布 meta；新增冒烟用例，已验证去掉修复后该用例失败、恢复后通过 |
+| `echarts` peer 警告 | `a86d758` | `peerDependencyRules.allowedVersions`；`pnpm install --lockfile-only` 不再提示，锁文件未变 |
+| 后端站点搜索不认主机绑定、规则目标、上游池端点 | `f1c6317` | 在真实库上只读验证：上游过滤命中从 95 变为 98（多出的 3 个站点的上游只在规则或池里）；域名过滤对旧站点结果不变。集成用例已写，但本机没有可用的 Postgres（Docker 未启动），**集成用例尚未实际运行**，需要在 CI 或本地数据库上跑一次 |
+
 ## 二、待修复
 
-### P1 后端：站点搜索不认新版主机绑定
+### P1 后端：站点搜索不认新版主机绑定（已修复，见上）
 - 现象：新建站点只配置了主机绑定，在站点列表按域名搜不到（搜 `autotest` 返回 0 条）；按"上游地址"搜也只认旧字段。
 - 原因：`gateway/internal/repository/postgres_websites.go:489-512` 的 `websiteSearchQuery` 只查 `specifications.defaultHost` 和旧的 `hosts` 数组；上游只查 `defaultDestination`。新界面保存时 `hosts` 为空（请求体与迁移前一致，不是前端引入的）。
 - 方案：
@@ -24,16 +34,16 @@
   2. 在 `internal/management/postgres_integration_test.go`（第 349 行附近已有域名过滤用例）补两条：只有主机绑定的站点能被搜到；只有上游池的站点能按上游地址搜到。
   3. 备选（不推荐单独采用）：保存时用主机绑定回填 `hosts`，会让两处数据长期重复。
 
-### P2 开发模式下 `brotli-wasm` 报错
+### P2 开发模式下 `brotli-wasm` 报错（已修复）
 - 现象：`pnpm dev` 下进入请求追踪页，控制台报 `WebAssembly.instantiate(): expected magic word`，Body 解压不可用；生产构建正常。
 - 原因：Vite 预构建 `brotli-wasm` 后，wasm 请求落到了 `index.html`。
 - 方案：`vite.config.ts` 增加 `optimizeDeps: { exclude: ['brotli-wasm'] }`，并确认 dev 下能解压后，冒烟用例就可以改跑开发服务器，省掉每次先构建。需要先验证，不要直接合并。
 
-### P2 首页趋势图右侧两个纵轴标签重叠
+### P2 首页趋势图右侧两个纵轴标签重叠（已修复）
 - 现象：首页"请求与延迟趋势"图里，延迟轴（Latency）和 RPS 的右轴刻度叠在一起。迁移前的图表配置就是这样（`DashboardPanels.tsx` 的 `buildTrendWithLatency` 在已有的两个 y 轴之外又加了第三个）。
 - 方案：给第三个轴设置 `offset`（约 56px），并给图表 `grid.right` 留出空间；补一个 `buildTrendWithLatency` 的单元测试，断言三个轴的 `offset` 不重复。
 
-### P2 数据库性能页面包屑停在上一页
+### P2 数据库性能页面包屑停在上一页（已修复）
 - 现象：进入"数据库诊断"后，顶栏仍显示上一个页面的标题和路径。
 - 原因：该页没有调用 `usePublishPageMeta`，也没有用 `WorkbenchPage`（迁移前就如此）。
 - 方案：在 `Monitors/DatabasePerformance/index.tsx` 调 `usePublishPageMeta({ trail: 'SYSTEM / DATABASE', title: '数据库性能' })`，并在冒烟用例里断言面包屑末段。
@@ -44,7 +54,7 @@
   1. 优先请 Modra 提供只含默认品牌和默认密度的令牌入口（例如 `@modra/tokens/css/default`），yaginx 改引该入口。
   2. 在这之前不要手工裁剪 `node_modules`；如果要先压体积，可以自建 `styles/tokens.css` 只导入需要的变量，但升级 Modra 时要人工同步，不建议。
 
-### P3 `echarts` peer 警告
+### P3 `echarts` peer 警告（已修复）
 - 现象：`@modra/react` 声明 `echarts@^5.5.0`，yaginx 用 6.1.0，pnpm 报 unmet peer。
 - 事实：yaginx 没有使用 Modra 的 `EChart`，图表走自己的 `EChartPanel`，所以不受影响。
 - 方案：`package.json` 加 `pnpm.peerDependencyRules.allowedVersions: { "@modra/react>echarts": "6" }`，或请 Modra 把 peer 放宽为 `^5.5.0 || ^6`。
