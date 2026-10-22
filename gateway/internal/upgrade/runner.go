@@ -102,9 +102,20 @@ type Runner struct {
 	RecordSystemError func(operation, errorCode string, err error)
 }
 
+// smallRequestTimeout bounds metadata requests (manifest, checksums, readiness). It is applied per
+// request rather than on the http.Client, because Client.Timeout also covers reading the body and
+// would cut off package downloads on slow links long before cfg.DownloadTimeout.
+const smallRequestTimeout = 30 * time.Second
+
+func newHTTPClient() *http.Client {
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.ResponseHeaderTimeout = 30 * time.Second
+	return &http.Client{Transport: transport, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+}
+
 func New() *Runner {
 	return &Runner{
-		Client:  &http.Client{Timeout: 30 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }},
+		Client:  newHTTPClient(),
 		Command: combinedOutput, StreamCommand: streamCommand, Lock: withLock, GOOS: runtime.GOOS, GOARCH: runtime.GOARCH,
 		Geteuid: os.Geteuid, Now: time.Now, VersionFile: VersionFile, ReleaseRootURL: DefaultReleaseRootURL, LogFile: DefaultLogFile,
 	}
@@ -366,6 +377,8 @@ func (r *Runner) ready(ctx context.Context, readyURL string) (readyResponse, err
 	if strings.TrimSpace(readyURL) == "" {
 		return readyResponse{}, errors.New("upgrade readiness URL is empty")
 	}
+	ctx, cancel := context.WithTimeout(ctx, smallRequestTimeout)
+	defer cancel()
 	response, err := r.get(ctx, Config{}, readyURL)
 	if err != nil {
 		return readyResponse{}, err
@@ -430,6 +443,8 @@ func (r *Runner) fetch(ctx context.Context, cfg Config) (Release, error) {
 		}
 		manifestURL = parsed.String()
 	}
+	ctx, cancel := context.WithTimeout(ctx, smallRequestTimeout)
+	defer cancel()
 	response, err := r.get(ctx, cfg, manifestURL)
 	if err != nil {
 		return Release{}, fmt.Errorf("fetch latest release: %w", err)
@@ -491,6 +506,8 @@ func (r *Runner) ensureRollbackPackage(ctx context.Context, cfg Config, version 
 }
 
 func (r *Runner) checksumFor(ctx context.Context, cfg Config, version string) (string, error) {
+	ctx, cancel := context.WithTimeout(ctx, smallRequestTimeout)
+	defer cancel()
 	response, err := r.get(ctx, cfg, r.checksumsURL(version))
 	if err != nil {
 		return "", fmt.Errorf("fetch rollback checksum: %w", err)
