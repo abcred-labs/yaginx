@@ -69,7 +69,7 @@ export const AppearanceProvider: React.FC<React.PropsWithChildren> = ({ children
   return (
     <AppearanceContext.Provider value={value}>
       <ModraThemeProvider theme={modraTheme} applyToRoot>
-        <ModraConfigProvider locale={zhCN}>
+        <ModraConfigProvider locale={zhCN} size="admin">
           {children}
         </ModraConfigProvider>
       </ModraThemeProvider>

@@ -1,7 +1,7 @@
 import { getDomainAnalytics, type IAnalyticsSubjectView } from "@/api/analytics";
 import { defaultResourceViewWindowSeconds } from "./resourceViewDefaults";
 import { LocalTime } from "@/components/LocalTime";
-import { SectionCard, SignalTag, WorkbenchPage } from "@/ui/workbench";
+import { SectionCard, SignalTag, WorkbenchPage, WorkbenchTabs } from "@/ui/workbench";
 import { MonAlert, MonDateTimeRange, MonDescriptions, MonSegmented, type MonDayjsRange } from "@/ui/monParts";
 import { Button, Spin } from "@modra/react";
 import React, { useEffect, useMemo, useState } from "react";
@@ -24,13 +24,21 @@ const DomainDetail: React.FC = () => {
     <MonDateTimeRange value={customRange} onChange={setCustomRange} className="w-[320px]" />
     <Button variant="outline" onClick={load} disabled={!resolvedHost}>刷新</Button>
   </>}>
-    {!resolvedHost || (loading && !data) ? <Spin /> : <>{error ? <MonAlert type="error" message={error} className="mb-3" /> : null}<SectionCard title="资源归属" description="配置、证书与关联网站。"><MonDescriptions items={[
-      { key: "status", label: "管理状态", children: <SignalTag tone={item?.managementStatus === "managed" ? "success" : "warning"}>{item?.managementStatus === "managed" ? "已托管" : "未托管"}</SignalTag> },
-      { key: "websites", label: "关联网站", children: item?.websites.length ? <span className="flex flex-wrap">{item.websites.map((website) => <Button key={website.id} variant="link" size="sm" onClick={() => navigate(websiteViewPath(website.id))}>{website.name || website.id}</Button>)}</span> : "—" },
-      { key: "certificate", label: "证书", children: item?.certificate ? <>有效至 <LocalTime timestamp={item.certificate.notAfter} /></> : "未发现有效证书" }
-    ]} /></SectionCard>
-    <div className="mt-3"><MetricCards overview={data?.overview} /><ResourceTrend overview={data?.overview} timeseries={data?.timeseries} loading={loading} /></div>
-    <div className="mt-3"><RequestHistoryList fixedHost={resolvedHost} embedded /></div></>}
+    {!resolvedHost || (loading && !data) ? <Spin /> : <>{error ? <MonAlert type="error" message={error} className="mb-3" /> : null}<WorkbenchTabs items={[
+      {
+        key: "overview",
+        label: "概览",
+        children: <>
+          <SectionCard title="资源归属" description="配置、证书与关联网站。"><MonDescriptions items={[
+            { key: "status", label: "管理状态", children: <SignalTag tone={item?.managementStatus === "managed" ? "success" : "warning"}>{item?.managementStatus === "managed" ? "已托管" : "未托管"}</SignalTag> },
+            { key: "websites", label: "关联网站", children: item?.websites.length ? <span className="flex flex-wrap">{item.websites.map((website) => <Button key={website.id} variant="link" size="sm" onClick={() => navigate(websiteViewPath(website.id))}>{website.name || website.id}</Button>)}</span> : "—" },
+            { key: "certificate", label: "证书", children: item?.certificate ? <>有效至 <LocalTime timestamp={item.certificate.notAfter} /></> : "未发现有效证书" }
+          ]} /></SectionCard>
+          <div className="mt-3"><MetricCards overview={data?.overview} /><ResourceTrend overview={data?.overview} timeseries={data?.timeseries} loading={loading} /></div>
+        </>
+      },
+      { key: "history", label: "请求追踪", children: <RequestHistoryList fixedHost={resolvedHost} embedded /> }
+    ]} /></>}
   </WorkbenchPage>;
 };
 export default DomainDetail;

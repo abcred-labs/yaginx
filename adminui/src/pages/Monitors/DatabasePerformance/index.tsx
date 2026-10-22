@@ -4,8 +4,8 @@ import { Badge, Button, DataTable, Statistic, Tooltip, TooltipContent, TooltipTr
 import type { ColumnDef, PaginationState } from "@tanstack/react-table";
 import dayjs from "dayjs";
 import React, { useEffect, useState } from "react";
-import { usePublishPageMeta } from "@/layouts/PageMeta";
 import { MonAlert, MonBar, MonCard, StatDot, cx, eyebrowClass, toneDotClass } from "@/ui/monParts";
+import { WorkbenchPage, WorkbenchTabs } from "@/ui/workbench";
 import { CapabilityBar } from "./CapabilityBar";
 import { MetricGrid } from "./MetricGrid";
 import { TopSqlPanel } from "./TopSqlPanel";
@@ -94,8 +94,6 @@ const tableColumns: ColumnDef<TableRow, unknown>[] = [
 ];
 
 const DatabasePerformance: React.FC = () => {
-  // 顶栏面包屑由页面发布；不发布时会停留在上一个页面的标题。
-  usePublishPageMeta({ trail: "SYSTEM / DATABASE", title: "数据库性能" });
   const [snapshot, setSnapshot] = useState<IDatabasePerformance>();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -157,23 +155,8 @@ const DatabasePerformance: React.FC = () => {
   );
   const noteClass = "text-sm text-muted-foreground";
 
-  return (
+  const overviewTab = (
     <div className="flex flex-col gap-3">
-      <header className="flex flex-col items-start justify-between gap-4 md:flex-row md:items-end">
-        <div>
-          <h3 className="m-0 text-xl font-semibold">数据库性能</h3>
-          <span className={noteClass}>每 15 秒刷新，只读取当前 Yaginx 节点连接池与 PostgreSQL 统计视图。</span>
-        </div>
-        <div className="flex w-full items-center justify-between gap-3 md:w-auto md:justify-start">
-          {snapshot ? <span className={cx("text-sm", stale ? "text-warning" : "text-muted-foreground")}>{stale ? "数据已过期" : `更新于 ${formatTimestamp(snapshot.asOf)}`}</span> : null}
-          <Button variant="outline" onClick={refresh} loading={refreshing}>立即刷新</Button>
-        </div>
-      </header>
-
-      <CapabilityBar capabilities={snapshot?.capabilities} />
-
-      {error ? <MonAlert type="error" message={error} action={<Button size="sm" variant="outline" onClick={refresh}>重试</Button>} /> : null}
-
       <Section label="概览">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <MonCard loading={loading} className="h-full">
@@ -237,8 +220,11 @@ const DatabasePerformance: React.FC = () => {
           </MonCard>
         </div>
       </Section>
+    </div>
+  );
 
-      <Section label="存储">
+  const storageTab = (
+    <Section label="存储">
         <MonCard title="表维护与容量" loading={loading}>
           <DataTable
             columns={tableColumns}
@@ -251,11 +237,36 @@ const DatabasePerformance: React.FC = () => {
           />
         </MonCard>
       </Section>
+  );
 
+  const querySqlTab = (
       <Section label="查询">
         <TopSqlPanel rows={snapshot?.topSql ?? []} loading={loading} capability={snapshot?.capabilities.pgStatStatements} />
       </Section>
-    </div>
+  );
+
+  return (
+    <WorkbenchPage
+      eyebrow="SYSTEM / DATABASE"
+      title="数据库性能"
+      description="每 15 秒刷新，只读取当前 Yaginx 节点连接池与 PostgreSQL 统计视图。"
+      extra={(
+        <>
+          {snapshot ? <span className={cx("text-sm", stale ? "text-warning" : "text-muted-foreground")}>{stale ? "数据已过期" : `更新于 ${formatTimestamp(snapshot.asOf)}`}</span> : null}
+          <Button variant="outline" onClick={refresh} loading={refreshing}>立即刷新</Button>
+        </>
+      )}
+    >
+      <CapabilityBar capabilities={snapshot?.capabilities} />
+      {error ? <MonAlert type="error" message={error} action={<Button size="sm" variant="outline" onClick={refresh}>重试</Button>} /> : null}
+      <WorkbenchTabs
+        items={[
+          { key: 'overview', label: '概览', children: overviewTab },
+          { key: 'storage', label: '存储', children: storageTab },
+          { key: 'queries', label: '查询', children: querySqlTab },
+        ]}
+      />
+    </WorkbenchPage>
   );
 };
 

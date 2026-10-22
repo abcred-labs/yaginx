@@ -15,9 +15,9 @@
   },
   "dependencies": {
     "@feinian/fontawesome-free-react": "6.4.0",
-    "@modra/react": "0.0.166",
-    "@modra/tailwind-preset": "0.0.166",
-    "@modra/tokens": "0.0.166",
+    "@modra/react": "0.0.172",
+    "@modra/tailwind-preset": "0.0.172",
+    "@modra/tokens": "0.0.172",
     "@tailwindcss/vite": "4.3.3",
     "@tanstack/react-table": "8.21.3",
     "brotli-wasm": "^3.0.1",

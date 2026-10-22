@@ -6,7 +6,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import type { EChartsOption } from "echarts";
 import { useNavigate, useParams } from "react-router-dom";
 import { LocalTime } from "@/components/LocalTime";
-import { SectionCard, SignalTag, WorkbenchPage } from "@/ui/workbench";
+import { SectionCard, SignalTag, WorkbenchPage, WorkbenchTabs } from "@/ui/workbench";
 import { MonAlert, MonCard, MonDateTimeRange, MonDescriptions, MonSegmented, type MonDayjsRange } from "@/ui/monParts";
 import EChartPanel from "@/components/charts/EChartPanel";
 import { buildAnalyticsTrendOption } from "@/components/charts/analyticsTrend";
@@ -94,8 +94,7 @@ const WebsiteAnalytics: React.FC = () => {
   </>}>
     {loadingOverview && !data ? <Spin /> : !data ? <Empty description="站点不存在或已删除" /> : <>
       {error ? <MonAlert type="error" message={error} /> : null}
-      <SectionCard title="站点主机" description="点击 Host 可进入单 Host 的完整排查视图。"><MonDescriptions columnsClass="md:grid-cols-2" items={(data.hosts ?? []).map((host) => ({ key: host.host, label: <Button variant="link" className="h-auto p-0" onClick={() => navigate(`/resource/hosts/view/${encodeURIComponent(host.host)}`)}>{host.host}</Button>, children: <SignalTag tone={host.certificate ? "success" : "warning"}>{host.certificate ? <>证书有效至 <LocalTime timestamp={host.certificate.notAfter} /></> : "未发现有效证书"}</SignalTag> }))} /></SectionCard>
-      <SectionCard title="分析状态" description="数据覆盖与采集延迟始终随窗口展示。"><div className="flex flex-wrap items-center gap-2"><SignalTag tone={overview?.isPartial ? "warning" : "success"}>{quality}</SignalTag><span className="text-sm text-muted-foreground">来源：{overview?.source || "站点汇总"}</span><Button variant="link" onClick={() => openHistory({ from: window.from, to: window.to })}>查看窗口请求 <ArrowRight className="size-4" aria-hidden="true" /></Button></div></SectionCard>
+      <WorkbenchTabs items={[{ key: "overview", label: "概览", children: <div className="flex flex-col gap-3">
       {latencyWarning ? <MonAlert type="warning" message="检测到异常耗时" description="P95 或最大耗时超过 30 秒。请结合客户端取消、上游超时和统计桶完整度判断是否为真实慢请求。" /> : null}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">{kpiCards.map(([title, value]) => <Card key={title}><CardContent className="p-4"><Statistic title={title} value={value} /></CardContent></Card>)}</div>
       <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
@@ -105,12 +104,16 @@ const WebsiteAnalytics: React.FC = () => {
           <MonDescriptions columnsClass="grid-cols-1" items={[{ key: "p50", label: "P50", children: metric(kpis?.p50Ms, " ms") }, { key: "p95", label: "P95", children: metric(kpis?.p95Ms, " ms") }, { key: "p99", label: "P99", children: metric(kpis?.p99Ms, " ms") }]} />
         </MonCard>
       </div>
+      </div> }, { key: "hosts", label: "Host 明细", children: <div className="flex flex-col gap-3">
+      <SectionCard title="站点主机" description="点击 Host 可进入单 Host 的完整排查视图。"><MonDescriptions columnsClass="md:grid-cols-2" items={(data.hosts ?? []).map((host) => ({ key: host.host, label: <Button variant="link" className="h-auto p-0" onClick={() => navigate(`/resource/hosts/view/${encodeURIComponent(host.host)}`)}>{host.host}</Button>, children: <SignalTag tone={host.certificate ? "success" : "warning"}>{host.certificate ? <>证书有效至 <LocalTime timestamp={host.certificate.notAfter} /></> : "未发现有效证书"}</SignalTag> }))} /></SectionCard>
       <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
         <MonCard title="Host 排名" extra={<span className="text-sm text-muted-foreground">按请求量</span>}>
           <DataTable columns={hostColumns} data={hostStats} getRowId={(record) => record.domain} loading={loadingHosts} />
         </MonCard>
         <EChartPanel title="延迟分位" loading={loadingHosts} option={topHost ? latencyOption(topHost, colors) : undefined} isEmpty={!topHost} height={260} emptyDescription="暂无 Host 延迟数据" />
       </div>
+      </div> }, { key: "quality", label: "分布与数据质量", children: <div className="flex flex-col gap-3">
+      <SectionCard title="分析状态" description="数据覆盖与采集延迟始终随窗口展示。"><div className="flex flex-wrap items-center gap-2"><SignalTag tone={overview?.isPartial ? "warning" : "success"}>{quality}</SignalTag><span className="text-sm text-muted-foreground">来源：{overview?.source || "站点汇总"}</span><Button variant="link" onClick={() => openHistory({ from: window.from, to: window.to })}>查看窗口请求 <ArrowRight className="size-4" aria-hidden="true" /></Button></div></SectionCard>
       <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
         <MonCard title="状态码分布"><div className="flex flex-wrap gap-2">{(overview?.statusBreakdown ?? []).map((item) => {
           const isStatusFamily = /^[1-6]xx$/i.test(item.type);
@@ -124,6 +127,7 @@ const WebsiteAnalytics: React.FC = () => {
         <MonCard title="采集覆盖"><MonDescriptions columnsClass="grid-cols-1" items={[{ key: "lag", label: "数据延迟", children: `${formatNumber(overview?.dataLagSeconds)} 秒` }, { key: "coverage", label: "延迟覆盖率", children: formatPercent(kpis?.latencyCoverageRate) }, { key: "hosts", label: "活跃 Host", children: formatNumber(data.hosts.length) }]} />
           <div className="mt-2">{overview?.isPartial ? <Badge variant="warning">当前窗口包含未完成统计桶</Badge> : <Badge variant="success">统计完整</Badge>}</div></MonCard>
       </div>
+      </div> }]} />
     </>}
   </WorkbenchPage>;
 };

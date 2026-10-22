@@ -16,14 +16,14 @@ importers:
         specifier: 6.4.0
         version: 6.4.0(react@18.3.1)
       '@modra/react':
-        specifier: 0.0.166
-        version: 0.0.166(@tanstack/react-table@8.21.3(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@types/react-dom@18.3.0)(@types/react@18.3.3)(date-fns@4.4.0)(echarts@6.1.0)(react-day-picker@10.0.1(@types/react@18.3.3)(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react-hook-form@7.84.0(react@18.3.1))(react@18.3.1)
+        specifier: 0.0.172
+        version: 0.0.172(@tanstack/react-table@8.21.3(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@types/react-dom@18.3.0)(@types/react@18.3.3)(date-fns@4.4.0)(echarts@6.1.0)(react-day-picker@10.0.1(@types/react@18.3.3)(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react-hook-form@7.84.0(react@18.3.1))(react@18.3.1)
       '@modra/tailwind-preset':
-        specifier: 0.0.166
-        version: 0.0.166(tailwindcss@4.3.3)
+        specifier: 0.0.172
+        version: 0.0.172(tailwindcss@4.3.3)
       '@modra/tokens':
-        specifier: 0.0.166
-        version: 0.0.166
+        specifier: 0.0.172
+        version: 0.0.172
       '@tailwindcss/vite':
         specifier: 4.3.3
         version: 4.3.3(vite@7.1.7(@types/node@26.6.5)(jiti@2.7.0)(less@4.8.1)(lightningcss@1.32.0)(sass@1.84.0)(terser@5.49.2))
@@ -392,8 +392,8 @@ packages:
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
 
-  '@modra/react@0.0.166':
-    resolution: {integrity: sha512-k+VU+x70nGjUkobke2wDekVDfYFeKjUE66ou/mplcLluYSmAN8x28jcK13n1YJ5yvt4PvR4YdXZoopcwrmjBGg==}
+  '@modra/react@0.0.172':
+    resolution: {integrity: sha512-lOfwO9vg5CGw7QrMfq/7UQ6LPWh6i6RshFClEci3ZbIZsKvmMYcOXUoUJl7S9PhzZ2gGMDuqF5PnGbqEpMRLPA==}
     engines: {node: '>=16'}
     peerDependencies:
       '@tanstack/react-table': ^8.21.3
@@ -427,13 +427,13 @@ packages:
       react-resizable-panels:
         optional: true
 
-  '@modra/tailwind-preset@0.0.166':
-    resolution: {integrity: sha512-uxai3gl6S/qf6bqMvvOFWZdF3veTCWM+kBB9YxIABKW3aRWkrWeZvKoSuhp7SiqIw5KqG+/3zbRsvGFHlO5jWA==}
+  '@modra/tailwind-preset@0.0.172':
+    resolution: {integrity: sha512-IBT5bIm0jhJK7W30XZPgvZOmuwu+DBbNVzgslmIBm6pIl6ICSktClQFa7RfHNyj7INy0fowEwIguj3mBwIxDZA==}
     peerDependencies:
       tailwindcss: ^4.0.0
 
-  '@modra/tokens@0.0.166':
-    resolution: {integrity: sha512-GL5QgMgHcjdqEogzUlWt8tIqg+QSoe4KZilI0JPRwmYswNOXafZyiuMpZWcSUsRgeZq5RkrMjeSQVBqggujDUQ==}
+  '@modra/tokens@0.0.172':
+    resolution: {integrity: sha512-m34BY0D1vb5LfGw0Yec8gSaCeo42LoARpKwajGxnOKUgs1GiFbgrXbD2djp0s1cuocseuJP7lMopycJP7lE4dQ==}
 
   '@napi-rs/lzma-linux-x64-gnu@1.5.1':
     resolution: {integrity: sha512-oTXEIha4SsuXdTA4Iyskj0kpdx2yVXdhd75c2v3xGrHFfVMsbhTPZU/nMPL4sWKo4pBHm3aucLaqGlF696dTyQ==}
@@ -2959,7 +2959,7 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.6.0
 
-  '@modra/react@0.0.166(@tanstack/react-table@8.21.3(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@types/react-dom@18.3.0)(@types/react@18.3.3)(date-fns@4.4.0)(echarts@6.1.0)(react-day-picker@10.0.1(@types/react@18.3.3)(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react-hook-form@7.84.0(react@18.3.1))(react@18.3.1)':
+  '@modra/react@0.0.172(@tanstack/react-table@8.21.3(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@types/react-dom@18.3.0)(@types/react@18.3.3)(date-fns@4.4.0)(echarts@6.1.0)(react-day-picker@10.0.1(@types/react@18.3.3)(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react-hook-form@7.84.0(react@18.3.1))(react@18.3.1)':
     dependencies:
       '@radix-ui/react-accordion': 1.3.1(@types/react-dom@18.3.0)(@types/react@18.3.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@radix-ui/react-alert-dialog': 1.2.1(@types/react-dom@18.3.0)(@types/react@18.3.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -3005,12 +3005,12 @@ snapshots:
       - '@types/react'
       - '@types/react-dom'
 
-  '@modra/tailwind-preset@0.0.166(tailwindcss@4.3.3)':
+  '@modra/tailwind-preset@0.0.172(tailwindcss@4.3.3)':
     dependencies:
-      '@modra/tokens': 0.0.166
+      '@modra/tokens': 0.0.172
       tailwindcss: 4.3.3
 
-  '@modra/tokens@0.0.166': {}
+  '@modra/tokens@0.0.172': {}
 
   '@napi-rs/lzma-linux-x64-gnu@1.5.1':
     optional: true

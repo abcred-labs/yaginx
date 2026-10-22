@@ -9,7 +9,7 @@ import { getProfile, updateProfile, listSessions, revokeSession, revokeOtherSess
 import { useAuth } from '@/layouts/RootAuthProvider';
 import { confirmDanger } from '@/ui/confirmAction';
 import { notifySuccess } from '@/ui/notify';
-import { SectionCard, WorkbenchPage } from '@/ui/workbench';
+import { SectionCard, WorkbenchPage, WorkbenchTabs } from '@/ui/workbench';
 
 interface ProfileValues {
   email: string;
@@ -120,79 +120,91 @@ const AuthInfo: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   ], []);
 
+  const credentialsCard = (
+    <SectionCard title="登录凭据" description="请使用可长期访问的邮箱，以便接收密码恢复邮件。">
+      <Form {...form} layout="vertical">
+        <form className="flex max-w-xl flex-col gap-4" onSubmit={form.handleSubmit(onSubmit)} noValidate>
+          <FormField
+            control={form.control}
+            name="email"
+            rules={{ required: '请输入邮箱' }}
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>邮箱</FormLabel>
+                <FormControl><Input {...field} type="email" placeholder="请输入邮箱" autoComplete="username" /></FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="oldPassword"
+            rules={{ required: '请输入旧密码' }}
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>旧密码</FormLabel>
+                <FormControl><Input {...field} type="password" placeholder="请输入旧密码" autoComplete="current-password" /></FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="newPassword"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>新密码</FormLabel>
+                <FormControl><Input {...field} type="password" placeholder="不修改请留空" autoComplete="new-password" /></FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="confirmPassword"
+            rules={{
+              validate: (value, values) => {
+                if (!values.newPassword && !value) return true;
+                return values.newPassword === value || '两次输入的新密码不一致';
+              },
+            }}
+            render={({ field }) => (
+              <FormItem dependencies={['newPassword']}>
+                <FormLabel>确认新密码</FormLabel>
+                <FormControl><Input {...field} type="password" placeholder="请再次输入新密码" autoComplete="new-password" /></FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormActions align="start">
+            <Button type="submit" loading={form.formState.isSubmitting}>保存账号信息</Button>
+            <Button type="button" variant="outline" onClick={() => form.reset({ ...EMPTY_VALUES, email: loadedEmail })}>
+              还原本次修改
+            </Button>
+          </FormActions>
+        </form>
+      </Form>
+    </SectionCard>
+  );
+
+  const sessionsCard = (
+    <SectionCard
+      title="活跃会话"
+      description="列出当前仍能用来登录本账号的设备/浏览器；不认识的设备可以单独退出。"
+      extra={<Button variant="destructive-outline" disabled={sessions.length <= 1} onClick={revokeOthers}>退出其它所有设备</Button>}
+    >
+      <DataTable columns={columns} data={sessions} getRowId={(row) => row.id} loading={sessionsLoading} />
+    </SectionCard>
+  );
+
   return (
     <WorkbenchPage eyebrow="SYSTEM / ACCOUNT" title="账号与安全" description="更新登录邮箱或密码后，为保护账号安全会要求重新登录。">
-      <SectionCard title="登录凭据" description="请使用可长期访问的邮箱，以便接收密码恢复邮件。">
-        <Form {...form} layout="vertical">
-          <form className="flex max-w-xl flex-col gap-4" onSubmit={form.handleSubmit(onSubmit)} noValidate>
-            <FormField
-              control={form.control}
-              name="email"
-              rules={{ required: '请输入邮箱' }}
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>邮箱</FormLabel>
-                  <FormControl><Input {...field} type="email" placeholder="请输入邮箱" autoComplete="username" /></FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="oldPassword"
-              rules={{ required: '请输入旧密码' }}
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>旧密码</FormLabel>
-                  <FormControl><Input {...field} type="password" placeholder="请输入旧密码" autoComplete="current-password" /></FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="newPassword"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>新密码</FormLabel>
-                  <FormControl><Input {...field} type="password" placeholder="不修改请留空" autoComplete="new-password" /></FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="confirmPassword"
-              rules={{
-                validate: (value, values) => {
-                  if (!values.newPassword && !value) return true;
-                  return values.newPassword === value || '两次输入的新密码不一致';
-                },
-              }}
-              render={({ field }) => (
-                <FormItem dependencies={['newPassword']}>
-                  <FormLabel>确认新密码</FormLabel>
-                  <FormControl><Input {...field} type="password" placeholder="请再次输入新密码" autoComplete="new-password" /></FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormActions align="start">
-              <Button type="submit" loading={form.formState.isSubmitting}>保存账号信息</Button>
-              <Button type="button" variant="outline" onClick={() => form.reset({ ...EMPTY_VALUES, email: loadedEmail })}>
-                还原本次修改
-              </Button>
-            </FormActions>
-          </form>
-        </Form>
-      </SectionCard>
-      <SectionCard
-        title="活跃会话"
-        description="列出当前仍能用来登录本账号的设备/浏览器；不认识的设备可以单独退出。"
-        extra={<Button variant="destructive-outline" disabled={sessions.length <= 1} onClick={revokeOthers}>退出其它所有设备</Button>}
-      >
-        <DataTable columns={columns} data={sessions} getRowId={(row) => row.id} loading={sessionsLoading} />
-      </SectionCard>
+      <WorkbenchTabs
+        items={[
+          { key: 'credentials', label: '登录凭据', children: credentialsCard },
+          { key: 'sessions', label: '活跃会话', children: sessionsCard },
+        ]}
+      />
     </WorkbenchPage>
   );
 };

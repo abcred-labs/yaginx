@@ -16,7 +16,7 @@ import {
 } from '@/api/systemCredential';
 import { confirmDanger } from '@/ui/confirmAction';
 import { notifySuccess } from '@/ui/notify';
-import { SectionCard, WorkbenchPage } from '@/ui/workbench';
+import { SectionCard, WorkbenchPage, WorkbenchTabs } from '@/ui/workbench';
 
 const formatTime = (value: number | null) => value ? new Date(value * 1000).toLocaleString() : '—';
 
@@ -183,23 +183,39 @@ const Credentials: React.FC = () => {
 
   return (
     <WorkbenchPage eyebrow="SYSTEM / CREDENTIALS" title="API 凭据" description="统一管理 MCP 和未来接口使用的 Bearer token。">
-      <SectionCard title="凭据列表" description="数据库只保存 hash。Token 只在创建或重置后显示一次。">
-        <div className="flex flex-col gap-4">
-          <div className="flex items-center gap-2">
-            <Button onClick={() => setCreateOpen(true)}><Plus className="size-4" aria-hidden="true" />创建凭据</Button>
-            <Button variant="outline" loading={loading} onClick={() => void load()}><RefreshCw className="size-4" aria-hidden="true" />刷新</Button>
-          </div>
-          {secret ? <SecretNotice secret={secret} onClose={() => setSecret(null)} /> : null}
-          <DataTable columns={columns} data={credentials} getRowId={(row) => row.id} loading={loading} />
-        </div>
-      </SectionCard>
-      <SectionCard title="MCP 使用说明" description="MCP 复用现有管理端口。创建用途为 mcp 的凭据后，在 Agent 中使用以下地址。">
-        <div className="flex flex-col gap-2 text-sm">
-          <CopyableText value={`${window.location.origin}/mcp`} monospace />
-          <CopyableText value={`${window.location.origin}/.well-known/mcp.json`} monospace />
-          <span className="text-muted-foreground">请求头格式：Authorization: Bearer &lt;token&gt;</span>
-        </div>
-      </SectionCard>
+      <WorkbenchTabs
+        items={[
+          {
+            key: 'credentials',
+            label: '凭据列表',
+            children: (
+              <SectionCard title="凭据列表" description="数据库只保存 hash。Token 只在创建或重置后显示一次。">
+                <div className="flex flex-col gap-4">
+                  <div className="flex items-center gap-2">
+                    <Button onClick={() => setCreateOpen(true)}><Plus className="size-4" aria-hidden="true" />创建凭据</Button>
+                    <Button variant="outline" loading={loading} onClick={() => void load()}><RefreshCw className="size-4" aria-hidden="true" />刷新</Button>
+                  </div>
+                  {secret ? <SecretNotice secret={secret} onClose={() => setSecret(null)} /> : null}
+                  <DataTable columns={columns} data={credentials} getRowId={(row) => row.id} loading={loading} />
+                </div>
+              </SectionCard>
+            ),
+          },
+          {
+            key: 'mcp',
+            label: 'MCP 接入',
+            children: (
+              <SectionCard title="MCP 使用说明" description="MCP 复用现有管理端口。创建用途为 mcp 的凭据后，在 Agent 中使用以下地址。">
+                <div className="flex flex-col gap-2 text-sm">
+                  <CopyableText value={`${window.location.origin}/mcp`} monospace />
+                  <CopyableText value={`${window.location.origin}/.well-known/mcp.json`} monospace />
+                  <span className="text-muted-foreground">请求头格式：Authorization: Bearer &lt;token&gt;</span>
+                </div>
+              </SectionCard>
+            ),
+          },
+        ]}
+      />
       <CreateDialog
         open={createOpen}
         onClose={() => setCreateOpen(false)}

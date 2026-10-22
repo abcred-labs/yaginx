@@ -6,7 +6,7 @@ import type { ColumnDef } from '@tanstack/react-table';
 import React, { useEffect, useMemo, useState } from 'react';
 import { ACMEOrder, ACMEOrderLog, getACMELogs, getACMEOrderLogs, getACMEOrders, cancelACMEOrder, retryACMEOrder } from '@/api/acme';
 import { notifySuccess } from '@/ui/notify';
-import { SectionCard, WorkbenchPage } from '@/ui/workbench';
+import { SectionCard, WorkbenchPage, WorkbenchTabs } from '@/ui/workbench';
 
 type SystemLog = Record<string, any>;
 
@@ -125,30 +125,46 @@ const ACMEOrders: React.FC = () => {
 
   return (
     <WorkbenchPage eyebrow="SYSTEM / ACME" title="ACME 订单" description="查看证书申请状态、错误和处理记录。">
-      <SectionCard title="订单列表" description="订单状态来自共享 PostgreSQL。">
-        <div className="mb-4 flex items-center gap-2">
-          <Input
-            className="w-64"
-            placeholder="按域名筛选"
-            value={domain}
-            onChange={(e) => setDomain(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') void load(); }}
-          />
-          <Button variant="outline" onClick={() => void load()}>刷新</Button>
-        </div>
-        <DataTable columns={orderColumns} data={rows} getRowId={(row) => row.id} loading={loading} showPagination pageSizeOptions={[10, 20, 50]} />
-      </SectionCard>
-      <SectionCard title="ACME 系统错误" description="这里记录全局 ACME 组件的系统级故障；单条订单的完整处理流水请点击订单行的“日志”。">
-        <DataTable
-          columns={systemLogColumns}
-          data={systemLogs}
-          getRowId={(row, index) => String(row.id ?? index)}
-          loading={systemLogsLoading}
-          emptyText={<Empty description="暂无 ACME 系统级错误" />}
-          showPagination
-          pageSizeOptions={[10, 20, 50]}
-        />
-      </SectionCard>
+      <WorkbenchTabs
+        items={[
+          {
+            key: 'orders',
+            label: '订单',
+            children: (
+              <SectionCard title="订单列表" description="订单状态来自共享 PostgreSQL。">
+                <div className="mb-4 flex items-center gap-2">
+                  <Input
+                    className="w-64"
+                    placeholder="按域名筛选"
+                    value={domain}
+                    onChange={(e) => setDomain(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') void load(); }}
+                  />
+                  <Button variant="outline" onClick={() => void load()}>刷新</Button>
+                </div>
+                <DataTable columns={orderColumns} data={rows} getRowId={(row) => row.id} loading={loading} showPagination pageSizeOptions={[10, 20, 50]} />
+              </SectionCard>
+            ),
+          },
+          {
+            key: 'system-errors',
+            label: '系统错误',
+            children: (
+              <SectionCard title="ACME 系统错误" description="这里记录全局 ACME 组件的系统级故障；单条订单的完整处理流水请点击订单行的“日志”。">
+                <DataTable
+                  columns={systemLogColumns}
+                  data={systemLogs}
+                  getRowId={(row, index) => String(row.id ?? index)}
+                  loading={systemLogsLoading}
+                  emptyText={<Empty description="暂无 ACME 系统级错误" />}
+                  showPagination
+                  pageSizeOptions={[10, 20, 50]}
+                />
+              </SectionCard>
+            ),
+          },
+        ]}
+      />
       <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
         <SheetContent className="w-full overflow-y-auto sm:max-w-[620px]">
           <SheetHeader>

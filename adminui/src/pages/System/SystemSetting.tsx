@@ -238,7 +238,9 @@ const RuntimeSettings: React.FC = () => {
               <TabsList>
                 <TabsTrigger value="proxy">代理连接</TabsTrigger>
                 <TabsTrigger value="collection">数据采集</TabsTrigger>
-                <TabsTrigger value="observability">证书与可观测性</TabsTrigger>
+                <TabsTrigger value="acme">证书</TabsTrigger>
+                <TabsTrigger value="logging">日志</TabsTrigger>
+                <TabsTrigger value="network">访问网段</TabsTrigger>
               </TabsList>
               <div className="flex flex-wrap items-center gap-2">
                 <Button type="submit" loading={loading}>保存并滚动重启</Button>
@@ -271,7 +273,7 @@ const RuntimeSettings: React.FC = () => {
                 <NumberField control={control} name="requestHistory.retentionHours" label="历史保留小时" min={1} max={8760} />
               </div>
             </TabsContent>
-            <TabsContent value="observability">
+            <TabsContent value="acme">
               <div className={GRID}>
                 <TextField
                   control={control}
@@ -293,9 +295,16 @@ const RuntimeSettings: React.FC = () => {
                   <AlertTitle>ACME 与本地 Challenge endpoint 始终运行</AlertTitle>
                   <AlertDescription>证书申请范围在站点 Host 配置中选择“自动申请 ACME 证书”。Directory URL 默认使用 Let’s Encrypt production。</AlertDescription>
                 </Alert>
+              </div>
+            </TabsContent>
+            <TabsContent value="logging">
+              <div className={GRID}>
                 <SelectField control={control} name="observability.logLevel" label="日志级别" options={['debug', 'info', 'warn', 'error'].map(value => ({ value, label: value }))} />
                 <SelectField control={control} name="observability.logFormat" label="日志格式" options={[{ value: 'json', label: 'JSON' }, { value: 'text', label: 'Text' }]} />
-                <div className="hidden md:block" />
+              </div>
+            </TabsContent>
+            <TabsContent value="network">
+              <div className={GRID}>
                 <CidrField
                   control={control}
                   name="management.allowedCIDRs"
