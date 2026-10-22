@@ -65,7 +65,7 @@ const Brand: React.FC = () => {
   const { collapsed } = useSiderToggle();
   return (
     <div className={`flex items-center gap-2 px-3 ${collapsed ? 'flex-col justify-center py-2' : 'h-14 justify-between'}`}>
-      <span className="truncate text-base font-semibold tracking-wider" aria-label="YAGINX">
+      <span className="truncate text-[15px] font-semibold tracking-[0.16em]" aria-label="YAGINX">
         {collapsed ? 'YG' : 'YAGINX'}
       </span>
       <SiderCollapseButton aria-label="切换导航" />

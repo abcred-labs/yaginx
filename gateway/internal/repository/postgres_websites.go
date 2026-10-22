@@ -610,20 +610,40 @@ func (p *Postgres) DeleteWebsites(ctx context.Context, ids []int64) (management.
 	if len(ids) == 0 {
 		return result, fmt.Errorf("at least one website id is required")
 	}
-	rows, err := p.pool.Query(ctx, "DELETE FROM website WHERE id = ANY($1) RETURNING id", ids)
+	tx, err := p.pool.Begin(ctx)
+	if err != nil {
+		return result, err
+	}
+	defer tx.Rollback(ctx)
+	rows, err := tx.Query(ctx, "DELETE FROM website WHERE id = ANY($1) RETURNING id, COALESCE(specifications->>'defaultHost',''), hosts", ids)
 	if err != nil {
 		return result, err
 	}
 	defer rows.Close()
 	deleted := make(map[int64]struct{}, len(ids))
+	var hostNames []string
 	for rows.Next() {
 		var id int64
-		if err := rows.Scan(&id); err != nil {
+		var defaultHost string
+		var rawHosts []byte
+		if err := rows.Scan(&id, &defaultHost, &rawHosts); err != nil {
 			return result, err
 		}
 		deleted[id] = struct{}{}
+		hostNames = append(hostNames, defaultHost)
+		var list []string
+		if json.Unmarshal(rawHosts, &list) == nil {
+			hostNames = append(hostNames, list...)
+		}
 	}
 	if err := rows.Err(); err != nil {
+		return result, err
+	}
+	rows.Close()
+	if err := deleteOrphanedACMEOrders(ctx, tx, hostNames); err != nil {
+		return result, err
+	}
+	if err := tx.Commit(ctx); err != nil {
 		return result, err
 	}
 	for _, id := range ids {
@@ -634,6 +654,35 @@ func (p *Postgres) DeleteWebsites(ctx context.Context, ids []int64) (management.
 		}
 	}
 	return result, nil
+}
+
+// deleteOrphanedACMEOrders removes ACME orders (and, via cascade, their logs)
+// for hosts that were bound to just-deleted websites and are no longer bound
+// to any remaining website.
+func deleteOrphanedACMEOrders(ctx context.Context, tx pgx.Tx, hosts []string) error {
+	normalized := make([]string, 0, len(hosts))
+	for _, host := range hosts {
+		host = strings.ToLower(strings.TrimRight(strings.TrimSpace(host), "."))
+		if host != "" {
+			normalized = append(normalized, host)
+		}
+	}
+	if len(normalized) == 0 {
+		return nil
+	}
+	_, err := tx.Exec(ctx, `DELETE FROM gateway_certificate_order o
+WHERE o.domain_name = ANY($1)
+  AND NOT EXISTS (
+    SELECT 1 FROM website w
+    WHERE lower(trim(trailing '.' from coalesce(w.specifications->>'defaultHost',''))) = o.domain_name
+       OR EXISTS (
+            SELECT 1 FROM jsonb_array_elements_text(
+                CASE WHEN jsonb_typeof(w.hosts) = 'array' THEN w.hosts ELSE '[]'::jsonb END
+            ) AS host(value)
+            WHERE lower(trim(trailing '.' from host.value)) = o.domain_name
+       )
+  )`, normalized)
+	return err
 }
 
 const websiteHasCertificateQuery = `EXISTS(

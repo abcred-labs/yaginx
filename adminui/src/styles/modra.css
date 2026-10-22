@@ -15,3 +15,50 @@
     color: var(--foreground);
   }
 }
+
+/* 侧栏导航：分组标签、菜单项与图标的层级和节奏。放在 layer 之外，优先于 Modra 的默认 token。 */
+aside[id^="app-shell-sider"] {
+  --component-menu-group-font-size: 12px;
+  --component-menu-group-font-weight: 500;
+  --component-menu-group-padding-top: 20px;
+  --component-menu-group-padding-bottom: 6px;
+  --component-menu-item-font-size: 14px;
+  --component-menu-item-min-height: 36px;
+  --component-menu-item-radius: 6px;
+  --component-menu-icon-size: 15px;
+}
+
+aside[id^="app-shell-sider"] [role="group"] {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+aside[id^="app-shell-sider"] [role="group"][aria-labelledby] {
+  margin-bottom: 4px;
+}
+
+aside[id^="app-shell-sider"] [id*="-group-group-"] {
+  letter-spacing: 0.06em;
+}
+
+aside[id^="app-shell-sider"] [role="menuitem"] {
+  gap: 10px;
+  font-weight: 400;
+  letter-spacing: 0.01em;
+}
+
+/* 实心图标比文字更重，降一档颜色让文字成为主角；选中和悬停时跟随文字色 */
+aside[id^="app-shell-sider"] [role="menuitem"] [data-menu-icon] {
+  color: var(--muted-foreground);
+  transition: color 0.15s;
+}
+
+aside[id^="app-shell-sider"] [role="menuitem"]:hover [data-menu-icon],
+aside[id^="app-shell-sider"] [role="menuitem"][aria-current="page"] [data-menu-icon] {
+  color: currentColor;
+}
+
+aside[id^="app-shell-sider"] [role="menuitem"][aria-current="page"] {
+  font-weight: 500;
+}

@@ -116,6 +116,11 @@ func (w *Worker) Run(ctx context.Context) {
 // It never creates an external order before the dedicated advisory lock is
 // acquired, so every approved node can run it safely against the same DB.
 func (w *Worker) ScanOnce(ctx context.Context) {
+	if n, err := w.store.PurgeCompletedACMEOrders(ctx, repository.ACMECompletedOrderRetention); err != nil {
+		w.logger.Error("purge completed ACME orders", "error", err)
+	} else if n > 0 {
+		w.logger.Info("purged completed ACME orders", "count", n)
+	}
 	domains, err := w.store.ListDomainsDueForRenewal(ctx)
 	if err != nil {
 		w.logger.Error("scan eligible ACME domains", "error", err)

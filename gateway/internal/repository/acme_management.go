@@ -3,9 +3,27 @@ package repository
 import (
 	"context"
 	"errors"
+	"strings"
+	"time"
+
 	"github.com/jackc/pgx/v5"
 	"yaginx-gateway/internal/management"
 )
+
+var acmeLikeEscaper = strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
+
+// ACMECompletedOrderRetention is how long finished (valid) orders are kept.
+const ACMECompletedOrderRetention = 7 * 24 * time.Hour
+
+// PurgeCompletedACMEOrders deletes valid orders finished before the retention
+// window; their logs go with them via ON DELETE CASCADE.
+func (p *Postgres) PurgeCompletedACMEOrders(ctx context.Context, retention time.Duration) (int64, error) {
+	tag, err := p.pool.Exec(ctx, `DELETE FROM gateway_certificate_order WHERE status='valid' AND COALESCE(finished_at,updated_at) < clock_timestamp() - make_interval(secs => $1)`, retention.Seconds())
+	if err != nil {
+		return 0, err
+	}
+	return tag.RowsAffected(), nil
+}
 
 func (p *Postgres) SearchACMEOrderLogs(ctx context.Context, orderID management.ID, request management.PageRequest) (management.ACMEOrderLogPage, error) {
 	page, err := management.NormalizePageRequest(request)
@@ -55,10 +73,17 @@ func (p *Postgres) SearchACMEOrders(ctx context.Context, page, size int, domain,
 	offset := (page - 1) * size
 	var out management.ACMEOrderPage
 	out.PageIndex, out.PageSize = page, size
-	if err := p.pool.QueryRow(ctx, `SELECT count(*) FROM gateway_certificate_order WHERE ($1='' OR domain_name=$1) AND ($2='' OR status=$2)`, domain, status).Scan(&out.Total); err != nil {
+	// Domain filter is a case-insensitive substring match; LIKE wildcards in the
+	// user input are escaped so they match literally.
+	domain = strings.ToLower(strings.TrimSpace(domain))
+	pattern := ""
+	if domain != "" {
+		pattern = "%" + acmeLikeEscaper.Replace(domain) + "%"
+	}
+	if err := p.pool.QueryRow(ctx, `SELECT count(*) FROM gateway_certificate_order WHERE ($1='' OR domain_name LIKE $1) AND ($2='' OR status=$2)`, pattern, status).Scan(&out.Total); err != nil {
 		return out, err
 	}
-	rows, err := p.pool.Query(ctx, `SELECT id,domain_name,status,attempt,error_class,COALESCE(error_message,''),created_at,updated_at,next_attempt_at,finished_at FROM gateway_certificate_order WHERE ($1='' OR domain_name=$1) AND ($2='' OR status=$2) ORDER BY updated_at DESC,id DESC LIMIT $3 OFFSET $4`, domain, status, size, offset)
+	rows, err := p.pool.Query(ctx, `SELECT id,domain_name,status,attempt,error_class,COALESCE(error_message,''),created_at,updated_at,next_attempt_at,finished_at FROM gateway_certificate_order WHERE ($1='' OR domain_name LIKE $1) AND ($2='' OR status=$2) ORDER BY updated_at DESC,id DESC LIMIT $3 OFFSET $4`, pattern, status, size, offset)
 	if err != nil {
 		return out, err
 	}
