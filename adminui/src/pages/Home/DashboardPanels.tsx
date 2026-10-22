@@ -63,6 +63,9 @@ export const TrafficKpiPanel: React.FC<DashboardPanelProps> = (props) => {
 
 const trendColors = { flow: "#2563eb", alert: "#dc5a42", grid: "#dbe4ef", neutral: "#718198", text: "#17233d" };
 
+// Errors 轴已经占用右侧，Latency 轴再向外偏移一个轴宽，否则两列刻度会叠在一起。
+const LATENCY_AXIS_OFFSET = 64;
+
 export const buildTrendWithLatency = (points: IAnalyticsPoint[]) => {
   const base = buildAnalyticsTrendOption(points, trendColors) as any;
   const labels = points.map(point => new Date(point.bucketStartAt * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
@@ -70,7 +73,8 @@ export const buildTrendWithLatency = (points: IAnalyticsPoint[]) => {
   return {
     ...base,
     legend: { ...(base.legend ?? {}), data: ["Requests/s", "Errors", "P50", "P95", "P99"] },
-    yAxis: [...(Array.isArray(base.yAxis) ? base.yAxis : []), { type: "value", name: "Latency", axisLabel: { color: trendColors.neutral, formatter: (value: number) => `${value} ms` }, splitLine: { show: false } }],
+    grid: { ...(base.grid ?? {}), right: (base.grid?.right ?? 28) + LATENCY_AXIS_OFFSET },
+    yAxis: [...(Array.isArray(base.yAxis) ? base.yAxis : []), { type: "value", name: "Latency", position: "right", offset: LATENCY_AXIS_OFFSET, axisLabel: { color: trendColors.neutral, formatter: (value: number) => `${value} ms` }, splitLine: { show: false } }],
     series: [...series, ...[
       ["P50", "p50Ms", "#5b8def"], ["P95", "p95Ms", "#f59e0b"], ["P99", "p99Ms", "#dc5a42"]
     ].map(([name, field, color]) => ({ name, type: "line", yAxisIndex: 2, smooth: true, symbol: "none", lineStyle: { width: name === "P95" ? 2 : 1, color }, data: points.map(point => point[field as "p50Ms" | "p95Ms" | "p99Ms"]) }))],

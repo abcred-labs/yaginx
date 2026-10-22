@@ -4,6 +4,7 @@ import { Badge, Button, DataTable, Statistic, Tooltip, TooltipContent, TooltipTr
 import type { ColumnDef, PaginationState } from "@tanstack/react-table";
 import dayjs from "dayjs";
 import React, { useEffect, useState } from "react";
+import { usePublishPageMeta } from "@/layouts/PageMeta";
 import { MonAlert, MonBar, MonCard, StatDot, cx, eyebrowClass, toneDotClass } from "@/ui/monParts";
 import { CapabilityBar } from "./CapabilityBar";
 import { MetricGrid } from "./MetricGrid";
@@ -93,6 +94,8 @@ const tableColumns: ColumnDef<TableRow, unknown>[] = [
 ];
 
 const DatabasePerformance: React.FC = () => {
+  // 顶栏面包屑由页面发布；不发布时会停留在上一个页面的标题。
+  usePublishPageMeta({ trail: "SYSTEM / DATABASE", title: "数据库性能" });
   const [snapshot, setSnapshot] = useState<IDatabasePerformance>();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);

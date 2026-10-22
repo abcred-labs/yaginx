@@ -58,6 +58,11 @@
   "main": "index.js",
   "license": "GPL-3.0-only",
   "pnpm": {
+    "peerDependencyRules": {
+      "allowedVersions": {
+        "@modra/react>echarts": "6"
+      }
+    },
     "overrides": {
       "path-to-regexp": "8.4.0",
       "@babel/runtime": "7.26.10"

@@ -19,6 +19,8 @@ export default ({ command, mode }: ConfigEnv): UserConfig => {
   return {
     base: VITE_BASE_PATH,
     plugins: [react(), tailwindcss()],
+    // brotli-wasm 带 wasm 文件，经预构建后路径会失效，开发模式下请求落到 index.html。
+    optimizeDeps: { exclude: ['brotli-wasm'] },
     resolve: {
       alias: [
         { find: /^~/, replacement: path.resolve(__dirname, './') },

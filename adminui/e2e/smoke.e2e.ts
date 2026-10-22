@@ -45,6 +45,15 @@ test.describe('已登录', () => {
     });
   }
 
+  test('面包屑跟随当前页面，不停留在上一页', async ({ page }) => {
+    await page.goto('/#/monitor/requestHistory/list');
+    const crumbs = page.getByRole('navigation', { name: '页面路径' });
+    await expect(crumbs).toContainText('请求追踪');
+    await page.getByRole('link', { name: '数据库诊断' }).click();
+    await expect(crumbs).toContainText('数据库性能');
+    await expect(crumbs).not.toContainText('请求追踪');
+  });
+
   test('侧栏可以收起，并在深浅色之间切换', async ({ page }) => {
     await page.goto('/#/website/list');
     const html = page.locator('html');
