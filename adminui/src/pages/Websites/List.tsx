@@ -99,21 +99,56 @@ const List: React.FC = () => {
   };
 
   const columns = useMemo<ColumnDef<Website, unknown>[]>(() => [
-    { id: 'name', header: '站点名称', cell: ({ row }) => row.original.name },
+    { id: 'name', header: '站点名称', size: 260, cell: ({ row }) => row.original.name },
     {
       id: 'primaryHost',
       header: '主站 Host',
+      size: 260,
       cell: ({ row }) => row.original.hostBindings?.find((host) => host.role === 'primary')?.hostname ?? row.original.defaultHost ?? '未配置',
     },
-    { id: 'proxyRules', header: '转发规则', cell: ({ row }) => `${row.original.proxyRules?.length ?? 0} 条` },
+    {
+      id: 'aliasHosts',
+      header: '别名域名',
+      size: 200,
+      cell: ({ row }) => {
+        const aliases = (row.original.hostBindings ?? []).filter((host) => host.role === 'alias').map((host) => host.hostname);
+        if (aliases.length === 0) return <span className="text-muted-foreground">-</span>;
+        const text = aliases.length > 2 ? `${aliases.slice(0, 2).join('、')} 等 ${aliases.length} 个` : aliases.join('、');
+        return <span className="block max-w-[320px] truncate" title={aliases.join(', ')}>{text}</span>;
+      },
+    },
+    {
+      id: 'defaultDestination',
+      header: '默认上游',
+      size: 280,
+      cell: ({ row }) => {
+        const upstream = row.original.defaultDestination;
+        return upstream ? <span className="block max-w-[320px] truncate" title={upstream}>{upstream}</span> : <span className="text-muted-foreground">-</span>;
+      },
+    },
+    { id: 'proxyRules', header: '转发规则', size: 72, cell: ({ row }) => `${row.original.proxyRules?.length ?? 0} 条` },
+    {
+      id: 'hasCertificate',
+      header: '证书',
+      size: 76,
+      cell: ({ row }) => row.original.hasCertificate ? <Badge variant="success">已配置</Badge> : <Badge variant="secondary">无</Badge>,
+    },
+    {
+      id: 'ipAccessMode',
+      header: 'IP 访问',
+      size: 80,
+      cell: ({ row }) => ({ disabled: '不限制', blacklist: '黑名单', whitelist: '白名单' } as const)[row.original.ipAccessMode ?? 'disabled'],
+    },
     {
       id: 'isMaintenanceMode',
       header: '访问状态',
+      size: 84,
       cell: ({ row }) => row.original.isMaintenanceMode ? <Badge variant="warning">维护中</Badge> : <Badge variant="success">正常</Badge>,
     },
     {
       id: 'actions',
       header: '操作',
+      size: 150,
       cell: ({ row }) => {
         const record = row.original;
         const go = (operation: 'analytics' | 'edit' | 'childRules') => () => navigate(websiteListOperationPath(operation, requireInt64String(record.id, '网站 ID')));
