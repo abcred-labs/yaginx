@@ -1,8 +1,11 @@
 import { IIPBlacklistRule, IIPProfile, ipBlacklistRemove, ipBlacklistSearch, ipBlacklistUpsert } from "@/api/accessControl";
-import { LocalTime } from "@/componets/LocalTime";
-import PagedTableList from "@/componets/PagedTableList";
-import { PageHeader } from "@ant-design/pro-components";
-import { Button, Input, notification, Popconfirm, Space, Switch, Tag, Typography } from "antd";
+import { LocalTime } from "@/components/LocalTime";
+import ServerDataTable from "@/ui/ServerDataTable";
+import { confirmDanger } from "@/ui/confirmAction";
+import { notifySuccess, notifyWarning } from "@/ui/notify";
+import { DataToolbar, WorkbenchPage } from "@/ui/workbench";
+import { Badge, Button, CopyableText, Input, RowActions, Switch } from "@modra/react";
+import type { ColumnDef } from "@tanstack/react-table";
 import React, { useMemo, useState } from "react";
 import IPProfileDrawer, { type IPBlacklistScope } from "../IPProfileDrawer";
 
@@ -30,18 +33,18 @@ const IPBlacklistList: React.FC = () => {
   const [profile, setProfile] = useState<IIPProfile | null>(null);
 
   const filters = useMemo(() => ({ keyword: keyword.trim(), includeRemoved }), [includeRemoved, keyword]);
-  const reload = () => setRefreshTable(Math.random());
+  const reload = () => setRefreshTable((current) => current + 1);
 
   const addRule = async () => {
     const value = cidr.trim();
     if (!value) {
-      notification.warning({ message: "请输入 IP 或 CIDR" });
+      notifyWarning("请输入 IP 或 CIDR");
       return;
     }
     setAdding(true);
     try {
       const response = await ipBlacklistUpsert({ cidr: value });
-      notification.success({ message: "黑名单规则已生效", description: `${response.data.cidr} 将在所有节点热更新。` });
+      notifySuccess("黑名单规则已生效", `${response.data.cidr} 将在所有节点热更新。`);
       setCIDR("");
       reload();
     } catch {
@@ -54,7 +57,7 @@ const IPBlacklistList: React.FC = () => {
   const removeRule = async (record: IIPBlacklistRule) => {
     try {
       await ipBlacklistRemove({ id: record.id });
-      notification.success({ message: "已移出黑名单", description: `${record.cidr} 的历史拦截数据已保留。` });
+      notifySuccess("已移出黑名单", `${record.cidr} 的历史拦截数据已保留。`);
       reload();
     } catch {
       // FetchJson already presents the service error.
@@ -65,85 +68,114 @@ const IPBlacklistList: React.FC = () => {
     try {
       const response = await ipBlacklistUpsert({ cidr: value });
       const label = scope === "network" ? "网络段" : "IP";
-      notification.success({ message: `${label}黑名单规则已生效`, description: `${response.data.cidr} 将在所有节点热更新。` });
+      notifySuccess(`${label}黑名单规则已生效`, `${response.data.cidr} 将在所有节点热更新。`);
       reload();
     } catch {
       // FetchJson already presents the service error.
     }
   };
 
-  const initTableColumn = (columns: any[]) => {
-    columns.push({ title: "CIDR", dataIndex: "cidr", key: "cidr", width: 190, render: (value: string) => <Typography.Text copyable>{value}</Typography.Text> });
-    columns.push({
-      title: "网络类型",
-      key: "networkType",
-      width: 100,
-      render: (_: unknown, record: IIPBlacklistRule) => {
-        const type = record.profile?.network?.type || "unknown";
-        return <Tag color={type === "proxy" ? "orange" : "blue"}>{networkTypeText[type] || type}</Tag>;
+  const columns = useMemo<ColumnDef<IIPBlacklistRule, unknown>[]>(() => [
+    { id: "cidr", header: "CIDR", meta: { minWidth: 190 }, cell: ({ row }) => <CopyableText>{row.original.cidr}</CopyableText> },
+    {
+      id: "networkType",
+      header: "网络类型",
+      cell: ({ row }) => {
+        const type = row.original.profile?.network?.type || "unknown";
+        return <Badge variant={type === "proxy" ? "warning" : "info"}>{networkTypeText[type] || type}</Badge>;
       }
-    });
-    columns.push({ title: "所属/位置", key: "location", width: 220, render: (_: unknown, record: IIPBlacklistRule) => profileLocation(record.profile) });
-    columns.push({ title: "ASN / 组织", key: "asn", width: 230, render: (_: unknown, record: IIPBlacklistRule) => record.profile?.asn?.organization || record.profile?.network?.organization || "-" });
-    columns.push({ title: "累计拦截", dataIndex: "blockedCount", key: "blockedCount", width: 106, render: (value: number | string) => String(value ?? 0) });
-    columns.push({ title: "最后拦截", dataIndex: "lastBlockedAt", key: "lastBlockedAt", width: 180, render: (value: number | string | null) => <LocalTime timestamp={value} /> });
-    columns.push({ title: "创建时间", dataIndex: "createdAt", key: "createdAt", width: 180, render: (value: number | string) => <LocalTime timestamp={value} /> });
-    columns.push({
-      title: "状态",
-      key: "status",
-      width: 84,
-      render: (_: unknown, record: IIPBlacklistRule) => record.isActive ? <Tag color="red">生效中</Tag> : <Tag>已移除</Tag>
-    });
-    columns.push({
-      title: "操作",
-      key: "operation",
-      width: 168,
-      render: (_: unknown, record: IIPBlacklistRule) => (
-        <Space size={4}>
-          <Button size="small" onClick={() => { setProfile(record.profile); setProfileOpen(true); }}>IP 详情</Button>
-          {record.isActive ? (
-            <Popconfirm title={`移出 ${record.cidr}？`} description="历史记录和拦截计数会保留。" okText="移出" cancelText="取消" onConfirm={() => removeRule(record)}>
-              <Button size="small" danger>移出</Button>
-            </Popconfirm>
-          ) : null}
-        </Space>
-      )
-    });
-  };
+    },
+    { id: "location", header: "所属/位置", meta: { minWidth: 220 }, cell: ({ row }) => profileLocation(row.original.profile) },
+    {
+      id: "asn",
+      header: "ASN / 组织",
+      meta: { minWidth: 230 },
+      cell: ({ row }) => row.original.profile?.asn?.organization || row.original.profile?.network?.organization || "-"
+    },
+    { id: "blockedCount", header: "累计拦截", cell: ({ row }) => String(row.original.blockedCount ?? 0) },
+    {
+      id: "lastBlockedAt",
+      header: "最后拦截",
+      cell: ({ row }) => <span className="whitespace-nowrap"><LocalTime timestamp={row.original.lastBlockedAt} /></span>
+    },
+    {
+      id: "createdAt",
+      header: "创建时间",
+      cell: ({ row }) => <span className="whitespace-nowrap"><LocalTime timestamp={row.original.createdAt} /></span>
+    },
+    {
+      id: "status",
+      header: "状态",
+      cell: ({ row }) => row.original.isActive ? <Badge variant="destructive">生效中</Badge> : <Badge variant="secondary">已移除</Badge>
+    },
+    {
+      id: "operation",
+      header: "操作",
+      meta: { sticky: "end" },
+      cell: ({ row }) => {
+        const record = row.original;
+        return (
+          <RowActions
+            primary={[
+              { key: "profile", label: "IP 详情", onSelect: () => { setProfile(record.profile); setProfileOpen(true); } },
+              {
+                key: "remove",
+                label: "移出",
+                destructive: true,
+                hidden: !record.isActive,
+                onSelect: () => confirmDanger({
+                  title: `移出 ${record.cidr}？`,
+                  description: "历史记录和拦截计数会保留。",
+                  confirmText: "移出",
+                  cancelText: "取消",
+                  onConfirm: () => removeRule(record)
+                })
+              }
+            ]}
+          />
+        );
+      }
+    }
+    // 操作回调只依赖稳定的 setState 与 API，列定义无需随其重建
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  ], []);
 
   return (
-    <PageHeader
+    <WorkbenchPage
+      eyebrow="SECURITY / IP BLACKLIST"
       title="IP 黑名单"
-      subTitle="全局规则会在所有代理节点热更新。支持 IPv4、IPv6、单 IP 与 CIDR，ACME challenge 保持绕过。"
-      tags={
-        <Space wrap>
-          <Input.Search
+      description="全局规则会在所有代理节点热更新。支持 IPv4、IPv6、单 IP 与 CIDR，ACME challenge 保持绕过。"
+    >
+      <DataToolbar>
+        <form className="flex items-center gap-2" onSubmit={(event) => { event.preventDefault(); void addRule(); }}>
+          <Input
+            className="w-[340px]"
             placeholder="输入 IP 或 CIDR，例如 203.0.113.4 / 2001:db8::/32"
+            aria-label="IP 或 CIDR"
             value={cidr}
             onChange={(event) => setCIDR(event.target.value)}
-            onSearch={addRule}
-            enterButton="添加到黑名单"
-            loading={adding}
-            style={{ width: 340 }}
           />
-          <Input.Search placeholder="搜索 CIDR" value={keyword} onChange={(event) => setKeyword(event.target.value)} onSearch={reload} style={{ width: 180 }} />
-          <Space size={4}>
-            <Switch size="small" checked={includeRemoved} onChange={setIncludeRemoved} />
-            <Typography.Text>显示已移除规则</Typography.Text>
-          </Space>
-          <Button onClick={reload}>刷新</Button>
-        </Space>
-      }
-    >
-      <PagedTableList
-        pkFieldName="id"
+          <Button type="submit" loading={adding}>添加到黑名单</Button>
+        </form>
+        <form className="flex items-center gap-2" onSubmit={(event) => { event.preventDefault(); reload(); }}>
+          <Input className="w-[180px]" placeholder="搜索 CIDR" aria-label="搜索 CIDR" value={keyword} onChange={(event) => setKeyword(event.target.value)} />
+          <Button type="submit" variant="outline">搜索</Button>
+        </form>
+        <label className="flex items-center gap-2 text-sm">
+          <Switch checked={includeRemoved} onCheckedChange={setIncludeRemoved} />
+          显示已移除规则
+        </label>
+        <Button variant="outline" onClick={reload}>刷新</Button>
+      </DataToolbar>
+      <ServerDataTable<IIPBlacklistRule>
+        columns={columns}
+        getRowId={(row) => String(row.id)}
         searchAction={ipBlacklistSearch}
-        realodTableData={refreshTable}
-        initTableColumn={initTableColumn}
-        externalFilterCondition={filters}
+        reloadKey={refreshTable}
+        filter={filters}
       />
       <IPProfileDrawer open={profileOpen} profile={profile} onClose={() => setProfileOpen(false)} onBlacklist={addProfileRule} />
-    </PageHeader>
+    </WorkbenchPage>
   );
 };
 

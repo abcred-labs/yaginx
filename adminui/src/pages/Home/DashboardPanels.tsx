@@ -1,11 +1,11 @@
 import { getAnalyticsOverview, getDatabasePerformance, getGatewayDiagnosticsOverview, overviewSection, type IAnalyticsModeMetrics, type IAnalyticsOverview, type IAnalyticsPoint, type IDatabasePerformance, type IGatewayDiagnosticsOverview } from "@/api/analytics";
-import EChartPanel from "@/componets/charts/EChartPanel";
-import { buildAnalyticsTrendOption } from "@/componets/charts/analyticsTrend";
+import EChartPanel from "@/components/charts/EChartPanel";
+import { buildAnalyticsTrendOption } from "@/components/charts/analyticsTrend";
 import { formatBytes, formatNumber, formatPercent } from "@/utils/formatters";
-import { Alert, Badge, Button, Card, Col, Empty, Progress, Row, Space, Statistic, Tag, Typography } from "antd";
+import { Badge, Button, Empty, Progress } from "@modra/react";
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { SPACE } from "@/utils/spacing";
+import { MonAlert, MonCard, MonStat, cx } from "@/ui/monParts";
 
 export interface DashboardPanelProps { range: number; selectedDomain?: string; refreshKey?: number; autoRefreshSeconds?: number; onLoadingChange?: (loading: boolean) => void; }
 type FetchState<T> = { data?: T; loading: boolean; error?: string; stale?: boolean };
@@ -43,7 +43,9 @@ const useAnalytics = (props: DashboardPanelProps, sections: ("overview" | "domai
   return { ...state, reload: load };
 };
 
-const cardError = (error?: string) => error ? <Alert type="error" showIcon message={error} /> : null;
+const cardError = (error?: string) => error ? <MonAlert type="error" message={error} className="mb-3" /> : null;
+const chipList = "mt-3 flex min-h-[76px] flex-wrap content-start gap-2";
+const subLabel = "text-sm font-semibold";
 
 export const TrafficKpiPanel: React.FC<DashboardPanelProps> = (props) => {
   const { data, loading, error } = useAnalytics(props, ["overview"]);
@@ -55,11 +57,14 @@ export const TrafficKpiPanel: React.FC<DashboardPanelProps> = (props) => {
     ["入站流量", formatBytes(kpis?.inboundBytes)], ["出站流量", formatBytes(kpis?.outboundBytes)]
   ];
   const modes = data?.modes;
-  const modeCard = (title: string, mode: IAnalyticsModeMetrics) => <Col xs={24} lg={8}><Card size="small" title={title}><Row gutter={[SPACE.space2, SPACE.space2]}><Col span={12}><Statistic title="请求数" value={formatNumber(mode.requests)} /></Col><Col span={12}><Statistic title="完成 P95" value={mode.completionLatency.p95Ms == null ? "-" : `${formatNumber(mode.completionLatency.p95Ms)} ms`} /></Col><Col span={12}><Statistic title="首字节 P95" value={mode.firstByteLatency.p95Ms == null ? "-" : `${formatNumber(mode.firstByteLatency.p95Ms)} ms`} /></Col><Col span={12}><Statistic title="首 token P95" value={mode.firstTokenLatency.p95Ms == null ? "-" : `${formatNumber(mode.firstTokenLatency.p95Ms)} ms`} /></Col></Row></Card></Col>;
-  return <Card title="流量信号" extra={<Typography.Text type="secondary">窗口内汇总</Typography.Text>} loading={loading}>{cardError(error)}<Row gutter={[SPACE.space3, SPACE.space3]}>{cards.map(([title, value]) => <Col key={title} xs={12} sm={6} xl={3}><Statistic title={title} value={value} /></Col>)}</Row>{modes && <Row gutter={[SPACE.space3, SPACE.space3]} style={{ marginTop: SPACE.space3 }}>{modeCard("非流式请求", modes.nonStream)}{modeCard("流式请求", modes.stream)}{modeCard("升级连接", modes.upgrade)}</Row>}</Card>;
+  const modeCard = (title: string, mode: IAnalyticsModeMetrics) => <MonCard title={title}><div className="grid grid-cols-2 gap-2"><MonStat title="请求数" value={formatNumber(mode.requests)} /><MonStat title="完成 P95" value={mode.completionLatency.p95Ms == null ? "-" : `${formatNumber(mode.completionLatency.p95Ms)} ms`} /><MonStat title="首字节 P95" value={mode.firstByteLatency.p95Ms == null ? "-" : `${formatNumber(mode.firstByteLatency.p95Ms)} ms`} /><MonStat title="首 token P95" value={mode.firstTokenLatency.p95Ms == null ? "-" : `${formatNumber(mode.firstTokenLatency.p95Ms)} ms`} /></div></MonCard>;
+  return <MonCard title="流量信号" extra={<span className="text-sm text-muted-foreground">窗口内汇总</span>} loading={loading}>{cardError(error)}<div className="grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-8">{cards.map(([title, value]) => <MonStat key={title} title={title} value={value} />)}</div>{modes && <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-3">{modeCard("非流式请求", modes.nonStream)}{modeCard("流式请求", modes.stream)}{modeCard("升级连接", modes.upgrade)}</div>}</MonCard>;
 };
 
 const trendColors = { flow: "#2563eb", alert: "#dc5a42", grid: "#dbe4ef", neutral: "#718198", text: "#17233d" };
+
+// Errors 轴已经占用右侧，Latency 轴再向外偏移一个轴宽，否则两列刻度会叠在一起。
+const LATENCY_AXIS_OFFSET = 64;
 
 export const buildTrendWithLatency = (points: IAnalyticsPoint[]) => {
   const base = buildAnalyticsTrendOption(points, trendColors) as any;
@@ -68,7 +73,8 @@ export const buildTrendWithLatency = (points: IAnalyticsPoint[]) => {
   return {
     ...base,
     legend: { ...(base.legend ?? {}), data: ["Requests/s", "Errors", "P50", "P95", "P99"] },
-    yAxis: [...(Array.isArray(base.yAxis) ? base.yAxis : []), { type: "value", name: "Latency", axisLabel: { color: trendColors.neutral, formatter: (value: number) => `${value} ms` }, splitLine: { show: false } }],
+    grid: { ...(base.grid ?? {}), right: (base.grid?.right ?? 28) + LATENCY_AXIS_OFFSET },
+    yAxis: [...(Array.isArray(base.yAxis) ? base.yAxis : []), { type: "value", name: "Latency", position: "right", offset: LATENCY_AXIS_OFFSET, axisLabel: { color: trendColors.neutral, formatter: (value: number) => `${value} ms` }, splitLine: { show: false } }],
     series: [...series, ...[
       ["P50", "p50Ms", "#5b8def"], ["P95", "p95Ms", "#f59e0b"], ["P99", "p99Ms", "#dc5a42"]
     ].map(([name, field, color]) => ({ name, type: "line", yAxisIndex: 2, smooth: true, symbol: "none", lineStyle: { width: name === "P95" ? 2 : 1, color }, data: points.map(point => point[field as "p50Ms" | "p95Ms" | "p99Ms"]) }))],
@@ -98,14 +104,18 @@ export const TrafficBreakdownPanel: React.FC<DashboardPanelProps> = (props) => {
     if (props.selectedDomain) query.set("host", props.selectedDomain);
     navigate(`/monitor/requestHistory/list?${query.toString()}`);
   };
-  return <Card title="请求分布与异常" loading={loading}>{cardError(error)}<Row gutter={[SPACE.space4, SPACE.space4]}>
-    <Col xs={24} md={8}><Typography.Text strong>状态码分布</Typography.Text><div className="dashboard-chip-list">{status.length ? status.map(item => {
+  return <MonCard title="请求分布与异常" loading={loading}>{cardError(error)}<div className="grid grid-cols-1 gap-[14px] md:grid-cols-3">
+    <div><span className={subLabel}>状态码分布</span><div className={chipList}>{status.length ? status.map(item => {
       const isStatusFamily = /^[1-6]xx$/i.test(item.type);
-      return <Tag key={item.type} color={item.type.startsWith("5") || item.type.startsWith("6") ? "red" : "blue"} style={{ cursor: isStatusFamily ? "pointer" : "default" }} onClick={isStatusFamily ? () => openStatusHistory(item.type) : undefined}>{item.type} · {formatNumber(item.value)}</Tag>;
-    }) : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无状态码" />}</div></Col>
-    <Col xs={24} md={8}><Typography.Text strong>错误分布</Typography.Text><div className="dashboard-chip-list">{errors.length ? errors.map(item => <Tag key={item.type} color="volcano" onClick={() => navigate(`/monitor/requestHistory/list?errorCode=${item.type}`)}>{item.type} · {formatNumber(item.value)}</Tag>) : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="当前窗口无错误" />}</div></Col>
-    <Col xs={24} md={8}><Typography.Text strong>Top 域名</Typography.Text>{domains.slice(0, 5).map(domain => <Button key={domain.domain} type="link" block className="dashboard-domain-row" onClick={() => navigate(`/monitor/traffic/request-trend?domain=${encodeURIComponent(domain.domain)}`)}><span>{domain.domain}</span><span>{formatNumber(domain.requests)}</span></Button>)}</Col>
-  </Row></Card>;
+      const content = `${item.type} · ${formatNumber(item.value)}`;
+      const variant = item.type.startsWith("5") || item.type.startsWith("6") ? "destructive" : "info";
+      return isStatusFamily
+        ? <button key={item.type} type="button" onClick={() => openStatusHistory(item.type)}><Badge variant={variant} className="cursor-pointer">{content}</Badge></button>
+        : <Badge key={item.type} variant={variant}>{content}</Badge>;
+    }) : <Empty description="暂无状态码" />}</div></div>
+    <div><span className={subLabel}>错误分布</span><div className={chipList}>{errors.length ? errors.map(item => <button key={item.type} type="button" onClick={() => navigate(`/monitor/requestHistory/list?errorCode=${item.type}`)}><Badge variant="warning" className="cursor-pointer">{item.type} · {formatNumber(item.value)}</Badge></button>) : <Empty description="当前窗口无错误" />}</div></div>
+    <div><span className={subLabel}>Top 域名</span>{domains.slice(0, 5).map(domain => <button key={domain.domain} type="button" className="flex w-full items-center justify-between border-b border-border py-1.5 text-left text-sm text-primary hover:underline" onClick={() => navigate(`/monitor/traffic/request-trend?domain=${encodeURIComponent(domain.domain)}`)}><span>{domain.domain}</span><span className="font-mono text-muted-foreground">{formatNumber(domain.requests)}</span></button>)}</div>
+  </div></MonCard>;
 };
 
 export const GatewayHealthPanel: React.FC = () => {
@@ -119,7 +129,7 @@ export const GatewayHealthPanel: React.FC = () => {
   useIntervalRefresh(undefined, 15000, load);
   const data = state.data;
   const queue = Object.values(data?.runtime.queues ?? {}).reduce((sum, item) => sum + item.depth, 0);
-  return <Card title="网关健康" loading={state.loading} extra={data ? <Typography.Text type={state.stale ? "warning" : "secondary"}>{state.stale ? "数据已过期" : `更新于 ${new Date(data.asOf * 1000).toLocaleTimeString()}`}</Typography.Text> : null}>{cardError(state.error)}<Space wrap className="dashboard-health-status"><Badge status={data?.health.level === "healthy" ? "success" : data?.health.level === "critical" ? "error" : "warning"} text={data?.health.level === "healthy" ? "健康" : "需要关注"} />{data?.health.reasons?.map(reason => <Tag key={reason} color="gold">{reason}</Tag>)}</Space><Row gutter={[SPACE.space3, SPACE.space3]} className="dashboard-health-grid"><Col xs={12} sm={8}><Statistic title="节点" value={`${data?.health.activeNodes ?? 0}/${data?.health.totalNodes ?? 0}`} suffix="活跃" /></Col><Col xs={12} sm={8}><Statistic title="进程 RSS" value={formatBytes(data?.runtime.residentBytes)} /></Col><Col xs={12} sm={8}><Statistic title="Heap" value={formatBytes(data?.runtime.heapAllocBytes)} /></Col><Col xs={12} sm={8}><Statistic title="Goroutine" value={formatNumber(data?.runtime.goroutines)} /></Col><Col xs={12} sm={8}><Statistic title="队列深度" value={formatNumber(queue)} /></Col><Col xs={12} sm={8}><Statistic title="当前并发" value={formatNumber(data?.runtime.activeRequests)} /></Col></Row></Card>;
+  return <MonCard title="网关健康" loading={state.loading} extra={data ? <span className={cx("text-sm", state.stale ? "text-warning" : "text-muted-foreground")}>{state.stale ? "数据已过期" : `更新于 ${new Date(data.asOf * 1000).toLocaleTimeString()}`}</span> : null}>{cardError(state.error)}<div className="mb-3 flex flex-wrap items-center gap-2"><Badge variant={data?.health.level === "healthy" ? "success" : data?.health.level === "critical" ? "destructive" : "warning"}>{data?.health.level === "healthy" ? "健康" : "需要关注"}</Badge>{data?.health.reasons?.map(reason => <Badge key={reason} variant="warning">{reason}</Badge>)}</div><div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3"><MonStat title="节点" value={`${data?.health.activeNodes ?? 0}/${data?.health.totalNodes ?? 0}`} suffix="活跃" /><MonStat title="进程 RSS" value={formatBytes(data?.runtime.residentBytes)} /><MonStat title="Heap" value={formatBytes(data?.runtime.heapAllocBytes)} /><MonStat title="Goroutine" value={formatNumber(data?.runtime.goroutines)} /><MonStat title="队列深度" value={formatNumber(queue)} /><MonStat title="当前并发" value={formatNumber(data?.runtime.activeRequests)} /></div></MonCard>;
 };
 
 export const DatabaseHealthPanel: React.FC = () => {
@@ -134,5 +144,6 @@ export const DatabaseHealthPanel: React.FC = () => {
   useIntervalRefresh(undefined, 15000, load);
   const data = state.data;
   const health = data?.health.level ?? "healthy";
-  return <Card title="数据库健康" loading={state.loading} extra={<Button type="link" onClick={() => navigate("/systems/database")}>查看详情</Button>}>{cardError(state.error)}<Space wrap className="dashboard-health-status"><Badge status={health === "healthy" ? "success" : health === "critical" ? "error" : "warning"} text={health === "healthy" ? "健康" : health === "critical" ? "严重" : "注意"} />{data?.health.reasons?.map(reason => <Tag key={reason} color="gold">{reason}</Tag>)}</Space><Progress percent={Math.round((data?.pool.usageRate ?? 0) * 100)} status={(data?.pool.usageRate ?? 0) >= .8 ? "exception" : "active"} format={value => `连接池 ${value}%`} /><Row gutter={[SPACE.space3, SPACE.space3]}><Col span={12}><Statistic title="锁等待" value={formatNumber(data?.activity.lockWaits)} /></Col><Col span={12}><Statistic title="缓存命中率" value={`${Math.round((data?.database.cacheHitRate ?? 0) * 100)}%`} /></Col></Row></Card>;
+  const poolPercent = Math.round((data?.pool.usageRate ?? 0) * 100);
+  return <MonCard title="数据库健康" loading={state.loading} extra={<Button variant="link" size="sm" onClick={() => navigate("/systems/database")}>查看详情</Button>}>{cardError(state.error)}<div className="mb-3 flex flex-wrap items-center gap-2"><Badge variant={health === "healthy" ? "success" : health === "critical" ? "destructive" : "warning"}>{health === "healthy" ? "健康" : health === "critical" ? "严重" : "注意"}</Badge>{data?.health.reasons?.map(reason => <Badge key={reason} variant="warning">{reason}</Badge>)}</div><div className="mb-3"><div className="mb-1 text-sm">连接池 {poolPercent}%</div><Progress value={poolPercent} className={(data?.pool.usageRate ?? 0) >= .8 ? "[&>div]:bg-destructive" : undefined} /></div><div className="grid grid-cols-2 gap-3"><MonStat title="锁等待" value={formatNumber(data?.activity.lockWaits)} /><MonStat title="缓存命中率" value={`${Math.round((data?.database.cacheHitRate ?? 0) * 100)}%`} /></div></MonCard>;
 };

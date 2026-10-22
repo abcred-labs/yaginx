@@ -22,3 +22,7 @@
 audit-*.json
 **/bin/
 **/obj/
+
+# Playwright
+test-results/
+playwright-report/

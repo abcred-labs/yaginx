@@ -1,17 +1,24 @@
-import { Button, DatePicker, Input, Segmented, Select, Space, Switch, Tag } from "antd";
+import { Badge, Button, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Switch } from "@modra/react";
 import dayjs, { type Dayjs } from "dayjs";
+import { Search } from "@/ui/icons";
 import React, { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { DataToolbar, WorkbenchPage } from "@/componets/Workbench";
+import { DataToolbar, WorkbenchPage } from "@/ui/workbench";
+import { MonDateTimeRange, MonSegmented } from "@/ui/monParts";
 import { HostTrafficFilters, hostTrafficRangePresets, rangeFromPicker, trafficGrainLabel } from "./shared";
-import { SPACE } from '@/utils/spacing';
-import "./hostTraffic.less";
 
 export const navigationItems = [
   { path: "/monitor/traffic/request-trend", label: "趋势" },
   { path: "/monitor/traffic/request-contribution", label: "贡献" },
   { path: "/monitor/traffic/bandwidth", label: "带宽" },
   { path: "/monitor/traffic/list", label: "明细" }
+];
+
+const autoRefreshOptions = [
+  { value: 0, label: "不自动刷新" },
+  { value: 10, label: "10 秒" },
+  { value: 30, label: "30 秒" },
+  { value: 60, label: "60 秒" }
 ];
 
 interface HostTrafficPageProps {
@@ -74,52 +81,54 @@ export const HostTrafficPage: React.FC<HostTrafficPageProps> = ({
       eyebrow="ANALYTICS / HOST TRAFFIC"
       title={title}
       description={description}
-      extra={<Button onClick={onRefresh}>刷新数据</Button>}
-      className="host-traffic-page"
+      extra={<Button variant="outline" onClick={onRefresh}>刷新数据</Button>}
+      className="!gap-2"
     >
-      <Segmented
-        className="host-traffic-page__nav"
-        block
-        value={navigationItems.find((item) => location.pathname.endsWith(item.path.split("/").pop() || ""))?.path ?? location.pathname}
-        options={navigationItems.map((item) => ({ label: item.label, value: item.path }))}
-        onChange={(value) => navigate({ pathname: String(value), search: location.search })}
-      />
-      <DataToolbar className="host-traffic-page__toolbar">
-        <Input.Search
-          placeholder="Host（精确匹配）"
-          value={hostInput}
-          onChange={(event) => setHostInput(event.target.value)}
-          onSearch={applyHost}
-          style={{ width: 220 }}
+      <div className="max-w-[620px] max-md:w-full max-md:overflow-x-auto">
+        <MonSegmented
+          block
+          ariaLabel="流量分析导航"
+          value={navigationItems.find((item) => location.pathname.endsWith(item.path.split("/").pop() || ""))?.path ?? location.pathname}
+          options={navigationItems.map((item) => ({ label: item.label, value: item.path }))}
+          onChange={(value) => navigate({ pathname: String(value), search: location.search })}
         />
-        <DatePicker.RangePicker
-          presets={rangePresets}
-          showTime={{ format: "HH:mm" }}
-          format="YYYY-MM-DD HH:mm"
-          value={range}
-          onChange={(value) => updateRange(value as [Dayjs | null, Dayjs | null] | null)}
-          style={{ width: 308 }}
-        />
-        <Space size={SPACE.space1}>
-          <Select
-            aria-label="自动刷新间隔"
-            style={{ width: 116 }}
-            value={autoRefreshSeconds}
-            onChange={onAutoRefreshSecondsChange}
-            options={[
-              { value: 0, label: "不自动刷新" },
-              { value: 10, label: "10 秒" },
-              { value: 30, label: "30 秒" },
-              { value: 60, label: "60 秒" }
-            ]}
+      </div>
+      <DataToolbar className="rounded-md border border-border bg-card p-2">
+        <div className="flex items-center gap-1">
+          <Input
+            placeholder="Host（精确匹配）"
+            aria-label="Host"
+            value={hostInput}
+            onChange={(event) => setHostInput(event.target.value)}
+            onKeyDown={(event) => { if (event.key === "Enter") applyHost(); }}
+            className="w-[220px]"
           />
-          <Switch checked={autoRefreshEnabled} onChange={onAutoRefreshEnabledChange} />
-        </Space>
-        {grain ? <Space size={SPACE.space1} className="host-traffic-page__status">
-          <Tag color="blue">按{trafficGrainLabel(grain)}聚合</Tag>
-          {coverageState === "collecting" ? <Tag color="gold">当前桶实时汇总中</Tag> : null}
-          {coverageState === "incomplete" ? <Tag color="gold">数据覆盖不完整</Tag> : null}
-        </Space> : null}
+          <Button variant="outline" size="icon" aria-label="搜索 Host" onClick={applyHost}><Search className="size-4" aria-hidden="true" /></Button>
+        </div>
+        <MonDateTimeRange
+          ariaLabel="统计时间范围"
+          clearable={false}
+          className="w-[308px] max-w-[calc(100vw-56px)]"
+          presets={rangePresets}
+          value={range}
+          onChange={updateRange}
+        />
+        <div className="flex items-center gap-1">
+          <Select value={String(autoRefreshSeconds)} onValueChange={(value) => onAutoRefreshSecondsChange(Number(value))}>
+            <SelectTrigger aria-label="自动刷新间隔" className="w-[116px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {autoRefreshOptions.map((option) => <SelectItem key={option.value} value={String(option.value)}>{option.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Switch aria-label="启用自动刷新" checked={autoRefreshEnabled} onCheckedChange={onAutoRefreshEnabledChange} />
+        </div>
+        {grain ? <div className="flex items-center gap-1 text-muted-foreground">
+          <Badge variant="info">按{trafficGrainLabel(grain)}聚合</Badge>
+          {coverageState === "collecting" ? <Badge variant="warning">当前桶实时汇总中</Badge> : null}
+          {coverageState === "incomplete" ? <Badge variant="warning">数据覆盖不完整</Badge> : null}
+        </div> : null}
       </DataToolbar>
       {children}
     </WorkbenchPage>

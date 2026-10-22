@@ -1,9 +1,7 @@
-import { SPACE } from "@/utils/spacing";
 import { getAnalyticsContributions, type IAnalyticsContributions } from "@/api/analytics";
 import { chartPalette, useAppearance } from "@/appearance";
-import EChartPanel from "@/componets/charts/EChartPanel";
+import EChartPanel from "@/components/charts/EChartPanel";
 import { formatNumber, formatPercent } from "@/utils/formatters";
-import { Col, Row } from "antd";
 import React, { useEffect, useState } from "react";
 import { HostTrafficPage } from "./HostTrafficPage";
 import { buildRequestContributionOption, buildRequestRankOption } from "./chartOptions";
@@ -72,8 +70,8 @@ const RequestContribution: React.FC = () => {
           }
         ]}
       />
-      <Row gutter={[SPACE.space3, SPACE.space3]}>
-        <Col xs={24} xl={14}>
+      <div className="grid grid-cols-1 gap-3 xl:grid-cols-24">
+        <div className="xl:col-span-14">
           <EChartPanel
             title="Top 5 请求贡献趋势"
             hint={`按${trafficGrainLabel(grain)}聚合；其余 Host 合并为“其他”。`}
@@ -84,8 +82,8 @@ const RequestContribution: React.FC = () => {
             emptyHeight={180}
             emptyDescription="当前筛选范围内暂无 Host 请求贡献"
           />
-        </Col>
-        <Col xs={24} xl={10}>
+        </div>
+        <div className="xl:col-span-10">
           <EChartPanel
             title="Top 10 请求排行"
             loading={loading}
@@ -95,8 +93,8 @@ const RequestContribution: React.FC = () => {
             emptyHeight={180}
             emptyDescription="当前筛选范围内暂无排行数据"
           />
-        </Col>
-      </Row>
+        </div>
+      </div>
     </HostTrafficPage>
   );
 };

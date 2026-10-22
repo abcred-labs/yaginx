@@ -1,8 +1,10 @@
 import { ipBlacklistLookup, ipBlacklistUpsert } from "@/api/accessControl";
 import { requestHistoryGet, requestHistorySearch, type IRequestHistoryDetail, type IRequestHistoryListItem } from "@/api/requestHistory";
-import { LocalTime } from "@/componets/LocalTime";
-import PagedTableList from "@/componets/PagedTableList";
-import { renderCompactTextCell } from "@/componets/tableCompact";
+import { LocalTime } from "@/components/LocalTime";
+import ServerDataTable from "@/ui/ServerDataTable";
+import { ClearableSelect } from "@/ui/reqFilters";
+import { notifySuccess } from "@/ui/notify";
+import { DataToolbar, SectionCard, WorkbenchPage } from "@/ui/workbench";
 import IPProfileDrawer, { type IPBlacklistScope } from "../IPProfileDrawer";
 import {
   canDecompressResponseBody,
@@ -12,17 +14,37 @@ import {
 import { requestHistoryDetailViewState } from "./requestHistoryDetailState";
 import { RequestStatusPopover } from "./RequestStatusPopover";
 import { errorCategoryLabel, statusSourceLabel } from "./requestStatusExplanation";
-import { DownloadOutlined, MoreOutlined } from "@ant-design/icons";
-import { DataToolbar, SectionCard, WorkbenchPage } from "@/componets/Workbench";
-import { Button, DatePicker, Descriptions, Drawer, Dropdown, Empty, Input, InputNumber, notification, Select, Space, Spin, Tag, Typography } from "antd";
-import dayjs, { Dayjs } from "dayjs";
+import {
+  Badge,
+  Button,
+  CopyableText,
+  DateTimeRangePicker,
+  Descriptions,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  Empty,
+  Input,
+  InputNumber,
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  Spin,
+  TruncatedText,
+  type BadgeProps,
+  type DateTimeRange,
+  type DescriptionItem
+} from "@modra/react";
+import type { ColumnDef } from "@tanstack/react-table";
+import { Check, Copy, Download, MoreHorizontal, Search } from "@/ui/icons";
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { SPACE } from "@/utils/spacing";
 import { formatBytes, formatNumber } from "@/utils/formatters";
-import "./requestHistory.less";
 
-const { Paragraph, Text } = Typography;
+type BadgeVariant = BadgeProps["variant"];
 
 const exceptionStageText: Record<string, string> = {
   BeforeYarpRoute: "YARP 前",
@@ -71,33 +93,33 @@ const formatStage = (value?: string, labels: Record<string, string> = proxyStage
   return labels[value] ?? value;
 };
 
-const statusColor = (statusCode: number) => {
+const statusVariant = (statusCode: number): BadgeVariant => {
   if (statusCode >= 600) {
-    return "magenta";
+    return "default";
   }
   if (statusCode >= 500 || statusCode <= 0) {
-    return "red";
+    return "destructive";
   }
   if (statusCode >= 400) {
-    return "orange";
+    return "warning";
   }
   if (statusCode >= 300) {
-    return "blue";
+    return "info";
   }
-  return "green";
+  return "success";
 };
 
-const sourceColor = (statusSource?: string) => {
+const sourceVariant = (statusSource?: string): BadgeVariant => {
   switch (statusSource) {
     case "Upstream":
-      return "blue";
+      return "info";
     case "ClientCanceled":
-      return "orange";
+      return "warning";
     case "YaginxProxy":
     case "YaginxPipeline":
-      return "magenta";
-    default:
       return "default";
+    default:
+      return "secondary";
   }
 };
 
@@ -145,30 +167,66 @@ const formatLongJsonHeader = (value: string) => {
   }
 };
 
+/** 复制按钮：写入剪贴板后短暂显示已复制。 */
+const CopyButton: React.FC<{ text: string; className?: string }> = ({ text, className }) => {
+  const [copied, setCopied] = useState(false);
+  useEffect(() => {
+    if (!copied) return;
+    const timer = window.setTimeout(() => setCopied(false), 1500);
+    return () => window.clearTimeout(timer);
+  }, [copied]);
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon"
+      className={className}
+      aria-label={copied ? "已复制" : "复制"}
+      onClick={() => {
+        void navigator.clipboard?.writeText(text).then(() => setCopied(true));
+      }}
+    >
+      {copied ? <Check className="size-4 text-success" aria-hidden="true" /> : <Copy className="size-4" aria-hidden="true" />}
+    </Button>
+  );
+};
+
+const CODE_BLOCK_CLASS = "max-h-[260px] overflow-auto whitespace-pre-wrap break-words rounded-md border border-border bg-muted p-3 pe-10 font-mono text-xs";
+
+/** 大段文本块：右上角带复制按钮。 */
+const CodeBlock: React.FC<{ text: string; tone?: "default" | "danger"; className?: string }> = ({ text, tone = "default", className }) => (
+  <div className={`relative ${className ?? ""}`}>
+    <pre className={`${CODE_BLOCK_CLASS} ${tone === "danger" ? "border-destructive/40 bg-destructive/10" : ""}`}>{text}</pre>
+    <CopyButton text={text} className="absolute end-1 top-1 size-7" />
+  </div>
+);
+
 const RequestHeaderValue: React.FC<{ name: string; values?: string[] }> = ({ name, values }) => {
   const [expanded, setExpanded] = useState(false);
   const rawValue = (values ?? []).join(", ");
   useEffect(() => setExpanded(false), [rawValue]);
 
   if (name.toLowerCase() === "content-length") {
-    return <Text copyable={{ text: rawValue }}>{(values ?? []).map(formatContentLengthValue).join(", ")}</Text>;
+    return <CopyableText value={rawValue}>{(values ?? []).map(formatContentLengthValue).join(", ")}</CopyableText>;
   }
 
   const formattedJson = formatLongJsonHeader(rawValue);
   if (formattedJson === null) {
-    return <Text copyable={{ text: rawValue }}>{rawValue}</Text>;
+    return <CopyableText value={rawValue}>{rawValue}</CopyableText>;
   }
 
   const preview = `${rawValue.slice(0, 120)}${rawValue.length > 120 ? "…" : ""}`;
   return (
-    <div className="request-history-header-json">
-      <Text
-        copyable={{ text: rawValue }}
-        className={`request-history-header-json__value${expanded ? " request-history-header-json__value--expanded" : " request-history-header-json__value--preview"}`}
-      >
-        {expanded ? formattedJson : preview}
-      </Text>
-      <Button type="link" size="small" onClick={() => setExpanded((current) => !current)}>
+    <div className="min-w-0">
+      <div className="flex items-start gap-1">
+        {expanded ? (
+          <pre className="max-h-60 min-w-0 flex-1 overflow-auto whitespace-pre-wrap break-words rounded-sm border border-border bg-muted p-2 font-mono">{formattedJson}</pre>
+        ) : (
+          <span className="block max-h-[3.2em] min-w-0 flex-1 overflow-hidden whitespace-pre-wrap [overflow-wrap:anywhere]">{preview}</span>
+        )}
+        <CopyButton text={rawValue} className="size-6 shrink-0" />
+      </div>
+      <Button type="button" variant="link" size="sm" className="h-auto p-0" onClick={() => setExpanded((current) => !current)}>
         {expanded ? "收起" : "展开 JSON"}
       </Button>
     </div>
@@ -178,15 +236,15 @@ const RequestHeaderValue: React.FC<{ name: string; values?: string[] }> = ({ nam
 const renderHeaders = (headers: Record<string, string[]> | null | undefined) => {
   const entries = Object.entries(headers ?? {});
   if (entries.length === 0) {
-    return <Text type="secondary">无</Text>;
+    return <span className="text-muted-foreground">无</span>;
   }
 
   return (
-    <div className="request-history-header-list">
+    <div className="grid gap-1">
       {entries.map(([key, values]) => (
-        <div key={key} className="request-history-header-row">
-          <Text strong className="request-history-header-name">{key}</Text>
-          <div className="request-history-header-value">
+        <div key={key} className="grid grid-cols-[150px_minmax(0,1fr)] items-start gap-2">
+          <span className="min-w-0 font-semibold [overflow-wrap:anywhere]">{key}</span>
+          <div className="min-w-0 [overflow-wrap:anywhere]">
             <RequestHeaderValue name={key} values={values} />
           </div>
         </div>
@@ -228,34 +286,20 @@ const safeFilenamePart = (value: string) => value.trim().replace(/[^a-zA-Z0-9._-
 const BodyBlock = ({ title, value, truncated, emptyText }: { title: string; value?: string; truncated?: boolean; emptyText: string }) => {
   if (!value) {
     return (
-      <div style={{ marginTop: "var(--space-3)" }}>
-        <Text strong>{title}</Text>
-        <Text type="secondary" style={{ display: "block", marginTop: "var(--space-1)" }}>{emptyText}</Text>
+      <div className="mt-3">
+        <span className="font-semibold">{title}</span>
+        <span className="mt-1 block text-muted-foreground">{emptyText}</span>
       </div>
     );
   }
 
   return (
-    <div style={{ marginTop: "var(--space-3)" }}>
-      <Space size={SPACE.space2} style={{ marginBottom: "var(--space-1)" }}>
-        <Text strong>{title}</Text>
-        {truncated ? <Tag color="orange">已截断</Tag> : null}
-      </Space>
-      <Paragraph
-        copyable
-        style={{
-          whiteSpace: "pre-wrap",
-          wordBreak: "break-word",
-          maxHeight: 260,
-          overflow: "auto",
-          padding: "var(--space-3)",
-          background: "#f7f8fa",
-          border: "1px solid #e5e7eb",
-          borderRadius: 6
-        }}
-      >
-        {decodeBody(value)}
-      </Paragraph>
+    <div className="mt-3">
+      <div className="mb-1 flex items-center gap-2">
+        <span className="font-semibold">{title}</span>
+        {truncated ? <Badge variant="warning">已截断</Badge> : null}
+      </div>
+      <CodeBlock text={decodeBody(value)} />
     </div>
   );
 };
@@ -287,13 +331,13 @@ const ResponseBodyBlock = ({
 
   if (!value) {
     return (
-      <div style={{ marginTop: "var(--space-3)" }}>
-        <Text strong>Response Body</Text>
-        <Text type="secondary" style={{ display: "block", marginTop: "var(--space-1)" }}>
+      <div className="mt-3">
+        <span className="font-semibold">Response Body</span>
+        <span className="mt-1 block text-muted-foreground">
           {statusCode !== undefined && statusCode >= 200 && statusCode < 300
             ? "成功响应默认不采集 Response Body，仅保留元数据和 Header，避免保存敏感或过大的内容。"
             : "该响应未采集 Response Body。"}
-        </Text>
+        </span>
       </div>
     );
   }
@@ -314,33 +358,19 @@ const ResponseBodyBlock = ({
   const displayedBody = canDecompress && view === "raw" ? value : (canDecompress ? decodedBody : decodeBody(value));
 
   return (
-    <div style={{ marginTop: "var(--space-3)" }}>
-      <Space size={SPACE.space2} style={{ marginBottom: "var(--space-1)" }} wrap>
-        <Text strong>Response Body</Text>
-        {truncated ? <Tag color="orange">已截断</Tag> : null}
-        {canDecompress ? <Tag color="blue">压缩: {encodings.join(", ")}</Tag> : null}
+    <div className="mt-3">
+      <div className="mb-1 flex flex-wrap items-center gap-2">
+        <span className="font-semibold">Response Body</span>
+        {truncated ? <Badge variant="warning">已截断</Badge> : null}
+        {canDecompress ? <Badge variant="info">压缩: {encodings.join(", ")}</Badge> : null}
         {canDecompress ? (
-          <Button size="small" loading={decoding} onClick={view === "decoded" ? () => setView("raw") : decompress}>
+          <Button size="sm" variant="outline" loading={decoding} onClick={view === "decoded" ? () => setView("raw") : decompress}>
             {view === "decoded" ? "查看原始" : "解压查看"}
           </Button>
         ) : null}
-      </Space>
-      {decodeError ? <Text type="danger" style={{ display: "block", marginBottom: "var(--space-1)" }}>{decodeError}</Text> : null}
-      <Paragraph
-        copyable
-        style={{
-          whiteSpace: "pre-wrap",
-          wordBreak: "break-word",
-          maxHeight: 260,
-          overflow: "auto",
-          padding: "var(--space-3)",
-          background: "#f7f8fa",
-          border: "1px solid #e5e7eb",
-          borderRadius: 6
-        }}
-      >
-        {displayedBody}
-      </Paragraph>
+      </div>
+      {decodeError ? <span className="mb-1 block text-destructive">{decodeError}</span> : null}
+      <CodeBlock text={displayedBody} />
     </div>
   );
 };
@@ -354,40 +384,43 @@ const RequestIPCell = ({
   onProfile: (ip: string) => void;
   onBlacklist: (ip: string) => void;
 }) => {
-  const [hovered, setHovered] = useState(false);
   const normalized = ip?.trim();
   if (!normalized) {
     return <>-</>;
   }
   return (
-    <Space size={SPACE.space0} onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}>
-      <Typography.Text>{normalized}</Typography.Text>
-      <Dropdown
-        trigger={["click"]}
-        menu={{
-          items: [
-            { key: "profile", label: "IP 详情" },
-            { key: "blacklist", label: "添加到黑名单", danger: true }
-          ],
-          onClick: ({ key }) => key === "profile" ? onProfile(normalized) : onBlacklist(normalized)
-        }}
-      >
-        <Button
-          aria-label={`${normalized} 操作`}
-          type="text"
-          size="small"
-          icon={<MoreOutlined />}
-          style={{ opacity: hovered ? 1 : 0, paddingInline: 3, transition: "opacity 120ms ease" }}
-        />
-      </Dropdown>
-    </Space>
+    <span className="group inline-flex items-center gap-0.5">
+      <span>{normalized}</span>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            aria-label={`${normalized} 操作`}
+            className="size-6 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100"
+          >
+            <MoreHorizontal className="size-4" aria-hidden="true" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start">
+          <DropdownMenuItem onSelect={() => onProfile(normalized)}>IP 详情</DropdownMenuItem>
+          <DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={() => onBlacklist(normalized)}>添加到黑名单</DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </span>
   );
 };
+
+const compactText = (value: unknown, maxWidth: number) =>
+  typeof value === "string" && value ? <TruncatedText className="inline-block align-bottom" style={{ maxWidth }}>{value}</TruncatedText> : "-";
 
 export interface RequestHistoryListProps {
   fixedHost?: string;
   embedded?: boolean;
 }
+
+const STATUS_PATTERN = /^[0-9x]{3}$/i;
 
 export const RequestHistoryList: React.FC<RequestHistoryListProps> = ({ fixedHost, embedded = false }) => {
   const navigate = useNavigate();
@@ -413,9 +446,9 @@ export const RequestHistoryList: React.FC<RequestHistoryListProps> = ({ fixedHos
   const [errorCode, setErrorCode] = useState<string>(() => searchParams.get("errorCode") || "");
   const [clientIp, setClientIp] = useState<string>("");
   const [userAgent, setUserAgent] = useState<string>("");
-  const [timeRange, setTimeRange] = useState<[Dayjs | null, Dayjs | null] | null>(() => {
+  const [timeRange, setTimeRange] = useState<DateTimeRange | undefined>(() => {
     const from = initialNumber("from"); const to = initialNumber("to");
-    return from && to ? [dayjs.unix(from), dayjs.unix(to)] : null;
+    return from && to ? { from: new Date(from * 1000), to: new Date(to * 1000) } : undefined;
   });
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -434,7 +467,7 @@ export const RequestHistoryList: React.FC<RequestHistoryListProps> = ({ fixedHos
       setStatusCodePattern("");
       return;
     }
-    setStatusCodePatternInvalid(!/^[0-9x]{3}$/i.test(value.trim()));
+    setStatusCodePatternInvalid(!STATUS_PATTERN.test(value.trim()));
   };
 
   const applyStatusCodePattern = (value: string) => {
@@ -444,7 +477,7 @@ export const RequestHistoryList: React.FC<RequestHistoryListProps> = ({ fixedHos
       setStatusCodePattern("");
       return;
     }
-    if (!/^[0-9x]{3}$/i.test(pattern)) {
+    if (!STATUS_PATTERN.test(pattern)) {
       setStatusCodePatternInvalid(true);
       return;
     }
@@ -479,14 +512,14 @@ export const RequestHistoryList: React.FC<RequestHistoryListProps> = ({ fixedHos
     if (userAgent.trim()) {
       filters.userAgent = userAgent.trim();
     }
-    if (timeRange && timeRange[0] && timeRange[1]) {
-      filters.from = Math.floor(timeRange[0].valueOf() / 1000);
-      filters.to = Math.floor(timeRange[1].valueOf() / 1000);
+    if (timeRange?.from && timeRange?.to) {
+      filters.from = Math.floor(timeRange.from.getTime() / 1000);
+      filters.to = Math.floor(timeRange.to.getTime() / 1000);
     }
     return filters;
   }, [clientIp, errorCategory, errorCode, fixedHost, host, statusCodePattern, statusSource, timeRange, upstreamStatusCode, userAgent, websiteId]);
 
-  const openDetail = async (record: any) => {
+  const openDetail = async (record: IRequestHistoryListItem) => {
     setDetailOpen(true);
     setDetailLoading(true);
     setDetail(null);
@@ -521,7 +554,7 @@ export const RequestHistoryList: React.FC<RequestHistoryListProps> = ({ fixedHos
     try {
       const response = await ipBlacklistUpsert({ cidr });
       const label = scope === "network" ? "网络段" : "IP";
-      notification.success({ message: `已添加${label}到黑名单`, description: `${response.data.cidr} 将在所有节点热更新。` });
+      notifySuccess(`已添加${label}到黑名单`, `${response.data.cidr} 将在所有节点热更新。`);
     } catch {
       // FetchJson already presents the service error.
     }
@@ -532,226 +565,213 @@ export const RequestHistoryList: React.FC<RequestHistoryListProps> = ({ fixedHos
     downloadJson(`request-history-${safeFilenamePart(hostPart)}.json`, currentPageRecords);
   };
 
-  const initTableColumn = (columnsArray: any[]) => {
-    columnsArray.push({
-      title: "操作",
-      key: "operation",
-      width: 76,
-      render: (_: any, record: any) => <Button size="small" onClick={() => openDetail(record)}>详情</Button>
-    });
-    columnsArray.push({
-      title: "时间",
-      dataIndex: "requestAt",
-      key: "requestAt",
-      width: 184,
-      render: (_: any, record: any) => <span style={{ whiteSpace: "nowrap" }}><LocalTime timestamp={record.requestAt} /></span>
-    });
-    columnsArray.push({
-      title: "客户端IP",
-      dataIndex: "clientIp",
-      key: "clientIp",
-      width: 150,
-      render: (value: string) => <RequestIPCell ip={value} onProfile={openIPProfile} onBlacklist={addToBlacklist} />
-    });
-    columnsArray.push({ title: "方法", dataIndex: "method", key: "method", width: 76 });
-    columnsArray.push({ title: "Host", dataIndex: "host", key: "host", width: 176, render: (value: string) => value ? <Button type="link" style={{ padding: 0 }} onClick={() => navigate(`/resource/hosts/view/${encodeURIComponent(value)}`)}>{renderCompactTextCell(value, { emptyText: "-", maxWidth: 160 })}</Button> : "-" });
-    columnsArray.push({ title: "Path", dataIndex: "path", key: "path", width: 206, render: (value: string) => renderCompactTextCell(value, { emptyText: "-", maxWidth: 190 }) });
-    columnsArray.push({
-      title: "最终状态",
-      dataIndex: "statusCode",
-      key: "statusCode",
-      width: 96,
-      render: (value: number, record: any) => <RequestStatusPopover field="final" value={value} record={record} color={statusColor(value)} />
-    });
-    columnsArray.push({
-      title: "上游状态",
-      dataIndex: "upstreamStatusCode",
-      key: "upstreamStatusCode",
-      width: 96,
-      render: (value: number | null | undefined, record: any) => <RequestStatusPopover field="upstream" value={value} record={record} color={statusColor(value ?? 0)} />
-    });
-    columnsArray.push({ title: "耗时", dataIndex: "durationMs", key: "durationMs", width: 92, render: (value: number) => `${value}ms` });
-    columnsArray.push({ title: "User-Agent", dataIndex: "userAgent", key: "userAgent", width: 220, render: (value: string) => renderCompactTextCell(value, { emptyText: "-", maxWidth: 204 }) });
-    columnsArray.push({
-      title: "来源",
-      dataIndex: "statusSource",
-      key: "statusSource",
-      width: 108,
-      render: (value: string) => value ? <Tag color={sourceColor(value)}>{formatSource(value)}</Tag> : "-"
-    });
-    columnsArray.push({
-      title: "错误分类",
-      dataIndex: "errorCategory",
-      key: "errorCategory",
-      width: 138,
-      render: (value: string) => value ? <Tag color="volcano">{formatErrorCategory(value)}</Tag> : "-"
-    });
-    columnsArray.push({
-      title: "错误代码",
-      dataIndex: "errorCode",
-      key: "errorCode",
-      width: 156,
-      render: (value: string) => renderCompactTextCell(value, { emptyText: "-", maxWidth: 140 })
-    });
-    columnsArray.push({ title: "代理阶段", dataIndex: "proxyStage", key: "proxyStage", width: 110, render: (value: string) => formatStage(value) });
-    columnsArray.push({
-      title: "异常阶段",
-      dataIndex: "exceptionStage",
-      key: "exceptionStage",
-      width: 118,
-      render: (value: string) => value ? <Tag color="red">{formatStage(value, exceptionStageText)}</Tag> : "-"
-    });
-    columnsArray.push({
-      title: "Forwarder Error",
-      dataIndex: "forwarderError",
-      key: "forwarderError",
-      width: 220,
-      render: (value: string) => renderCompactTextCell(value, { emptyText: "-", maxWidth: 204 })
-    });
-  };
+  const columns = useMemo<ColumnDef<IRequestHistoryListItem, unknown>[]>(() => [
+    {
+      id: "operation",
+      header: "操作",
+      cell: ({ row }) => <Button size="sm" variant="outline" onClick={() => void openDetail(row.original)}>详情</Button>
+    },
+    {
+      id: "requestAt",
+      header: "时间",
+      meta: { minWidth: 168 },
+      cell: ({ row }) => <span className="whitespace-nowrap"><LocalTime timestamp={row.original.requestAt} /></span>
+    },
+    {
+      id: "clientIp",
+      header: "客户端IP",
+      meta: { minWidth: 150 },
+      cell: ({ row }) => <RequestIPCell ip={row.original.clientIp} onProfile={openIPProfile} onBlacklist={addToBlacklist} />
+    },
+    { id: "method", header: "方法", cell: ({ row }) => row.original.method },
+    {
+      id: "host",
+      header: "Host",
+      meta: { minWidth: 176 },
+      cell: ({ row }) => {
+        const value = row.original.host;
+        return value ? (
+          <Button type="button" variant="link" className="h-auto p-0" onClick={() => navigate(`/resource/hosts/view/${encodeURIComponent(value)}`)}>
+            {compactText(value, 160)}
+          </Button>
+        ) : "-";
+      }
+    },
+    { id: "path", header: "Path", meta: { minWidth: 206 }, cell: ({ row }) => compactText(row.original.path, 190) },
+    {
+      id: "statusCode",
+      header: "最终状态",
+      cell: ({ row }) => <RequestStatusPopover field="final" value={row.original.statusCode} record={row.original} variant={statusVariant(row.original.statusCode)} />
+    },
+    {
+      id: "upstreamStatusCode",
+      header: "上游状态",
+      cell: ({ row }) => {
+        const value = row.original.upstreamStatusCode;
+        return <RequestStatusPopover field="upstream" value={value} record={row.original} variant={statusVariant(value ?? 0)} />;
+      }
+    },
+    { id: "durationMs", header: "耗时", cell: ({ row }) => `${row.original.durationMs}ms` },
+    { id: "userAgent", header: "User-Agent", meta: { minWidth: 220 }, cell: ({ row }) => compactText(row.original.userAgent, 204) },
+    {
+      id: "statusSource",
+      header: "来源",
+      cell: ({ row }) => row.original.statusSource ? <Badge variant={sourceVariant(row.original.statusSource)}>{formatSource(row.original.statusSource)}</Badge> : "-"
+    },
+    {
+      id: "errorCategory",
+      header: "错误分类",
+      meta: { minWidth: 138 },
+      cell: ({ row }) => row.original.errorCategory ? <Badge variant="warning">{formatErrorCategory(row.original.errorCategory)}</Badge> : "-"
+    },
+    { id: "errorCode", header: "错误代码", meta: { minWidth: 156 }, cell: ({ row }) => compactText(row.original.errorCode, 140) },
+    { id: "proxyStage", header: "代理阶段", cell: ({ row }) => formatStage(row.original.proxyStage) },
+    {
+      id: "exceptionStage",
+      header: "异常阶段",
+      cell: ({ row }) => row.original.exceptionStage ? <Badge variant="destructive">{formatStage(row.original.exceptionStage, exceptionStageText)}</Badge> : "-"
+    },
+    { id: "forwarderError", header: "Forwarder Error", meta: { minWidth: 220 }, cell: ({ row }) => compactText(row.original.forwarderError, 204) }
+    // 回调只依赖稳定的 setState / navigate / API，列定义无需随其重建
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  ], []);
+
+  const detailItems: DescriptionItem[] = detail ? [
+    { key: "requestAt", label: "时间", children: <LocalTime timestamp={detail.requestAt} /> },
+    { key: "duration", label: "耗时", children: `${detail.durationMs}ms` },
+    { key: "clientIp", label: "客户端 IP", children: detail.clientIp || "-" },
+    { key: "statusCode", label: "最终状态码", children: <Badge variant={statusVariant(detail.statusCode)}>{detail.statusCode}</Badge> },
+    { key: "upstream", label: "上游状态码", children: detail.upstreamStatusCode ? <Badge variant={statusVariant(detail.upstreamStatusCode)}>{detail.upstreamStatusCode}</Badge> : "-" },
+    { key: "source", label: "状态来源", children: <Badge variant={sourceVariant(detail.statusSource)}>{formatSource(detail.statusSource)}</Badge> },
+    { key: "method", label: "方法", children: detail.method },
+    { key: "protocol", label: "协议", children: detail.protocol },
+    { key: "host", label: "Host", children: detail.host },
+    { key: "path", label: "Path", children: detail.path },
+    { key: "query", label: "Query", span: 2, children: detail.queryString || "-" },
+    { key: "url", label: "URL", span: 2, children: <span className="[overflow-wrap:anywhere]">{detail.url}</span> },
+    { key: "errorCategory", label: "错误分类", children: formatErrorCategory(detail.errorCategory) },
+    { key: "errorCode", label: "错误代码", children: detail.errorCode || "-" },
+    { key: "traceId", label: "Trace ID", span: 2, children: detail.traceId || "-" },
+    { key: "proxyStage", label: "代理阶段", children: formatStage(detail.proxyStage) },
+    { key: "exceptionStage", label: "异常阶段", children: formatStage(detail.exceptionStage, exceptionStageText) },
+    { key: "forwarderError", label: "Forwarder Error", span: 2, children: detail.forwarderError || "-" }
+  ] : [];
 
   const content = <>
       <DataToolbar>
-          <DatePicker.RangePicker
-            showTime
+          <DateTimeRangePicker
+            className="w-[308px]"
+            aria-label="时间范围"
+            placeholder="时间范围"
             value={timeRange}
-            onChange={(values) => setTimeRange(values as [Dayjs | null, Dayjs | null] | null)}
-            style={{ width: 308 }}
+            onValueChange={setTimeRange}
           />
-          {!fixedHost ? <Input placeholder="域名" value={host} onChange={(event) => setHost(event.target.value)} style={{ width: 180 }} /> : null}
-          <Input.Search
-            placeholder="最终状态码（如 4xx、4x3）"
-            value={statusCodePatternInput}
-            status={statusCodePatternInvalid ? "error" : undefined}
-            onChange={(event) => updateStatusCodePatternInput(event.target.value)}
-            onSearch={applyStatusCodePattern}
-            allowClear
-            style={{ width: 190 }}
-          />
+          {!fixedHost ? <Input className="w-[180px]" placeholder="域名" aria-label="域名" value={host} onChange={(event) => setHost(event.target.value)} /> : null}
+          <form
+            className="flex items-center gap-1"
+            onSubmit={(event) => { event.preventDefault(); applyStatusCodePattern(statusCodePatternInput); }}
+          >
+            <Input
+              className={`w-[190px] ${statusCodePatternInvalid ? "border-destructive" : ""}`}
+              placeholder="最终状态码（如 4xx、4x3）"
+              aria-label="最终状态码"
+              aria-invalid={statusCodePatternInvalid || undefined}
+              value={statusCodePatternInput}
+              onChange={(event) => updateStatusCodePatternInput(event.target.value)}
+            />
+            <Button type="submit" variant="outline" size="icon" aria-label="按状态码查询">
+              <Search className="size-4" aria-hidden="true" />
+            </Button>
+          </form>
           <InputNumber
+            className="w-[120px]"
             min={100}
             max={999}
-            precision={0}
+            step={1}
             placeholder="上游状态码"
+            aria-label="上游状态码"
             value={upstreamStatusCode}
-            onChange={(value) => setUpstreamStatusCode(typeof value === "number" ? value : null)}
-            style={{ width: 120 }}
+            onValueChange={(value) => setUpstreamStatusCode(typeof value === "number" ? Math.round(value) : null)}
           />
-          <Select
-            allowClear
-            placeholder="状态来源"
-            value={statusSource}
-            onChange={(value) => setStatusSource(value)}
-            options={statusSourceOptions}
-            style={{ width: 140 }}
-          />
-          <Select
-            allowClear
-            showSearch
-            placeholder="错误分类"
-            value={errorCategory}
-            onChange={(value) => setErrorCategory(value)}
-            options={errorCategoryOptions}
-            style={{ width: 180 }}
-          />
-          <Input placeholder="客户端 IP" value={clientIp} onChange={(event) => setClientIp(event.target.value)} style={{ width: 150 }} />
-          <Input placeholder="错误代码" value={errorCode} onChange={(event) => setErrorCode(event.target.value)} style={{ width: 160 }} />
-          <Input.Search placeholder="User-Agent" value={userAgent} onChange={(event) => setUserAgent(event.target.value)} onSearch={() => forceRefreshTable(Math.random() + 1)} style={{ width: 220 }} />
-          <Button onClick={() => forceRefreshTable(Math.random() + 1)}>刷新</Button>
-          <Button icon={<DownloadOutlined />} disabled={currentPageRecords.length === 0} onClick={exportCurrentPage}>导出当前页</Button>
+          <ClearableSelect className="w-[140px]" placeholder="状态来源" value={statusSource} onChange={setStatusSource} options={statusSourceOptions} />
+          <ClearableSelect className="w-[180px]" placeholder="错误分类" value={errorCategory} onChange={setErrorCategory} options={errorCategoryOptions} />
+          <Input className="w-[150px]" placeholder="客户端 IP" aria-label="客户端 IP" value={clientIp} onChange={(event) => setClientIp(event.target.value)} />
+          <Input className="w-[160px]" placeholder="错误代码" aria-label="错误代码" value={errorCode} onChange={(event) => setErrorCode(event.target.value)} />
+          <form
+            className="flex items-center gap-1"
+            onSubmit={(event) => { event.preventDefault(); forceRefreshTable((current) => current + 1); }}
+          >
+            <Input className="w-[220px]" placeholder="User-Agent" aria-label="User-Agent" value={userAgent} onChange={(event) => setUserAgent(event.target.value)} />
+            <Button type="submit" variant="outline" size="icon" aria-label="按 User-Agent 查询">
+              <Search className="size-4" aria-hidden="true" />
+            </Button>
+          </form>
+          <Button variant="outline" onClick={() => forceRefreshTable((current) => current + 1)}>刷新</Button>
+          <Button variant="outline" disabled={currentPageRecords.length === 0} onClick={exportCurrentPage}>
+            <Download className="size-4" aria-hidden="true" />
+            导出当前页
+          </Button>
       </DataToolbar>
-      <PagedTableList
-        pkFieldName="id"
+      <ServerDataTable<IRequestHistoryListItem>
+        columns={columns}
+        getRowId={(row) => String(row.id)}
         searchAction={requestHistorySearch}
-        realodTableData={refreshTable}
-        initTableColumn={initTableColumn}
-        externalFilterCondition={externalFilterCondition}
+        reloadKey={refreshTable}
+        filter={externalFilterCondition}
         onPageDataChange={setCurrentPageRecords}
       />
 
-      <Drawer
-        rootClassName="request-history-detail-drawer"
-        title="请求诊断详情"
-        width={760}
-        open={detailOpen}
-        onClose={() => setDetailOpen(false)}
-        styles={{
-          header: { padding: "var(--space-3) var(--space-4)" },
-          body: { padding: "var(--space-4)" }
-        }}
-      >
-        {detailViewState === "loading" ? <Spin /> : null}
-        {detailViewState === "missing" ? <Empty description="该请求记录已不存在或已被清理" /> : null}
-        {detailViewState === "detail" && detail ? (
-          <>
-            <Descriptions bordered size="small" column={2}>
-              <Descriptions.Item label="时间"><LocalTime timestamp={detail.requestAt} /></Descriptions.Item>
-              <Descriptions.Item label="耗时">{detail.durationMs}ms</Descriptions.Item>
-              <Descriptions.Item label="客户端 IP">{detail.clientIp || "-"}</Descriptions.Item>
-              <Descriptions.Item label="最终状态码"><Tag color={statusColor(detail.statusCode)}>{detail.statusCode}</Tag></Descriptions.Item>
-              <Descriptions.Item label="上游状态码">{detail.upstreamStatusCode ? <Tag color={statusColor(detail.upstreamStatusCode)}>{detail.upstreamStatusCode}</Tag> : "-"}</Descriptions.Item>
-              <Descriptions.Item label="状态来源"><Tag color={sourceColor(detail.statusSource)}>{formatSource(detail.statusSource)}</Tag></Descriptions.Item>
-              <Descriptions.Item label="方法">{detail.method}</Descriptions.Item>
-              <Descriptions.Item label="协议">{detail.protocol}</Descriptions.Item>
-              <Descriptions.Item label="Host">{detail.host}</Descriptions.Item>
-              <Descriptions.Item label="Path">{detail.path}</Descriptions.Item>
-              <Descriptions.Item label="Query" span={2}>{detail.queryString || "-"}</Descriptions.Item>
-              <Descriptions.Item label="URL" span={2}>{detail.url}</Descriptions.Item>
-              <Descriptions.Item label="错误分类">{formatErrorCategory(detail.errorCategory)}</Descriptions.Item>
-              <Descriptions.Item label="错误代码">{detail.errorCode || "-"}</Descriptions.Item>
-			  <Descriptions.Item label="Trace ID" span={2}>{detail.traceId || "-"}</Descriptions.Item>
-              <Descriptions.Item label="代理阶段">{formatStage(detail.proxyStage)}</Descriptions.Item>
-              <Descriptions.Item label="异常阶段">{formatStage(detail.exceptionStage, exceptionStageText)}</Descriptions.Item>
-              <Descriptions.Item label="Forwarder Error" span={2}>{detail.forwarderError || "-"}</Descriptions.Item>
-            </Descriptions>
+      <Sheet open={detailOpen} onOpenChange={setDetailOpen}>
+        <SheetContent className="w-full overflow-y-auto text-sm sm:max-w-[760px]">
+          <SheetHeader className="pe-8">
+            <SheetTitle>请求诊断详情</SheetTitle>
+            <SheetDescription className="sr-only">单条请求的状态、Header、异常与 Body 诊断信息。</SheetDescription>
+          </SheetHeader>
+          <div className="mt-4">
+            {detailViewState === "loading" ? <div className="flex justify-center"><Spin /></div> : null}
+            {detailViewState === "missing" ? <Empty description="该请求记录已不存在或已被清理" /> : null}
+            {detailViewState === "detail" && detail ? (
+              <>
+                <Descriptions bordered column={2} items={detailItems} />
 
-            <div style={{ marginTop: "var(--space-3)" }}>
-              <Text strong>请求 Header</Text>
-              <div style={{ marginTop: "var(--space-1)" }}>{renderHeaders(detail.requestHeaders)}</div>
-            </div>
+                <div className="mt-3">
+                  <span className="font-semibold">请求 Header</span>
+                  <div className="mt-1">{renderHeaders(detail.requestHeaders)}</div>
+                </div>
 
-            <div style={{ marginTop: "var(--space-3)" }}>
-              <Text strong>响应 Header</Text>
-              <div style={{ marginTop: "var(--space-1)" }}>{renderHeaders(detail.responseHeaders)}</div>
-            </div>
+                <div className="mt-3">
+                  <span className="font-semibold">响应 Header</span>
+                  <div className="mt-1">{renderHeaders(detail.responseHeaders)}</div>
+                </div>
 
-            {detail.exceptionType || detail.exceptionMessage ? (
-              <div style={{ marginTop: "var(--space-3)" }}>
-                <Text strong>异常信息</Text>
-                <Paragraph
-                  copyable
-                  style={{
-                    whiteSpace: "pre-wrap",
-                    wordBreak: "break-word",
-                    maxHeight: 260,
-                    overflow: "auto",
-                    padding: "var(--space-3)",
-                    background: "#fff7f7",
-                    border: "1px solid #fecaca",
-                    borderRadius: 6,
-                    marginTop: "var(--space-1)"
-                  }}
-                >
-                  {[detail.exceptionType, detail.exceptionMessage, detail.exceptionStackTrace].filter(Boolean).join("\n\n")}
-                </Paragraph>
-              </div>
+                {detail.exceptionType || detail.exceptionMessage ? (
+                  <div className="mt-3">
+                    <span className="font-semibold">异常信息</span>
+                    <CodeBlock
+                      tone="danger"
+                      className="mt-1"
+                      text={[detail.exceptionType, detail.exceptionMessage, detail.exceptionStackTrace].filter(Boolean).join("\n\n")}
+                    />
+                  </div>
+                ) : null}
+
+                <BodyBlock
+                  title="Request Body"
+                  value={detail.requestBodyBase64}
+                  truncated={detail.requestBodyTruncated}
+                  emptyText="该请求未采集 Request Body，可能没有正文或内容类型不在采集范围内。"
+                />
+                <ResponseBodyBlock
+                  value={detail.responseBodyBase64}
+                  headers={detail.responseHeaders}
+                  truncated={detail.responseBodyTruncated}
+                  statusCode={detail.statusCode}
+                />
+              </>
             ) : null}
-
-            <BodyBlock
-              title="Request Body"
-              value={detail.requestBodyBase64}
-              truncated={detail.requestBodyTruncated}
-              emptyText="该请求未采集 Request Body，可能没有正文或内容类型不在采集范围内。"
-            />
-            <ResponseBodyBlock
-              value={detail.responseBodyBase64}
-              headers={detail.responseHeaders}
-              truncated={detail.responseBodyTruncated}
-              statusCode={detail.statusCode}
-            />
-          </>
-        ) : null}
-      </Drawer>
+          </div>
+        </SheetContent>
+      </Sheet>
       <IPProfileDrawer
         open={profileOpen}
         loading={profileLoading}
@@ -762,7 +782,7 @@ export const RequestHistoryList: React.FC<RequestHistoryListProps> = ({ fixedHos
       />
     </>;
   if (embedded) {
-    return <SectionCard title="请求追踪" description={`完整追踪记录已限定为 ${fixedHost}。`}>{content}</SectionCard>;
+    return <SectionCard title="请求追踪" description={`完整追踪记录已限定为 ${fixedHost}。`}><div className="flex flex-col gap-4">{content}</div></SectionCard>;
   }
   return <WorkbenchPage eyebrow="ANALYTICS / REQUEST TRACE" title="请求追踪" description="定位上游返回、代理异常和请求上下文；选择任意记录查看完整诊断详情。">{content}</WorkbenchPage>;
 };

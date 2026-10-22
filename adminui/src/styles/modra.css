@@ -1,0 +1,17 @@
+@layer theme, base, legacy, components, utilities;
+@import "tailwindcss";
+@import "@modra/tailwind-preset";
+@source "../../node_modules/@modra/react/dist";
+
+/* 沿用 yaginx 既有的自托管字体 */
+@theme {
+  --font-sans: 'Noto Sans SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+}
+
+@layer base {
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+  }
+}

@@ -3,10 +3,11 @@ import React, { Suspense } from 'react';
 import { BrowserRouter, HashRouter, useRoutes } from 'react-router-dom';
 import { VITE_BASE_PATH } from '@c/constant';
 import routes, { IRouteConfig } from "./router/config";
-import Loading from './componets/Loading';
+import Loading from './components/Loading';
 import { RootAuthProvider } from './layouts/RootAuthProvider';
 import NoFound from './layouts/NoFond';
 import { AppearanceProvider } from './appearance';
+import { ConfirmDialogHost, Toaster } from '@modra/react';
 
 const App: React.FC = () => {
   // 主路由构建
@@ -27,6 +28,8 @@ const App: React.FC = () => {
           </RootAuthProvider>
         </HashRouter>
       </Suspense>
+      <Toaster />
+      <ConfirmDialogHost />
     </AppearanceProvider>
   );
 };

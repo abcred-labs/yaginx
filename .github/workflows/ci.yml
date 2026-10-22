@@ -76,6 +76,14 @@ jobs:
       - run: pnpm run api:check
       - run: pnpm test -- --run
       - run: pnpm run build
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm exec playwright test
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: adminui-playwright-report
+          path: adminui/playwright-report
+          retention-days: 7
 
   docs:
     runs-on: ubuntu-latest
