@@ -64,7 +64,7 @@ const RequestTrend: React.FC = () => {
   return (
     <HostTrafficPage
       title="请求趋势"
-      description="按分钟、小时或天查看请求变化，快速定位异常时段。"
+      description="全部 Host 的请求变化，快速定位异常时段；查看单个站点请从站点进入。"
       filters={filters}
       onFiltersChange={setFilters}
       onRefresh={refresh}

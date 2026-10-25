@@ -17,6 +17,7 @@ export const menus: IMenuLink[] = [
     icon: "ClusterOutlined",
     children: [
       { path: "/website", title: "站点", icon: "GlobalOutlined" },
+      { path: "/resource/hosts", title: "Host 目录", icon: "GlobalOutlined" },
       { path: "/access-control/ip-blacklist", title: "访问控制", icon: "StopOutlined" }
     ]
   },
@@ -34,11 +35,6 @@ export const menus: IMenuLink[] = [
         path: "/monitor/requestHistory/list",
         title: "请求追踪",
         icon: "ProfileOutlined",
-      },
-      {
-        path: "/resource/hosts",
-        title: "Host 资源",
-        icon: "GlobalOutlined",
       },
     ],
   },

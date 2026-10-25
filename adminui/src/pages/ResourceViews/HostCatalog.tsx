@@ -80,7 +80,7 @@ const HostCatalog: React.FC = () => {
     } }
   ];
   const paging = { pageIndex: (catalog?.paging.pageIndex ?? DEFAULT_PAGE_INDEX) - 1, pageSize: catalog?.paging.pageSize ?? DEFAULT_PAGE_SIZE };
-  return <WorkbenchPage eyebrow="OBSERVABILITY / HOSTS" title="Host 资源" description="汇总实际观测到的 Host、关联站点、证书和最近活动。配置请从关联站点进入。">
+  return <WorkbenchPage eyebrow="CONFIG / HOSTS" title="Host 目录" description="Host 资产清单：托管状态、关联站点、证书与自动申请、最近活动。点击 Host 查看流量与请求，配置请从关联站点进入。">
     <DataToolbar actions={<Button onClick={() => load(1)}>搜索</Button>}>
       <Input value={host} onChange={(event) => setHost(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") load(1); }} placeholder="Host（支持模糊搜索）" aria-label="Host" className="w-[280px]" />
       <Select value={status ?? ""} onValueChange={(value) => setStatus((value || undefined) as ResourceCatalogStatus | undefined)}>

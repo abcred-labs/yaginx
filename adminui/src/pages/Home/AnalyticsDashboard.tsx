@@ -39,7 +39,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ range, r
         <span className="text-sm text-muted-foreground">基础设施每 15 秒更新，流量面板跟随当前窗口刷新。</span>
         <Button onClick={() => navigate("/monitor/traffic/request-trend")}>打开流量分析</Button>
         <Button variant="outline" onClick={() => navigate("/monitor/requestHistory/list")}>查看请求追踪</Button>
-        <Button variant="outline" onClick={() => navigate("/resource/hosts")}>探索 Host 资源</Button>
+        <Button variant="outline" onClick={() => navigate("/resource/hosts")}>查看 Host 目录</Button>
       </div>
     </MonCard>
   </section>;

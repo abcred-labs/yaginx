@@ -67,7 +67,7 @@ const layouts: IRouteConfig[] = [
           },
           {
             routePath: 'resource/hosts',
-            title: 'Host 资源',
+            title: 'Host 目录',
             element: React.lazy(async () => await import('@/pages/ResourceViews/HostCatalog')),
           },
           {

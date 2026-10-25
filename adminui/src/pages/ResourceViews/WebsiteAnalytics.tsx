@@ -1,5 +1,5 @@
 import { getAnalyticsDomains, getWebsiteAnalytics, type IAnalyticsDomain, type IAnalyticsSubjectView } from "@/api/analytics";
-import { Badge, Button, Card, CardContent, DataTable, Empty, Progress, Spin, Statistic } from "@modra/react";
+import { Badge, Button, DataTable, Empty, Progress, Spin } from "@modra/react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { ArrowRight, RefreshCw } from "@/ui/icons";
 import React, { useEffect, useMemo, useState } from "react";
@@ -11,17 +11,15 @@ import { RequestHistoryList } from "@/pages/Monitors/RequestHistory/List";
 import { acmeOrdersPath, hostDetailPath, requestHistoryPath } from "@/utils/analyticsLinks";
 import { LocalTime } from "@/components/LocalTime";
 import { SectionCard, SignalTag, WorkbenchPage, WorkbenchTabs } from "@/ui/workbench";
-import { MonAlert, MonCard, MonDateTimeRange, MonDescriptions, MonSegmented, type MonDayjsRange } from "@/ui/monParts";
+import { MonAlert, MonCard, MonDescriptions } from "@/ui/monParts";
 import EChartPanel from "@/components/charts/EChartPanel";
-import { buildAnalyticsTrendOption } from "@/components/charts/analyticsTrend";
 import { chartPalette, useAppearance } from "@/appearance";
-import { formatBytes, formatNumber, formatPercent, toNumber } from "@/utils/formatters";
-import { defaultResourceViewWindowSeconds } from "./resourceViewDefaults";
+import { formatNumber, formatPercent } from "@/utils/formatters";
+import { TimeWindowControl, useTimeWindow } from "./useTimeWindow";
+import { MetricCards, ResourceTrend, metric } from "./ResourceMetrics";
 import { websiteEditPath } from "./websiteViewRoute";
 import type { Int64 } from "@/api/identifier";
 
-const presets = [{ label: "1 小时", value: 3600 }, { label: "24 小时", value: 86400 }, { label: "7 天", value: 604800 }];
-const metric = (value: number | null | undefined, suffix = "") => value == null ? "不可用" : `${formatNumber(value)}${suffix}`;
 
 const latencyOption = (domain: IAnalyticsDomain | undefined, colors: ReturnType<typeof chartPalette>): EChartsOption => ({
   color: [colors.flow, colors.alert, colors.neutral],
@@ -44,14 +42,13 @@ const WebsiteAnalytics: React.FC = () => {
   const initialTab = ["overview", "hosts", "contribution", "bandwidth", "history", "quality"].includes(searchParams.get("tab") ?? "") ? searchParams.get("tab")! : "overview";
   const { effectiveTheme } = useAppearance();
   const colors = chartPalette(effectiveTheme);
-  const [range, setRange] = useState(defaultResourceViewWindowSeconds);
-  const [customRange, setCustomRange] = useState<MonDayjsRange | null>(null);
+  const timeWindow = useTimeWindow();
+  const window = timeWindow.window;
   const [data, setData] = useState<IAnalyticsSubjectView | null>();
   const [hostStats, setHostStats] = useState<IAnalyticsDomain[]>([]);
   const [loadingOverview, setLoadingOverview] = useState(true);
   const [loadingHosts, setLoadingHosts] = useState(true);
   const [error, setError] = useState("");
-  const window = useMemo(() => { const to = Math.floor(Date.now() / 1000); if (customRange?.[0] && customRange?.[1]) return { from: Math.floor(customRange[0].valueOf() / 1000), to: Math.floor(customRange[1].valueOf() / 1000) }; return { from: to - range, to }; }, [range, customRange]);
 
   const [refreshNonce, setRefreshNonce] = useState(0);
   const load = async () => {
@@ -90,15 +87,10 @@ const WebsiteAnalytics: React.FC = () => {
     { id: "errorRate", header: "错误率", cell: ({ row }) => formatPercent(row.original.errorRate) },
     { id: "p95Ms", header: "P95", cell: ({ row }) => metric(row.original.p95Ms, " ms") }
   ];
-  const kpiCards = [
-    ["请求总计", formatNumber(kpis?.requests)], ["当前吞吐", metric(kpis?.requestsPerSecond, " req/s")], ["错误率", formatPercent(toNumber(kpis?.errorRate))],
-    ["P50 / P95 / P99", `${metric(kpis?.p50Ms, " ms")} / ${metric(kpis?.p95Ms, " ms")} / ${metric(kpis?.p99Ms, " ms")}`], ["入站 / 出站", `${formatBytes(toNumber(kpis?.inboundBytes))} / ${formatBytes(toNumber(kpis?.outboundBytes))}`], ["平均 / 最大耗时", `${metric(kpis?.avgDurationMs, " ms")} / ${metric(kpis?.maxDurationMs, " ms")}`]
-  ];
   const chipButton = "cursor-pointer";
 
   return <WorkbenchPage eyebrow="OBSERVABILITY / WEBSITE / ANALYTICS" title={data?.website?.name || "站点分析"} backTo={websiteEditPath(id)} description="聚合当前站点所有 Host 的流量、错误、延迟、证书覆盖和数据质量信号。" extra={<>
-    <MonSegmented options={presets} value={range} ariaLabel="统计窗口" onChange={(value) => { setCustomRange(null); setRange(value); }} />
-    <MonDateTimeRange value={customRange} onChange={setCustomRange} className="w-[320px]" />
+    <TimeWindowControl state={timeWindow} />
     <Button variant="outline" onClick={load}><RefreshCw className="size-4" aria-hidden="true" />刷新</Button>
     <Button variant="outline" onClick={() => navigate(websiteEditPath(id))}>配置站点</Button>
   </>}>
@@ -106,14 +98,13 @@ const WebsiteAnalytics: React.FC = () => {
       {error ? <MonAlert type="error" message={error} /> : null}
       <WorkbenchTabs defaultKey={initialTab} items={[{ key: "overview", label: "概览", children: <div className="flex flex-col gap-3">
       {latencyWarning ? <MonAlert type="warning" message="检测到异常耗时" description="P95 或最大耗时超过 30 秒。请结合客户端取消、上游超时和统计桶完整度判断是否为真实慢请求。" /> : null}
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">{kpiCards.map(([title, value]) => <Card key={title}><CardContent className="p-4"><Statistic title={title} value={value} /></CardContent></Card>)}</div>
-      <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
-        <div className="xl:col-span-2"><EChartPanel title="请求与错误趋势" loading={loadingOverview} isEmpty={!data.timeseries.points.length} option={data.timeseries.points.length ? buildAnalyticsTrendOption(data.timeseries.points, colors) : undefined} height={340} emptyDescription="当前窗口暂无观测数据" /></div>
+      <MetricCards overview={overview} />
+      <ResourceTrend overview={overview} timeseries={data.timeseries} loading={loadingOverview} height={340} aside={
         <MonCard title="延迟摘要" loading={loadingOverview} className="min-h-[388px]">
           <div className="mb-3"><div className="mb-1 text-sm text-muted-foreground">延迟覆盖率 {Math.min(100, Math.round((kpis?.latencyCoverageRate ?? 0) * 100))}%</div><Progress value={Math.min(100, Math.round((kpis?.latencyCoverageRate ?? 0) * 100))} /></div>
           <MonDescriptions columnsClass="grid-cols-1" items={[{ key: "p50", label: "P50", children: metric(kpis?.p50Ms, " ms") }, { key: "p95", label: "P95", children: metric(kpis?.p95Ms, " ms") }, { key: "p99", label: "P99", children: metric(kpis?.p99Ms, " ms") }]} />
         </MonCard>
-      </div>
+      } />
       </div> }, { key: "hosts", label: "Host 明细", children: <div className="flex flex-col gap-3">
       <SectionCard title="站点主机" description="点击 Host 可进入单 Host 的完整排查视图。"><MonDescriptions columnsClass="md:grid-cols-2" items={(data.hosts ?? []).map((host) => ({ key: host.host, label: <Button variant="link" className="h-auto p-0" onClick={() => navigate(hostDetailPath(host.host))}>{host.host}</Button>, children: <><SignalTag tone={host.certificate ? "success" : "warning"}>{host.certificate ? <>证书有效至 <LocalTime timestamp={host.certificate.notAfter} /></> : "未发现有效证书"}</SignalTag><Button variant="link" size="sm" onClick={() => navigate(acmeOrdersPath(host.host))}>ACME 订单</Button></> }))} /></SectionCard>
       <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">

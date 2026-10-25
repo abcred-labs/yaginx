@@ -668,6 +668,7 @@ export const RequestHistoryList: React.FC<RequestHistoryListProps> = ({ fixedHos
             placeholder="时间范围"
             value={timeRange}
             onValueChange={setTimeRange}
+            presets={[3600, 86400, 604800].map((seconds) => ({ label: seconds === 3600 ? "近 1 小时" : seconds === 86400 ? "近 24 小时" : "近 7 天", value: { from: new Date(Date.now() - seconds * 1000), to: new Date() } }))}
           />
           {!fixedHost ? <Input className="w-[180px]" placeholder="域名" aria-label="域名" value={host} onChange={(event) => setHost(event.target.value)} /> : null}
           <form
@@ -787,7 +788,7 @@ export const RequestHistoryList: React.FC<RequestHistoryListProps> = ({ fixedHos
   if (embedded) {
     return <SectionCard title="请求追踪" description={`完整追踪记录已限定为 ${fixedHost ?? "当前站点"}。`}><div className="flex flex-col gap-4">{content}</div></SectionCard>;
   }
-  return <WorkbenchPage eyebrow="ANALYTICS / REQUEST TRACE" title="请求追踪" description="定位上游返回、代理异常和请求上下文；选择任意记录查看完整诊断详情。">{content}</WorkbenchPage>;
+  return <WorkbenchPage eyebrow="ANALYTICS / REQUEST TRACE" title="请求追踪" description="全局请求排查：已知 IP、状态码或错误码时直接搜索；查看单个站点的请求请从站点进入。">{content}</WorkbenchPage>;
 };
 
 export default RequestHistoryList;
