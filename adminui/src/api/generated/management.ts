@@ -338,6 +338,7 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
+        /** @description Deletes a Host by legacy numeric id or by name. Deleting by name also purges observed traffic and fails with 409 while a website binds the host. */
         delete: operations["webDomainDelete"];
         options?: never;
         head?: never;
