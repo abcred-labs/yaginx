@@ -1,5 +1,5 @@
 import dayjs from 'dayjs';
-import { ConfigEnv, UserConfig } from 'vite'
+import { ConfigEnv, UserConfig, loadEnv } from 'vite'
 import { PORT, VITE_BASE_PATH, VITE_DROP_CONSOLE } from './config/constant';
 import path from 'path';
 import { createProxy } from './config/vite/proxy';
@@ -16,6 +16,8 @@ const __APP_INFO__ = {
 // https://vitejs.dev/config/
 export default ({ command, mode }: ConfigEnv): UserConfig => {
   console.log({ command, mode });
+  // Vite 不会把 .env 写进 process.env，配置文件里需要手动 loadEnv
+  const env = loadEnv(mode, __dirname, '');
   return {
     base: VITE_BASE_PATH,
     plugins: [react(), tailwindcss()],
@@ -31,7 +33,7 @@ export default ({ command, mode }: ConfigEnv): UserConfig => {
     server: {
       host: true,
       port: PORT, // 开发环境启动的端口
-      proxy: createProxy(),
+      proxy: createProxy(env.VITE_PROXY_HTTP || process.env.VITE_PROXY_HTTP || undefined),
     },
     build: {
       terserOptions: {
