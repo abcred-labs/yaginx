@@ -5,13 +5,12 @@ import { formatBytes, formatPercent } from "@/utils/formatters";
 import { Button } from "@modra/react";
 import { MonAlert } from "@/ui/monParts";
 import React, { useEffect, useState } from "react";
-import { HostTrafficPage } from "./HostTrafficPage";
 import type { TrafficPanelProps } from "./panelTypes";
 import { buildBandwidthRankOption, buildBandwidthTrendOption } from "./chartOptions";
-import { HostTrafficKpiCards, useHostTrafficFilters, useHostTrafficRefresh, useHostTrafficWorkspace } from "./dashboard";
+import { HostTrafficKpiCards } from "./dashboard";
 import { trafficGrainLabel } from "./shared";
 
-export const BandwidthPanel: React.FC<TrafficPanelProps> = ({ query, refreshToken, onRetry, onMeta }) => {
+export const BandwidthPanel: React.FC<TrafficPanelProps> = ({ query, refreshToken, onRetry, onMeta, hideKpis }) => {
   const { effectiveTheme } = useAppearance();
   const colors = chartPalette(effectiveTheme);
   const [loading, setLoading] = useState(true);
@@ -77,7 +76,7 @@ export const BandwidthPanel: React.FC<TrafficPanelProps> = ({ query, refreshToke
 
   return (
     <>
-      <HostTrafficKpiCards
+      {hideKpis ? null : <HostTrafficKpiCards
         loading={loading}
         items={[
           { title: "总流量", value: formatBytes((overview?.kpis.inboundBytes ?? 0) + (overview?.kpis.outboundBytes ?? 0)), detail: "流入与流出之和", tone: "flow" },
@@ -90,7 +89,7 @@ export const BandwidthPanel: React.FC<TrafficPanelProps> = ({ query, refreshToke
             tone: "alert"
           }
         ]}
-      />
+      />}
       {error ? <MonAlert type="error" message={error} action={<Button size="sm" variant="outline" onClick={onRetry}>重试</Button>} /> : null}
       <div className="grid grid-cols-1 gap-3 xl:grid-cols-24">
         <div className="xl:col-span-14">
@@ -121,29 +120,3 @@ export const BandwidthPanel: React.FC<TrafficPanelProps> = ({ query, refreshToke
     </>
   );
 };
-
-const BandwidthAnalysis: React.FC = () => {
-  const { filters, setFilters } = useHostTrafficFilters();
-  const { autoRefreshSeconds, autoRefreshEnabled, setAutoRefreshSeconds, setAutoRefreshEnabled } = useHostTrafficWorkspace();
-  const { refreshToken, refresh } = useHostTrafficRefresh(autoRefreshEnabled, autoRefreshSeconds);
-  const [meta, setMeta] = useState<{ grain?: "minute" | "hour" | "day"; coverageState?: "collecting" | "complete" | "incomplete" }>({});
-  return (
-    <HostTrafficPage
-      title="流量消耗"
-      description="按实际收发字节分析带宽来源，避免请求量掩盖大响应体或上传流量。"
-      filters={filters}
-      onFiltersChange={setFilters}
-      onRefresh={refresh}
-      autoRefreshSeconds={autoRefreshSeconds}
-      autoRefreshEnabled={autoRefreshEnabled}
-      onAutoRefreshSecondsChange={setAutoRefreshSeconds}
-      onAutoRefreshEnabledChange={setAutoRefreshEnabled}
-      grain={meta.grain}
-      coverageState={meta.coverageState}
-    >
-      <BandwidthPanel query={{ from: filters.from, to: filters.to, domain: filters.hostName || undefined }} refreshToken={refreshToken} onRetry={refresh} onMeta={setMeta} />
-    </HostTrafficPage>
-  );
-};
-
-export default BandwidthAnalysis;

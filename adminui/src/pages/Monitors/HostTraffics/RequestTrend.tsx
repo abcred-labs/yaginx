@@ -25,7 +25,7 @@ const RequestTrend: React.FC = () => {
     const controller = new AbortController();
     setLoading(true);
     setError(undefined);
-    const params = { from: filters.from, to: filters.to, domain: filters.hostName || undefined };
+    const params = { from: filters.from, to: filters.to };
     getAnalyticsOverview(params, ["overview", "timeseries"], { ignoreGlobalError: true, signal: controller.signal })
       .then((response) => {
         const summary = response.data ? overviewSection(response.data) : undefined;

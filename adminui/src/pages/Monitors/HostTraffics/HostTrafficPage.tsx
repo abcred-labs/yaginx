@@ -1,7 +1,6 @@
-import { Badge, Button, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Switch } from "@modra/react";
+import { Badge, Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Switch } from "@modra/react";
 import dayjs, { type Dayjs } from "dayjs";
-import { Search } from "@/ui/icons";
-import React, { useEffect, useState } from "react";
+import React from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { DataToolbar, WorkbenchPage } from "@/ui/workbench";
 import { MonDateTimeRange, MonSegmented } from "@/ui/monParts";
@@ -9,9 +8,7 @@ import { HostTrafficFilters, hostTrafficRangePresets, rangeFromPicker, trafficGr
 
 export const navigationItems = [
   { path: "/monitor/traffic/request-trend", label: "趋势" },
-  { path: "/monitor/traffic/request-contribution", label: "贡献" },
-  { path: "/monitor/traffic/bandwidth", label: "带宽" },
-  { path: "/monitor/traffic/list", label: "明细" }
+  { path: "/monitor/traffic/host-ranking", label: "Host 排行" }
 ];
 
 const autoRefreshOptions = [
@@ -52,7 +49,6 @@ export const HostTrafficPage: React.FC<HostTrafficPageProps> = ({
 }) => {
   const location = useLocation();
   const navigate = useNavigate();
-  const [hostInput, setHostInput] = useState(filters.hostName);
   const range: [Dayjs, Dayjs] = [
     dayjs.unix(filters.from),
     dayjs.unix(filters.to)
@@ -63,9 +59,7 @@ export const HostTrafficPage: React.FC<HostTrafficPageProps> = ({
     value: [periodEnd.subtract(preset.minutes - 1, "minute"), periodEnd] as [Dayjs, Dayjs]
   }));
 
-  useEffect(() => setHostInput(filters.hostName), [filters.hostName]);
 
-  const applyHost = () => onFiltersChange({ ...filters, hostName: hostInput.trim() });
   const updateRange = (value: [Dayjs | null, Dayjs | null] | null) => {
     if (!value) {
       return;
@@ -94,17 +88,6 @@ export const HostTrafficPage: React.FC<HostTrafficPageProps> = ({
         />
       </div>
       <DataToolbar className="rounded-md border border-border bg-card p-2">
-        <div className="flex items-center gap-1">
-          <Input
-            placeholder="Host（精确匹配）"
-            aria-label="Host"
-            value={hostInput}
-            onChange={(event) => setHostInput(event.target.value)}
-            onKeyDown={(event) => { if (event.key === "Enter") applyHost(); }}
-            className="w-[220px]"
-          />
-          <Button variant="outline" size="icon" aria-label="搜索 Host" onClick={applyHost}><Search className="size-4" aria-hidden="true" /></Button>
-        </div>
         <MonDateTimeRange
           ariaLabel="统计时间范围"
           clearable={false}

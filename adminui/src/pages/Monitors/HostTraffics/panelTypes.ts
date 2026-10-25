@@ -10,5 +10,7 @@ export interface TrafficPanelProps {
   query: AnalyticsQuery & { from: number; to: number };
   refreshToken: number;
   onRetry?: () => void;
+  // 嵌入汇总页时由外层统一展示 KPI，避免重复卡片。
+  hideKpis?: boolean;
   onMeta?: (meta: TrafficPanelMeta) => void;
 }

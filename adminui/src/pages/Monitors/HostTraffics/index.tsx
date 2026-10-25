@@ -2,9 +2,7 @@ import NoFound from "@/layouts/NoFond";
 import React from "react";
 import { Navigate, Outlet, Route, Routes } from "react-router-dom";
 import { HostTrafficWorkspace } from "./dashboard";
-import BandwidthAnalysis from "./BandwidthAnalysis";
-import List from "./List";
-import RequestContribution from "./RequestContribution";
+import HostRanking from "./HostRanking";
 import RequestTrend from "./RequestTrend";
 
 const HostTrafficIndex: React.FC = () => {
@@ -13,9 +11,10 @@ const HostTrafficIndex: React.FC = () => {
       <Routes>
         <Route index element={<Navigate to="request-trend" replace />} />
         <Route path="request-trend" element={<RequestTrend />} />
-        <Route path="request-contribution" element={<RequestContribution />} />
-        <Route path="bandwidth" element={<BandwidthAnalysis />} />
-        <Route path="list" element={<List />} />
+        <Route path="host-ranking" element={<HostRanking />} />
+        <Route path="request-contribution" element={<Navigate to="../host-ranking" replace />} />
+        <Route path="bandwidth" element={<Navigate to="../host-ranking" replace />} />
+        <Route path="list" element={<Navigate to="../host-ranking" replace />} />
         <Route path="*" element={<NoFound />} />
       </Routes>
       <Outlet />

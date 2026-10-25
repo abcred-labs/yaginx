@@ -3,13 +3,12 @@ import { chartPalette, useAppearance } from "@/appearance";
 import EChartPanel from "@/components/charts/EChartPanel";
 import { formatNumber, formatPercent } from "@/utils/formatters";
 import React, { useEffect, useState } from "react";
-import { HostTrafficPage } from "./HostTrafficPage";
 import type { TrafficPanelProps } from "./panelTypes";
 import { buildRequestContributionOption, buildRequestRankOption } from "./chartOptions";
-import { HostTrafficKpiCards, useHostTrafficFilters, useHostTrafficRefresh, useHostTrafficWorkspace } from "./dashboard";
+import { HostTrafficKpiCards } from "./dashboard";
 import { trafficGrainLabel } from "./shared";
 
-export const ContributionPanel: React.FC<TrafficPanelProps> = ({ query, refreshToken, onMeta }) => {
+export const ContributionPanel: React.FC<TrafficPanelProps> = ({ query, refreshToken, onMeta, hideKpis }) => {
   const { effectiveTheme } = useAppearance();
   const colors = chartPalette(effectiveTheme);
   const [loading, setLoading] = useState(true);
@@ -44,7 +43,7 @@ export const ContributionPanel: React.FC<TrafficPanelProps> = ({ query, refreshT
 
   return (
     <>
-      <HostTrafficKpiCards
+      {hideKpis ? null : <HostTrafficKpiCards
         loading={loading}
         items={[
           { title: "总请求量", value: formatNumber(summary?.totalRequests), detail: "筛选范围内累计", tone: "flow" },
@@ -57,7 +56,7 @@ export const ContributionPanel: React.FC<TrafficPanelProps> = ({ query, refreshT
             tone: "alert"
           }
         ]}
-      />
+      />}
       <div className="grid grid-cols-1 gap-3 xl:grid-cols-24">
         <div className="xl:col-span-14">
           <EChartPanel
@@ -86,29 +85,3 @@ export const ContributionPanel: React.FC<TrafficPanelProps> = ({ query, refreshT
     </>
   );
 };
-
-const RequestContribution: React.FC = () => {
-  const { filters, setFilters } = useHostTrafficFilters();
-  const { autoRefreshSeconds, autoRefreshEnabled, setAutoRefreshSeconds, setAutoRefreshEnabled } = useHostTrafficWorkspace();
-  const { refreshToken, refresh } = useHostTrafficRefresh(autoRefreshEnabled, autoRefreshSeconds);
-  const [meta, setMeta] = useState<{ grain?: "minute" | "hour" | "day"; coverageState?: "collecting" | "complete" | "incomplete" }>({});
-  return (
-    <HostTrafficPage
-      title="请求贡献"
-      description="将请求量按 Host 排序，快速区分主导流量与长尾访问。"
-      filters={filters}
-      onFiltersChange={setFilters}
-      onRefresh={refresh}
-      autoRefreshSeconds={autoRefreshSeconds}
-      autoRefreshEnabled={autoRefreshEnabled}
-      onAutoRefreshSecondsChange={setAutoRefreshSeconds}
-      onAutoRefreshEnabledChange={setAutoRefreshEnabled}
-      grain={meta.grain}
-      coverageState={meta.coverageState}
-    >
-      <ContributionPanel query={{ from: filters.from, to: filters.to, domain: filters.hostName || undefined }} refreshToken={refreshToken} onMeta={setMeta} />
-    </HostTrafficPage>
-  );
-};
-
-export default RequestContribution;
