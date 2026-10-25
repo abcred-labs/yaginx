@@ -11,7 +11,6 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -122,148 +121,85 @@ func (p *Postgres) LookupIP(ctx context.Context, raw string) (management.IPProfi
 	if err != nil {
 		return management.IPProfile{}, err
 	}
-	type result struct {
-		kind string
-		body []byte
-		err  error
+	target := *base
+	target.Path = strings.TrimRight(base.Path, "/") + "/ip/" + raw
+	target.RawPath = strings.TrimRight(base.EscapedPath(), "/") + "/ip/" + url.PathEscape(raw)
+	target.RawQuery = url.Values{"format": {"json"}}.Encode()
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, target.String(), nil)
+	if err != nil {
+		return management.IPProfile{}, err
 	}
-	results := make(chan result, 3)
-	var wg sync.WaitGroup
-	for _, kind := range []string{"QueryCity", "QueryCountry", "QueryAsn"} {
-		wg.Add(1)
-		go func(kind string) {
-			defer wg.Done()
-			target := *base
-			target.Path = strings.TrimRight(base.Path, "/") + "/Query/" + kind
-			query := target.Query()
-			query.Set("ip", raw)
-			target.RawQuery = query.Encode()
-			request, requestErr := http.NewRequestWithContext(ctx, http.MethodGet, target.String(), nil)
-			if requestErr != nil {
-				results <- result{kind: kind, err: requestErr}
-				return
-			}
-			response, requestErr := p.ipProfileClient.Do(request)
-			if requestErr != nil {
-				results <- result{kind: kind, err: requestErr}
-				return
-			}
-			defer response.Body.Close()
-			if response.StatusCode != http.StatusOK {
-				results <- result{kind: kind, err: fmt.Errorf("IP profile request failed: %s", response.Status)}
-				return
-			}
-			body, readErr := io.ReadAll(io.LimitReader(response.Body, 1<<20))
-			results <- result{kind: kind, body: body, err: readErr}
-		}(kind)
+	response, err := p.ipProfileClient.Do(request)
+	if err != nil {
+		return management.IPProfile{}, err
 	}
-	wg.Wait()
-	close(results)
-	var city, country, asn []byte
-	for item := range results {
-		if item.err != nil {
-			return management.IPProfile{}, item.err
-		}
-		switch item.kind {
-		case "QueryCity":
-			city = item.body
-		case "QueryCountry":
-			country = item.body
-		case "QueryAsn":
-			asn = item.body
-		}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		return management.IPProfile{}, fmt.Errorf("IP profile request failed: %s", response.Status)
 	}
-	var cityValue struct {
-		IPAddress string `json:"ipAddress"`
-		City      *struct {
-			Name      *string `json:"name"`
-			GeoNameID *int64  `json:"geoNameId"`
-		} `json:"city"`
-		Location *struct {
-			Latitude  *float64 `json:"latitude"`
-			Longitude *float64 `json:"longitude"`
-			TimeZone  *string  `json:"timeZone"`
-		} `json:"location"`
-		Traits *struct {
-			ISP                *string `json:"isp"`
-			Organization       *string `json:"organization"`
-			IsAnonymous        *bool   `json:"isAnonymous"`
-			IsAnonymousProxy   *bool   `json:"isAnonymousProxy"`
-			IsAnonymousVPN     *bool   `json:"isAnonymousVpn"`
-			IsHostingProvider  *bool   `json:"isHostingProvider"`
-			IsPublicProxy      *bool   `json:"isPublicProxy"`
-			IsResidentialProxy *bool   `json:"isResidentialProxy"`
-			IsTorExitNode      *bool   `json:"isTorExitNode"`
-		} `json:"traits"`
+	body, err := io.ReadAll(io.LimitReader(response.Body, 1<<20))
+	if err != nil {
+		return management.IPProfile{}, err
 	}
-	var countryValue struct {
+	var payload struct {
 		IPAddress string `json:"ipAddress"`
 		Country   *struct {
 			Name    *string `json:"name"`
 			ISOCode *string `json:"isoCode"`
 		} `json:"country"`
+		ASN *struct {
+			Number       int64   `json:"number"`
+			Organization *string `json:"organization"`
+			Network      *string `json:"network"`
+		} `json:"asn"`
+		Location *struct {
+			City *string `json:"city"`
+		} `json:"location"`
 	}
-	var asnValue struct {
-		IPAddress          string `json:"ipAddress"`
-		SystemNumber       int64  `json:"systemNumber"`
-		SystemOrganization string `json:"systemOrganization"`
-		Network            string `json:"network"`
-	}
-	if err := json.Unmarshal(city, &cityValue); err != nil {
+	if err := json.Unmarshal(body, &payload); err != nil {
 		return management.IPProfile{}, err
 	}
-	if err := json.Unmarshal(country, &countryValue); err != nil {
-		return management.IPProfile{}, err
+	value := management.IPProfile{IP: raw, Network: &management.IPProfileNetwork{Type: "unknown"}}
+	if payload.IPAddress != "" {
+		value.IP = payload.IPAddress
 	}
-	if err := json.Unmarshal(asn, &asnValue); err != nil {
-		return management.IPProfile{}, err
-	}
-	value := management.IPProfile{IP: raw, Network: &management.IPProfileNetwork{Type: "unknown"}, Traits: map[string]bool{}}
-	if cityValue.IPAddress != "" {
-		value.IP = cityValue.IPAddress
-	}
-	if countryValue.IPAddress != "" {
-		value.IP = countryValue.IPAddress
-	}
-	if asnValue.IPAddress != "" {
-		value.IP = asnValue.IPAddress
-	}
-	if countryValue.Country != nil {
+	if payload.Country != nil {
 		value.Country = &management.IPProfileName{}
-		if countryValue.Country.Name != nil {
-			value.Country.Name = *countryValue.Country.Name
+		if payload.Country.Name != nil {
+			value.Country.Name = *payload.Country.Name
 		}
-		if countryValue.Country.ISOCode != nil {
-			value.Country.ISOCode = *countryValue.Country.ISOCode
-		}
-	}
-	if cityValue.City != nil {
-		value.City = &management.IPProfileCity{}
-		if cityValue.City.Name != nil {
-			value.City.Name = *cityValue.City.Name
-		}
-		if cityValue.City.GeoNameID != nil {
-			value.City.GeoNameID = *cityValue.City.GeoNameID
+		if payload.Country.ISOCode != nil {
+			value.Country.ISOCode = *payload.Country.ISOCode
 		}
 	}
-	if asnValue.SystemNumber != 0 || asnValue.SystemOrganization != "" || asnValue.Network != "" {
-		value.ASN = &management.IPProfileASN{Number: asnValue.SystemNumber, Organization: asnValue.SystemOrganization, Network: asnValue.Network}
-		value.Network.Organization = asnValue.SystemOrganization
+	if payload.Location != nil && payload.Location.City != nil && *payload.Location.City != "" {
+		value.City = &management.IPProfileCity{Name: *payload.Location.City}
 	}
-	if cityValue.Traits != nil {
-		for name, flag := range map[string]*bool{"isAnonymous": cityValue.Traits.IsAnonymous, "isAnonymousProxy": cityValue.Traits.IsAnonymousProxy, "isAnonymousVpn": cityValue.Traits.IsAnonymousVPN, "isHostingProvider": cityValue.Traits.IsHostingProvider, "isPublicProxy": cityValue.Traits.IsPublicProxy, "isResidentialProxy": cityValue.Traits.IsResidentialProxy, "isTorExitNode": cityValue.Traits.IsTorExitNode} {
-			if flag != nil {
-				value.Traits[name] = *flag
-			}
+	if payload.ASN != nil {
+		asn := management.IPProfileASN{Number: payload.ASN.Number, Network: canonicalProfileNetwork(payload.ASN.Network)}
+		if payload.ASN.Organization != nil {
+			asn.Organization = *payload.ASN.Organization
 		}
-		if cityValue.Traits.ISP != nil {
-			value.Network.ISP = *cityValue.Traits.ISP
-		}
-		if cityValue.Traits.Organization != nil {
-			value.Network.Organization = *cityValue.Traits.Organization
+		if asn.Number != 0 || asn.Organization != "" || asn.Network != "" {
+			value.ASN = &asn
+			value.Network.Organization = asn.Organization
 		}
 	}
 	return value, nil
+}
+
+// canonicalProfileNetwork normalises the provider's ASN network to a masked CIDR.
+// The provider may return host bits set ("8.8.8.8/24") or a bare address; the
+// latter is not a network and is dropped so it is never offered as a block target.
+func canonicalProfileNetwork(value *string) string {
+	if value == nil {
+		return ""
+	}
+	prefix, err := netip.ParsePrefix(strings.TrimSpace(*value))
+	if err != nil {
+		return ""
+	}
+	return prefix.Masked().String()
 }
 
 func (p *Postgres) FlushBlacklistHits(ctx context.Context, events []telemetry.Event) error {

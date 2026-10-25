@@ -69,6 +69,7 @@ export const IPProfileDrawer = ({
 
   const traits = Object.entries(profile?.traits || {}).filter(([, enabled]) => enabled);
 
+  // The provider only returns country, city and ASN; optional rows appear only when they have data.
   const items: DescriptionItem[] = profile ? [
     { key: "ip", label: "IP", children: profile.ip },
     {
@@ -104,17 +105,15 @@ export const IPProfileDrawer = ({
         </div>
       ) : valueOrDash(profile.asn?.network)
     },
-    { key: "isp", label: "ISP", children: valueOrDash(profile.network?.isp) },
-    { key: "org", label: "组织", children: valueOrDash(profile.network?.organization) },
-    { key: "conn", label: "连接类型", children: valueOrDash(profile.network?.connectionType) },
-    { key: "user", label: "用户类型", children: valueOrDash(profile.network?.userType) },
-    {
+    ...(profile.network?.isp ? [{ key: "isp", label: "ISP", children: profile.network.isp }] : []),
+    ...(profile.network?.organization ? [{ key: "org", label: "组织", children: profile.network.organization }] : []),
+    ...(profile.network?.connectionType ? [{ key: "conn", label: "连接类型", children: profile.network.connectionType }] : []),
+    ...(profile.network?.userType ? [{ key: "user", label: "用户类型", children: profile.network.userType }] : []),
+    ...(traits.length > 0 ? [{
       key: "traits",
       label: "代理/托管标记",
-      children: traits.length > 0
-        ? <span className="flex flex-wrap gap-1">{traits.map(([name]) => <Badge key={name} variant="secondary">{name}</Badge>)}</span>
-        : "-"
-    }
+      children: <span className="flex flex-wrap gap-1">{traits.map(([name]) => <Badge key={name} variant="secondary">{name}</Badge>)}</span>
+    }] : [])
   ] : [];
 
   return (
