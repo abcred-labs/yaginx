@@ -214,7 +214,7 @@ func runServe(ctx context.Context, args []string, stdout, stderr io.Writer) int 
 	if err != nil {
 		return failServe(stderr, err)
 	}
-	store.SetIPProfileEndpoint(cfg.String("ipLookup", "profileURL"), ipProfileTimeout)
+	store.SetIPProfileTimeout(ipProfileTimeout)
 	fingerprint, err := identity.MachineFingerprint()
 	if err != nil {
 		fmt.Fprintf(stderr, "machine fingerprint: %v\n", err)

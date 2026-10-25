@@ -74,10 +74,9 @@ func (p *Postgres) SetObservabilityObserver(observer func(operation, source stri
 	p.analyticsObserver = observer
 }
 
-func (p *Postgres) SetIPProfileEndpoint(value string, timeout time.Duration) {
-	if value = strings.TrimSpace(value); value != "" {
-		p.ipProfileEndpoint = value
-	}
+// SetIPProfileTimeout adjusts the lookup client timeout. The provider endpoint is
+// fixed to the public tools.abc.red service and is not configurable.
+func (p *Postgres) SetIPProfileTimeout(timeout time.Duration) {
 	if timeout > 0 {
 		p.ipProfileClient = &http.Client{Timeout: timeout}
 	}

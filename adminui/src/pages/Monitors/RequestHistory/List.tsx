@@ -544,8 +544,10 @@ export const RequestHistoryList: React.FC<RequestHistoryListProps> = ({ fixedHos
     try {
       const response = await ipBlacklistLookup({ ip });
       setProfile(response.data);
-    } catch {
-      setProfileError("无法从工具服务获取该 IP 的最新资料。");
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : (error as { reason?: string } | null)?.reason;
+      const traceId = (error as { traceId?: string } | null)?.traceId;
+      setProfileError(`无法从工具服务获取该 IP 的最新资料。${reason ? `原因：${reason}` : ""}${traceId ? `（追踪号：${traceId}）` : ""}`);
     } finally {
       setProfileLoading(false);
     }

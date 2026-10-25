@@ -393,7 +393,8 @@
         "profileURL": {
           "type": "string",
           "format": "uri",
-          "default": "https://tools.abc.red/api/v1/ip/profile"
+          "deprecated": true,
+          "description": "Ignored. The IP profile provider is fixed to https://tools.abc.red; the key is accepted only so existing configs stay valid."
         },
         "timeout": {
           "$ref": "#/$defs/duration",
