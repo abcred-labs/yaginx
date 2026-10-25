@@ -20,10 +20,11 @@ Yaginx 是一个用 Go 编写的 HTTP/HTTPS 网关，提供 React 管理控制�
 
 升级需手动执行：先运行 `yaginx upgrade --check --version <semver>`，再在维护窗口内运行
 `sudo yaginx upgrade --version <semver>`。数据库迁移需要管理员显式加上
-`--migrate-database`。中国大陆用户可通过
-`--github-mirror https://github-mirror.abc.red --release-assets-mirror https://gh-release-assets.abc.red`
-指定下载镜像（优先级高于环境变量 `YAGINX_GITHUB_MIRROR` / `YAGINX_RELEASE_ASSETS_MIRROR`
-和配置项 `upgrade.*Mirror`）。自动升级定时器和相关 CLI 已移除；旧安装请参阅
+`--migrate-database`。中国大陆用户可直接加 `--use-mirror`，自动使用内置的国内镜像
+（`https://github-mirror.abc.red` 与 `https://gh-release-assets.abc.red`）。该参数只补全
+尚未设置的镜像；优先级为显式的 `--github-mirror <url>` / `--release-assets-mirror <url>`，
+其次是环境变量 `YAGINX_GITHUB_MIRROR` / `YAGINX_RELEASE_ASSETS_MIRROR` 和配置项
+`upgrade.*Mirror`，最后才是 `--use-mirror` 的内置默认值。自动升级定时器和相关 CLI 已移除；旧安装请参阅
 [迁移运行手册](docs/go-version-new-install-runbook.md#removing-the-legacy-upgrade-timer)。
 
 公开的管理接口契约见

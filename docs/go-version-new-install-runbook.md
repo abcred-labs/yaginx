@@ -564,7 +564,7 @@ Header、Query 参数和 JSON 字段；只有错误请求持久化受大小限�
 | `observability.otlp.protocol` / `insecure` | `grpc` / `false` | — | `grpc` 或 `http/protobuf` |
 | `observability.otlp.sampleRatio` / `exportTimeout` | `0.01` / `5s` | — | 采样率 0–1；导出超时 |
 | `upgrade.manifestURL` | 当前公开 latest manifest | `YAGINX_UPGRADE_MANIFEST_URL` | HTTPS release manifest |
-| `upgrade.githubMirror` | 空 | `YAGINX_GITHUB_MIRROR`、`--github-mirror` | 可选 HTTPS 镜像，替换 `https://github.com`；中国大陆用 `https://github-mirror.abc.red` |
+| `upgrade.githubMirror` | 空 | `YAGINX_GITHUB_MIRROR`、`--github-mirror`、`--use-mirror`（内置默认） | 可选 HTTPS 镜像，替换 `https://github.com`；中国大陆用 `https://github-mirror.abc.red` |
 | `upgrade.releaseAssetsMirror` | 空 | `YAGINX_RELEASE_ASSETS_MIRROR`、`--release-assets-mirror` | 可选 HTTPS 镜像，替换 `https://release-assets.githubusercontent.com`；中国大陆用 `https://gh-release-assets.abc.red` |
 | `upgrade.component` / `upgrade.packageName` | `yaginx` / `yaginx` | — | 固定值 |
 | `upgrade.stateDirectory` / `upgrade.lockFile` | `/var/lib/yaginx/upgrade` / `/run/yaginx/upgrade.lock` | — | 绝对路径 |
@@ -668,7 +668,11 @@ sudo yaginx upgrade --version <semver>
 # 只有管理员确认需要数据库迁移时，才添加 --migrate-database
 ```
 
-中国大陆服务器应在 `/etc/yaginx/config.json` 的 `upgrade` 中持久配置镜像，之后每次升级都会自动使用：
+中国大陆服务器可直接加 `--use-mirror`（如 `sudo yaginx upgrade --use-mirror --version <semver>`），
+自动使用内置的 `https://github-mirror.abc.red` 与 `https://gh-release-assets.abc.red`。它只补全尚未设置的镜像，
+优先级为：显式 `--github-mirror` / `--release-assets-mirror` > 环境变量与配置项 > `--use-mirror` 内置默认值。
+
+也可以在 `/etc/yaginx/config.json` 的 `upgrade` 中持久配置镜像，之后每次升级都会自动使用：
 
 ```json
 "upgrade": {

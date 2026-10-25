@@ -52,6 +52,7 @@ func runUpgrade(args []string, stdout, stderr io.Writer) int {
 	lockFile := flags.String("lock-file", "", "upgrade lock file (package-only mode)")
 	githubMirror := flags.String("github-mirror", "", "GitHub mirror base URL (overrides upgrade.githubMirror and YAGINX_GITHUB_MIRROR)")
 	releaseAssetsMirror := flags.String("release-assets-mirror", "", "release assets mirror base URL (overrides upgrade.releaseAssetsMirror and YAGINX_RELEASE_ASSETS_MIRROR)")
+	useMirror := flags.Bool("use-mirror", false, "use the built-in mainland-China friendly download mirrors for any mirror not set explicitly")
 	path := flags.String("config", runtimeConfigPath(), "runtime configuration")
 	if err := flags.Parse(args); err != nil || len(flags.Args()) != 0 {
 		return upgradeUsage(stderr)
@@ -88,12 +89,7 @@ func runUpgrade(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "configuration warning: %s\n", warning)
 	}
 	cfg.Config.TargetVersion = strings.TrimSpace(*targetVersion)
-	if value := strings.TrimSpace(*githubMirror); value != "" {
-		cfg.Config.GitHubMirror = value
-	}
-	if value := strings.TrimSpace(*releaseAssetsMirror); value != "" {
-		cfg.Config.ReleaseAssetsMirror = value
-	}
+	applyUpgradeMirrors(&cfg.Config, *githubMirror, *releaseAssetsMirror, *useMirror)
 	runner := upgrade.New()
 	if *migrateDatabase {
 		executable, executableErr := os.Executable()
@@ -121,6 +117,26 @@ func runUpgrade(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	return 0
+}
+
+// applyUpgradeMirrors resolves the download mirrors. Precedence per mirror:
+// explicit flag, then the value already loaded from configuration or the
+// environment, then (only with --use-mirror) the built-in China mirror.
+func applyUpgradeMirrors(cfg *upgrade.Config, githubFlag, assetsFlag string, useMirror bool) {
+	if value := strings.TrimSpace(githubFlag); value != "" {
+		cfg.GitHubMirror = value
+	}
+	if value := strings.TrimSpace(assetsFlag); value != "" {
+		cfg.ReleaseAssetsMirror = value
+	}
+	if useMirror {
+		if cfg.GitHubMirror == "" {
+			cfg.GitHubMirror = upgrade.ChinaGitHubMirror
+		}
+		if cfg.ReleaseAssetsMirror == "" {
+			cfg.ReleaseAssetsMirror = upgrade.ChinaReleaseAssetsMirror
+		}
+	}
 }
 
 func newUpgradeSystemErrorRecorder(ctx context.Context, runtime config.RuntimeDocument) (func(string, string, error), func()) {
@@ -274,6 +290,6 @@ func upgradeSystemCommand(ctx context.Context, name string, args ...string) ([]b
 	return upgrade.New().Command(ctx, name, args...)
 }
 func upgradeUsage(stderr io.Writer) int {
-	fmt.Fprintln(stderr, "usage: yaginx upgrade [--check] [--version <semver>] [--migrate-database] [--skip-preflight-health] [--no-restart] [--package-only] [--manifest-url <url>] [--github-mirror <url>] [--release-assets-mirror <url>] [--state-directory <dir>] [--lock-file <file>] [--config <file>] | verify --candidate <file> | rollback --current <file> --previous <file>")
+	fmt.Fprintln(stderr, "usage: yaginx upgrade [--check] [--version <semver>] [--migrate-database] [--skip-preflight-health] [--no-restart] [--package-only] [--manifest-url <url>] [--use-mirror] [--github-mirror <url>] [--release-assets-mirror <url>] [--state-directory <dir>] [--lock-file <file>] [--config <file>] | verify --candidate <file> | rollback --current <file> --previous <file>")
 	return 2
 }

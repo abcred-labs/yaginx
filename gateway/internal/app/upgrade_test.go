@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"yaginx-gateway/internal/config"
+	"yaginx-gateway/internal/upgrade"
 )
 
 func TestUpgradeCheckPrintsSHA256(t *testing.T) {
@@ -100,6 +101,7 @@ func TestManualUpgradeFlagsStillParse(t *testing.T) {
 		{"--check", "--version", "1.2.3"}, {"--version", "1.2.3"},
 		{"--migrate-database"}, {"--no-restart"}, {"--skip-preflight-health"},
 		{"--check", "--github-mirror", "https://github-mirror.example.invalid", "--release-assets-mirror", "https://assets-mirror.example.invalid"},
+		{"--check", "--use-mirror"},
 	} {
 		var stdout, stderr bytes.Buffer
 		args = append(args, "--config", filepath.Join(t.TempDir(), "missing.json"))
@@ -142,5 +144,31 @@ func TestPackageOnlyUpgradeHasNoDatabaseErrorRecorder(t *testing.T) {
 	defer closeRecorder()
 	if record != nil {
 		t.Fatal("package-only repair must not connect to a database error recorder")
+	}
+}
+
+func TestApplyUpgradeMirrors(t *testing.T) {
+	const gh, assets = "https://gh.example.invalid", "https://assets.example.invalid"
+	cases := []struct {
+		name                   string
+		cfg                    upgrade.Config
+		ghFlag, assetsFlag     string
+		useMirror              bool
+		wantGitHub, wantAssets string
+	}{
+		{name: "off by default"},
+		{name: "use-mirror fills defaults", useMirror: true, wantGitHub: upgrade.ChinaGitHubMirror, wantAssets: upgrade.ChinaReleaseAssetsMirror},
+		{name: "config values kept", cfg: upgrade.Config{GitHubMirror: gh}, useMirror: true, wantGitHub: gh, wantAssets: upgrade.ChinaReleaseAssetsMirror},
+		{name: "flag beats config and default", cfg: upgrade.Config{GitHubMirror: "https://old.example.invalid"}, ghFlag: gh, useMirror: true, wantGitHub: gh, wantAssets: upgrade.ChinaReleaseAssetsMirror},
+		{name: "flag without use-mirror", assetsFlag: assets, wantAssets: assets},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := tc.cfg
+			applyUpgradeMirrors(&cfg, tc.ghFlag, tc.assetsFlag, tc.useMirror)
+			if cfg.GitHubMirror != tc.wantGitHub || cfg.ReleaseAssetsMirror != tc.wantAssets {
+				t.Fatalf("got github=%q assets=%q", cfg.GitHubMirror, cfg.ReleaseAssetsMirror)
+			}
+		})
 	}
 }

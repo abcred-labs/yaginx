@@ -28,13 +28,17 @@ const (
 	DefaultManifestURL    = "https://github.com/abcred-labs/yaginx/releases/latest/download/latest-release.json"
 	// GitHubBaseURL and ReleaseAssetsBaseURL are the origins rewritten by the
 	// optional download mirrors. GitHub release downloads redirect to release assets.
-	GitHubBaseURL         = "https://github.com"
-	ReleaseAssetsBaseURL  = "https://release-assets.githubusercontent.com"
-	maxRedirects          = 5
-	PackageName           = "yaginx"
-	ServiceName           = "yaginx"
-	VersionFile           = "/usr/share/yaginx/version.txt"
-	downloadProgressEvery = 5 * time.Second
+	GitHubBaseURL        = "https://github.com"
+	ReleaseAssetsBaseURL = "https://release-assets.githubusercontent.com"
+	// ChinaGitHubMirror and ChinaReleaseAssetsMirror are the mainland-China
+	// friendly mirrors selected by `yaginx upgrade --use-mirror`.
+	ChinaGitHubMirror        = "https://github-mirror.abc.red"
+	ChinaReleaseAssetsMirror = "https://gh-release-assets.abc.red"
+	maxRedirects             = 5
+	PackageName              = "yaginx"
+	ServiceName              = "yaginx"
+	VersionFile              = "/usr/share/yaginx/version.txt"
+	downloadProgressEvery    = 5 * time.Second
 )
 
 var ErrLockBusy = errors.New("yaginx upgrade is already in progress")

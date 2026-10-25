@@ -217,7 +217,9 @@ sudo -u postgres pg_dump --format=custom \
 sudo yaginx database status --config /etc/yaginx/config.json
 ```
 
-中国大陆服务器在线升级时，先在 `/etc/yaginx/config.json` 的 `upgrade` 中加入
+中国大陆服务器在线升级时，最简单的方式是给 `yaginx upgrade` 加 `--use-mirror`，自动使用内置的
+国内镜像（只补全尚未设置的镜像，显式参数、环境变量和配置项优先）。也可以先在
+`/etc/yaginx/config.json` 的 `upgrade` 中加入
 `"githubMirror": "https://github-mirror.abc.red"` 和
 `"releaseAssetsMirror": "https://gh-release-assets.abc.red"`，或执行升级命令时用
 `sudo -E` 传入 `YAGINX_GITHUB_MIRROR`、`YAGINX_RELEASE_ASSETS_MIRROR` 环境变量。
