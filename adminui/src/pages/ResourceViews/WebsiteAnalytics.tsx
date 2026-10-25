@@ -4,7 +4,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { ArrowRight, RefreshCw } from "@/ui/icons";
 import React, { useEffect, useMemo, useState } from "react";
 import type { EChartsOption } from "echarts";
-import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { BandwidthPanel } from "@/pages/Monitors/HostTraffics/BandwidthAnalysis";
 import { ContributionPanel } from "@/pages/Monitors/HostTraffics/RequestContribution";
 import { RequestHistoryList } from "@/pages/Monitors/RequestHistory/List";
@@ -38,8 +38,6 @@ const latencyOption = (domain: IAnalyticsDomain | undefined, colors: ReturnType<
 const WebsiteAnalytics: React.FC = () => {
   const { id = "" } = useParams();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const initialTab = ["overview", "hosts", "contribution", "bandwidth", "history", "quality"].includes(searchParams.get("tab") ?? "") ? searchParams.get("tab")! : "overview";
   const { effectiveTheme } = useAppearance();
   const colors = chartPalette(effectiveTheme);
   const timeWindow = useTimeWindow();
@@ -96,7 +94,7 @@ const WebsiteAnalytics: React.FC = () => {
   </>}>
     {loadingOverview && !data ? <Spin /> : !data ? <Empty description="站点不存在或已删除" /> : <>
       {error ? <MonAlert type="error" message={error} /> : null}
-      <WorkbenchTabs defaultKey={initialTab} items={[{ key: "overview", label: "概览", children: <div className="flex flex-col gap-3">
+      <WorkbenchTabs items={[{ key: "overview", label: "概览", children: <div className="flex flex-col gap-3">
       {latencyWarning ? <MonAlert type="warning" message="检测到异常耗时" description="P95 或最大耗时超过 30 秒。请结合客户端取消、上游超时和统计桶完整度判断是否为真实慢请求。" /> : null}
       <MetricCards overview={overview} />
       <ResourceTrend overview={overview} timeseries={data.timeseries} loading={loadingOverview} height={340} aside={

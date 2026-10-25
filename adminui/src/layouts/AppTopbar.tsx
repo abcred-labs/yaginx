@@ -3,6 +3,7 @@ import { ArrowLeft, Moon, Sun } from '@/ui/icons';
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppearance } from '@/appearance';
+import { InfoHint } from '@/ui/workbench';
 import { splitTrail, usePageMeta } from './PageMeta';
 
 const IconTip: React.FC<React.PropsWithChildren<{ label: string }>> = ({ label, children }) => (
@@ -15,7 +16,7 @@ const IconTip: React.FC<React.PropsWithChildren<{ label: string }>> = ({ label, 
 const AppTopbar: React.FC = () => {
   const navigate = useNavigate();
   const { effectiveTheme, setPreference } = useAppearance();
-  const { trail, title, backTo } = usePageMeta();
+  const { trail, title, description, backTo } = usePageMeta();
   const segments = splitTrail(trail);
   const isDark = effectiveTheme === 'dark';
   const themeLabel = isDark ? '切换到浅色模式' : '切换到深色模式';
@@ -30,6 +31,7 @@ const AppTopbar: React.FC = () => {
             </Button>
           </IconTip>
         )}
+        {description ? <InfoHint label="页面" content={description} /> : null}
         <nav className="flex min-w-0 items-center gap-1.5 text-sm" aria-label="页面路径">
           {segments.map((segment) => (
             <React.Fragment key={segment}>

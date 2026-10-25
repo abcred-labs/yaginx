@@ -507,6 +507,7 @@ func runServe(ctx context.Context, args []string, stdout, stderr io.Writer) int 
 		}
 	}
 	business.ShouldAggregate = trafficPolicy.ShouldAggregate
+	business.RecordUnknownHosts = cfg.Bool("trafficAggregation", "recordUnknownHosts")
 	business.Record = func(event telemetry.Event) {
 		metrics.ObserveProxy(event)
 		if event.BlacklistRuleID != 0 {

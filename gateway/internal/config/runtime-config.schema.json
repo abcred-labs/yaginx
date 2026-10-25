@@ -463,6 +463,7 @@
         "uaCacheSize": { "type": "integer", "minimum": 0, "maximum": 1000000, "default": 2000 },
         "retentionDays": { "type": "integer", "minimum": 1, "maximum": 3650, "default": 90 },
         "updateCurrentPeriod": { "type": "boolean", "default": true },
+        "recordUnknownHosts": { "type": "boolean", "default": false },
         "excludedPathPrefixes": {
           "type": "array",
           "items": { "type": "string", "pattern": "^/" },

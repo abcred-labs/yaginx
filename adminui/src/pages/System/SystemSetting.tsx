@@ -28,7 +28,7 @@ import {
   type GatewayNode,
 } from '@/api/gatewayNode';
 import { notifyError, notifySuccess } from '@/ui/notify';
-import { SectionCard, WorkbenchPage } from '@/ui/workbench';
+import { SectionCard, WorkbenchPage, useUrlTab } from '@/ui/workbench';
 
 const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 
@@ -158,7 +158,11 @@ const CidrField: React.FC<BaseFieldProps & { rows: number; below?: React.ReactNo
 
 const GRID = 'grid grid-cols-1 gap-4 md:grid-cols-3';
 
+const RUNTIME_GROUP_KEYS = ['proxy', 'collection', 'acme', 'logging', 'network'];
+const SETTINGS_TAB_KEYS = ['runtime', 'nodes', 'notifications'];
+
 const RuntimeSettings: React.FC = () => {
+  const [runtimeGroup, setRuntimeGroup] = useUrlTab(RUNTIME_GROUP_KEYS, 'group');
   const form = useForm<FormValues>({ defaultValues: {} });
   const [runtime, setRuntime] = useState<RuntimeSetting | null>(null);
   const [loading, setLoading] = useState(false);
@@ -233,7 +237,7 @@ const RuntimeSettings: React.FC = () => {
     <SectionCard title="运行参数" description="这些参数在 PostgreSQL 中集中保存，所有已批准节点共享。保存后按节点滚动重启。">
       <Form {...form} layout="vertical">
         <form onSubmit={(event) => { event.preventDefault(); void save(); }} noValidate>
-          <Tabs defaultValue="proxy">
+          <Tabs value={runtimeGroup} onValueChange={setRuntimeGroup}>
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <TabsList>
                 <TabsTrigger value="proxy">代理连接</TabsTrigger>
@@ -261,6 +265,7 @@ const RuntimeSettings: React.FC = () => {
             <TabsContent value="collection">
               <div className={GRID}>
                 <SwitchField control={control} name="trafficAggregation.enabled" label="启用流量聚合" />
+                <SwitchField control={control} name="trafficAggregation.recordUnknownHosts" label="记录未知 Host（流量与请求历史）" />
                 <TextField control={control} name="trafficAggregation.flushInterval" label="聚合刷新间隔" placeholder="15s" />
                 <NumberField control={control} name="trafficAggregation.retentionDays" label="流量保留天数" min={1} max={3650} />
                 <SwitchField control={control} name="requestHistory.enabled" label="启用请求历史" />
@@ -486,6 +491,7 @@ const Nodes: React.FC = () => {
 export type SystemSettingSection = 'runtime' | 'nodes' | 'notifications';
 
 export const SystemSetting: React.FC<{ section?: SystemSettingSection }> = ({ section }) => {
+  const [settingsTab, setSettingsTab] = useUrlTab(SETTINGS_TAB_KEYS);
   const pageMeta = section === 'runtime'
     ? { title: '运行配置', description: '管理所有已批准节点共享的运行参数。' }
     : section === 'nodes'
@@ -496,7 +502,7 @@ export const SystemSetting: React.FC<{ section?: SystemSettingSection }> = ({ se
   return (
     <WorkbenchPage eyebrow="SYSTEM / CONTROL PLANE" title={pageMeta.title} description={pageMeta.description}>
       {section === 'runtime' ? <RuntimeSettings /> : section === 'nodes' ? <Nodes /> : section === 'notifications' ? <SmtpSettings /> : (
-        <Tabs defaultValue="runtime">
+        <Tabs value={settingsTab} onValueChange={setSettingsTab}>
           <TabsList>
             <TabsTrigger value="runtime">运行参数</TabsTrigger>
             <TabsTrigger value="nodes">节点列表</TabsTrigger>

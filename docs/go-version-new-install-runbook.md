@@ -500,6 +500,7 @@ Key/Value endpoint 始终启动。provider 必须返回同集群的 `/api/identi
 | `trafficAggregation.queueCapacity` / `trafficAggregation.batchSize` | `100000` / `1000` | — | 队列 1000–1000000；批次 1–10000 |
 | `trafficAggregation.enableUAParsing` / `trafficAggregation.uaCacheSize` | `false` / `10000` | — | UA 解析与缓存 |
 | `trafficAggregation.retentionDays` | `90` | — | 1–3650 |
+| `trafficAggregation.recordUnknownHosts` | `false` | — | 是否为未被任何站点绑定的 Host 记录流量聚合与请求历史；开启后它们会作为“未托管”出现在 Host 目录 |
 | `trafficAggregation.updateCurrentPeriod` | `true` | — | 是否更新当前周期；管理台会明确标记未完成的当前桶 |
 | `trafficAggregation.excludedPathPrefixes` | `[]` | — | 不聚合的路径前缀 |
 | `requestHistory.enabled` | `true` | — | 默认记录错误请求的审计元数据 |

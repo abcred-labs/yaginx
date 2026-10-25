@@ -75,7 +75,6 @@ export const HostTrafficPage: React.FC<HostTrafficPageProps> = ({
       eyebrow="ANALYTICS / HOST TRAFFIC"
       title={title}
       description={description}
-      extra={<Button variant="outline" onClick={onRefresh}>刷新数据</Button>}
       className="!gap-2"
     >
       <div className="max-w-[620px] max-md:w-full max-md:overflow-x-auto">
@@ -112,6 +111,7 @@ export const HostTrafficPage: React.FC<HostTrafficPageProps> = ({
           {coverageState === "collecting" ? <Badge variant="warning">当前桶实时汇总中</Badge> : null}
           {coverageState === "incomplete" ? <Badge variant="warning">数据覆盖不完整</Badge> : null}
         </div> : null}
+        <Button variant="outline" className="ml-auto" onClick={onRefresh}>刷新数据</Button>
       </DataToolbar>
       {children}
     </WorkbenchPage>

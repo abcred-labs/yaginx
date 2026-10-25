@@ -8,8 +8,9 @@ import { webDomainDelete } from "@/api/website";
 import { confirmDanger } from "@/ui/confirmAction";
 import { notifySuccess } from "@/ui/notify";
 import { certificateDaysLeft, certificateTone } from "./hostCertificate";
-import { Button, DataTable, Input, Select, SelectClearButton, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@modra/react";
+import { BulkActionBar, Button, DataTable, Input, Select, SelectClearButton, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@modra/react";
 import type { ColumnDef } from "@tanstack/react-table";
+import { Trash2 } from "@/ui/icons";
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { websiteViewPath } from "./websiteViewRoute";
@@ -25,13 +26,35 @@ const HostCatalog: React.FC = () => {
   const [catalog, setCatalog] = useState<IResourceCatalog>();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const load = async (pageIndex = DEFAULT_PAGE_INDEX, pageSize = DEFAULT_PAGE_SIZE) => { setLoading(true); setError(""); try { const result = await getResourceCatalog({ host, status, websiteAssociation, pageIndex, pageSize }); setCatalog(result.data); } catch (reason) { setError(reason instanceof Error ? reason.message : "无法加载资源目录，请稍后重试。"); } finally { setLoading(false); } };
+  const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([]);
+  const load = async (pageIndex = DEFAULT_PAGE_INDEX, pageSize = DEFAULT_PAGE_SIZE) => { setLoading(true); setError(""); setSelectedRowKeys([]); try { const result = await getResourceCatalog({ host, status, websiteAssociation, pageIndex, pageSize }); setCatalog(result.data); } catch (reason) { setError(reason instanceof Error ? reason.message : "无法加载资源目录，请稍后重试。"); } finally { setLoading(false); } };
   useEffect(() => { load(); }, []);
   const removeHost = async (hostName: string) => {
     const response = await webDomainDelete({ name: hostName });
     if (response.code !== 200) return; // 全局请求层已提示错误
     notifySuccess("已删除", hostName);
     await load(catalog?.paging.pageIndex ?? DEFAULT_PAGE_INDEX, catalog?.paging.pageSize ?? DEFAULT_PAGE_SIZE);
+  };
+  const reloadCurrent = () => load(catalog?.paging.pageIndex ?? DEFAULT_PAGE_INDEX, catalog?.paging.pageSize ?? DEFAULT_PAGE_SIZE);
+  const removeSelected = () => {
+    const hosts = selectedRowKeys;
+    confirmDanger({
+      title: `删除已选择的 ${hosts.length} 个 Host？`,
+      description: "将移除这些 Host 的配置、取消进行中的证书申请，并清除其流量统计与请求记录；已签发的证书不会被删除。",
+      confirmText: "批量删除",
+      cancelText: "取消",
+      onConfirm: async () => {
+        let deleted = 0;
+        for (const hostName of hosts) {
+          try {
+            const response = await webDomainDelete({ name: hostName });
+            if (response.code === 200) deleted++;
+          } catch { /* 全局请求层已提示错误，继续处理其余 Host */ }
+        }
+        if (deleted > 0) notifySuccess(deleted === hosts.length ? `已删除 ${deleted} 个 Host` : `已删除 ${deleted} 个 Host，${hosts.length - deleted} 个失败`);
+        await reloadCurrent();
+      },
+    });
   };
   const columns: ColumnDef<IResourceHost, unknown>[] = [
     { id: "host", header: "Host", cell: ({ row }) => <Button variant="link" className="h-auto p-0" onClick={() => navigate(`/resource/hosts/view/${encodeURIComponent(row.original.host)}`)}>{row.original.host}</Button> },
@@ -105,10 +128,20 @@ const HostCatalog: React.FC = () => {
       </Select>
     </DataToolbar>
     {error ? <MonAlert type="error" message={error} /> : null}
+    {selectedRowKeys.length > 0 ? <BulkActionBar
+      selectedCount={selectedRowKeys.length}
+      selectionLabel={(count) => `已选择 ${count} 个 Host`}
+      onClearSelection={() => setSelectedRowKeys([])}
+      actions={[{ key: "delete", label: "批量删除", icon: <Trash2 className="size-4" aria-hidden="true" />, destructive: true, onSelect: removeSelected }]}
+    /> : null}
     <DataTable
       columns={columns}
       data={catalog?.records ?? []}
       getRowId={(record) => record.host}
+      enableRowSelection
+      isRowSelectable={(record) => record.websites.length === 0}
+      selectedRowKeys={selectedRowKeys}
+      onSelectedRowKeysChange={(keys) => setSelectedRowKeys(keys.map(String))}
       loading={loading}
       manualPagination
       pagination={paging}

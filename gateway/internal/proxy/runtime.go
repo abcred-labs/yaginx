@@ -227,6 +227,9 @@ type Runtime struct {
 	RecordAggregation func(event.AggregationEvent)
 	RecordHistory     func(event.Event)
 	ShouldAggregate   func(event.Event) bool
+	// RecordUnknownHosts also feeds traffic aggregation and request history for
+	// hosts no website binds; they then surface as unmanaged Host catalog rows.
+	RecordUnknownHosts bool
 	TraceID           func(context.Context) string
 	InternalPanic     func(error)
 	HistoryCapture    *HistoryCapture
@@ -420,13 +423,15 @@ func (r *Runtime) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 					}
 				}
 			}
-			// Hosts that no website binds (scanners, stray DNS) must not create
-			// traffic or history rows: they would otherwise appear in the Host
-			// catalog as unmanaged resources. Metrics still see the event.
-			if matched && r.RecordAggregation != nil && (r.ShouldAggregate == nil || r.ShouldAggregate(full)) {
+			// Hosts that no website binds (scanners, stray DNS) create no traffic
+			// or history rows unless RecordUnknownHosts is set: they would
+			// otherwise appear in the Host catalog as unmanaged resources.
+			// Metrics always see the event.
+			record := matched || r.RecordUnknownHosts
+			if record && r.RecordAggregation != nil && (r.ShouldAggregate == nil || r.ShouldAggregate(full)) {
 				r.RecordAggregation(aggregate)
 			}
-			if matched && r.RecordHistory != nil && historyRecord {
+			if record && r.RecordHistory != nil && historyRecord {
 				r.RecordHistory(full)
 			}
 			if r.Record != nil {

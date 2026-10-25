@@ -153,13 +153,17 @@ const List: React.FC = () => {
       eyebrow="CONFIGURATION / WEBSITES"
       title="网站"
       description="管理站点入口、默认上游和 TLS 覆盖范围。"
-      extra={<>
-        <Button variant="outline" onClick={reload}>刷新</Button>
-        <Button onClick={() => navigate('../create')}>创建站点</Button>
-      </>}
     >
       <div className="flex flex-col gap-4">
-        <FilterBar columns={4} onApply={applyFilters} onReset={resetFilters}>
+        <FilterBar
+          columns={4}
+          onApply={applyFilters}
+          onReset={resetFilters}
+          actions={<div className="ml-auto flex items-center gap-2">
+            <Button type="button" variant="outline" onClick={reload}>刷新</Button>
+            <Button type="button" onClick={() => navigate('../create')}>创建站点</Button>
+          </div>}
+        >
           <FilterField label="域名" htmlFor="website-filter-domain">
             <Input id="website-filter-domain" placeholder="默认或附加域名" value={draftFilters.domain} onChange={(event) => setDraftFilters((current) => ({ ...current, domain: event.target.value }))} />
           </FilterField>
