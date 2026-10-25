@@ -23,6 +23,6 @@ npx --yes pnpm@8.15.9 run build
 npx --yes pnpm@8.15.9 run serve
 ```
 
-The GitHub Actions documentation workflow publishes the generated `build/`
-directory to GitHub Pages from the default branch. Configure Pages to use the
-GitHub Actions source before the first deployment.
+The documentation is not published to GitHub Pages. The `docs` job in
+`.github/workflows/ci.yml` typechecks, checks links and content, and builds the
+site on every push and pull request.
