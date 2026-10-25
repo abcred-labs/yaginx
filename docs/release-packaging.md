@@ -36,8 +36,15 @@ pnpm run build
 
 ## 版本号和 migration 规则
 
-- `v1.1.x`：当前稳定版本线，首个版本为 `v1.1.0`。
-- `v1.x`：稳定公开版本线；只接受 V2 schema，重大不兼容变更使用 major 版本。
+版本号格式为 `vMAJOR.MINOR.PATCH`。
+
+- **默认只递增第三位(PATCH)**：每次常规发版(功能、修复、重构、文档)都只把 PATCH 加 1，
+  例如 `v0.3.1` → `v0.3.2`。不要因为"包含新功能"就自行升 MINOR。
+- **第一位(MAJOR)和第二位(MINOR)只在明确要求时变更**：必须由维护者在发版请求中明确
+  指出要升 MAJOR 或 MINOR（例如"发布 v0.4.0"、"升 minor 版本"）。没有明确说明时一律按
+  PATCH 处理；有疑问先询问，不要猜测。
+- 升 MINOR 时 PATCH 归零（`v0.3.5` → `v0.4.0`），升 MAJOR 时 MINOR 和 PATCH 都归零。
+- 确定下一个版本号：`git tag --sort=-v:refname | head -1` 取最新 tag，再把 PATCH 加 1。
 - 已发布的 migration 永远不能修改或删除；schema 变更必须新增 forward migration。
 - 已发布版本发现问题时创建新的 patch 版本，不能移动 tag 或覆盖 Release 资产。
 
@@ -51,8 +58,10 @@ git fetch origin
 git checkout main
 git pull --ff-only origin main
 
-git tag -a v1.1.0 -m "Release v1.1.0"
-git push origin v1.1.0
+# 先确认最新 tag，再把 PATCH 加 1（此处以 v0.3.2 为例）
+git tag --sort=-v:refname | head -1
+git tag -a v0.3.2 -m "Release v0.3.2"
+git push origin v0.3.2
 ```
 
 触发格式必须是：
@@ -61,7 +70,7 @@ git push origin v1.1.0
 v<major>.<minor>.<patch>
 ```
 
-例如 `v1.1.0`。不要使用 `latest`、`release-1.1.0` 或移动现有 tag。
+例如 `v0.3.2`。不要使用 `latest`、`release-0.3.2` 或移动现有 tag。
 
 ## GitHub Actions 自动打包
 
