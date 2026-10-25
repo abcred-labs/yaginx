@@ -4,23 +4,23 @@ import EChartPanel from "@/components/charts/EChartPanel";
 import { formatNumber, formatPercent } from "@/utils/formatters";
 import React, { useEffect, useState } from "react";
 import { HostTrafficPage } from "./HostTrafficPage";
+import type { TrafficPanelProps } from "./panelTypes";
 import { buildRequestContributionOption, buildRequestRankOption } from "./chartOptions";
 import { HostTrafficKpiCards, useHostTrafficFilters, useHostTrafficRefresh, useHostTrafficWorkspace } from "./dashboard";
 import { trafficGrainLabel } from "./shared";
 
-const RequestContribution: React.FC = () => {
+export const ContributionPanel: React.FC<TrafficPanelProps> = ({ query, refreshToken, onMeta }) => {
   const { effectiveTheme } = useAppearance();
   const colors = chartPalette(effectiveTheme);
-  const { filters, setFilters } = useHostTrafficFilters();
-  const { autoRefreshSeconds, autoRefreshEnabled, setAutoRefreshSeconds, setAutoRefreshEnabled } = useHostTrafficWorkspace();
-  const { refreshToken, refresh } = useHostTrafficRefresh(autoRefreshEnabled, autoRefreshSeconds);
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<IAnalyticsContributions>();
+  const queryKey = `${query.from}|${query.to}|${query.domain ?? ""}|${(query.domains ?? []).join(",")}`;
+  useEffect(() => { onMeta?.({ grain: data?.grain, coverageState: data?.coverage.state }); }, [data?.grain, data?.coverage.state]);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    getAnalyticsContributions({ from: filters.from, to: filters.to, domain: filters.hostName || undefined })
+    getAnalyticsContributions({ from: query.from, to: query.to, domain: query.domain, domains: query.domains })
       .then((response) => {
         if (!cancelled) setData(response.data);
       })
@@ -33,7 +33,7 @@ const RequestContribution: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [filters, refreshToken]);
+  }, [queryKey, refreshToken]);
 
   const summary = data?.summary;
   const rankings = data?.rankings ?? [];
@@ -43,19 +43,7 @@ const RequestContribution: React.FC = () => {
   const grain = data?.grain ?? "minute";
 
   return (
-    <HostTrafficPage
-      title="请求贡献"
-      description="将请求量按 Host 排序，快速区分主导流量与长尾访问。"
-      filters={filters}
-      onFiltersChange={setFilters}
-      onRefresh={refresh}
-      autoRefreshSeconds={autoRefreshSeconds}
-      autoRefreshEnabled={autoRefreshEnabled}
-      onAutoRefreshSecondsChange={setAutoRefreshSeconds}
-      onAutoRefreshEnabledChange={setAutoRefreshEnabled}
-      grain={data?.grain}
-      coverageState={data?.coverage.state}
-    >
+    <>
       <HostTrafficKpiCards
         loading={loading}
         items={[
@@ -95,6 +83,30 @@ const RequestContribution: React.FC = () => {
           />
         </div>
       </div>
+    </>
+  );
+};
+
+const RequestContribution: React.FC = () => {
+  const { filters, setFilters } = useHostTrafficFilters();
+  const { autoRefreshSeconds, autoRefreshEnabled, setAutoRefreshSeconds, setAutoRefreshEnabled } = useHostTrafficWorkspace();
+  const { refreshToken, refresh } = useHostTrafficRefresh(autoRefreshEnabled, autoRefreshSeconds);
+  const [meta, setMeta] = useState<{ grain?: "minute" | "hour" | "day"; coverageState?: "collecting" | "complete" | "incomplete" }>({});
+  return (
+    <HostTrafficPage
+      title="请求贡献"
+      description="将请求量按 Host 排序，快速区分主导流量与长尾访问。"
+      filters={filters}
+      onFiltersChange={setFilters}
+      onRefresh={refresh}
+      autoRefreshSeconds={autoRefreshSeconds}
+      autoRefreshEnabled={autoRefreshEnabled}
+      onAutoRefreshSecondsChange={setAutoRefreshSeconds}
+      onAutoRefreshEnabledChange={setAutoRefreshEnabled}
+      grain={meta.grain}
+      coverageState={meta.coverageState}
+    >
+      <ContributionPanel query={{ from: filters.from, to: filters.to, domain: filters.hostName || undefined }} refreshToken={refreshToken} onMeta={setMeta} />
     </HostTrafficPage>
   );
 };

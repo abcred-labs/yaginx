@@ -13,6 +13,7 @@ import { notifyError, notifySuccess } from '@/ui/notify';
 import ServerDataTable from '@/ui/ServerDataTable';
 import { SectionCard, WorkbenchPage } from '@/ui/workbench';
 import { buildWebsiteSearchRequest, websiteBatchDeleteResultText, websiteListOperationPath } from './websiteListState';
+import { websiteAnalyticsPath } from '@/utils/analyticsLinks';
 
 type CertificateFilter = 'all' | 'true' | 'false';
 interface FilterValues { domain: string; upstream: string; hasCertificate: CertificateFilter }
@@ -99,7 +100,7 @@ const List: React.FC = () => {
   };
 
   const columns = useMemo<ColumnDef<Website, unknown>[]>(() => [
-    { id: 'name', header: '站点名称', size: 260, cell: ({ row }) => row.original.name },
+    { id: 'name', header: '站点名称', size: 260, cell: ({ row }) => <Button variant="link" className="h-auto p-0" onClick={() => navigate(websiteAnalyticsPath(requireInt64String(row.original.id, '网站 ID')))}>{row.original.name}</Button> },
     {
       id: 'primaryHost',
       header: '主站 Host',

@@ -1,4 +1,5 @@
 import { getResourceCatalog, IResourceCatalog, IResourceHost, ResourceCatalogStatus, ResourceCatalogWebsiteAssociation } from "@/api/analytics";
+import { acmeOrdersPath } from "@/utils/analyticsLinks";
 import { DEFAULT_PAGE_INDEX, DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS } from "@/api/apiTypes";
 import { LocalTime } from "@/components/LocalTime";
 import { DataToolbar, SignalTag, WorkbenchPage } from "@/ui/workbench";
@@ -56,7 +57,7 @@ const HostCatalog: React.FC = () => {
           {auto.failDays > 0 && auto.status !== "off" ? <span className="text-xs text-muted-foreground">连续失败 {auto.failDays} 天</span> : null}
         </div>
         {auto.status === "stopped" && auto.stopReason ? <span className="text-xs text-muted-foreground">{auto.stopReason}</span> : null}
-        {order ? <Button variant="link" size="sm" className="h-auto justify-start p-0" onClick={() => navigate(`/systems/acme?domain=${encodeURIComponent(row.original.host)}`)}>订单 #{order.id} · {ORDER_STATUS_LABELS[order.status] ?? order.status}</Button> : null}
+        {order ? <Button variant="link" size="sm" className="h-auto justify-start p-0" onClick={() => navigate(acmeOrdersPath(row.original.host))}>订单 #{order.id} · {ORDER_STATUS_LABELS[order.status] ?? order.status}</Button> : null}
       </div>;
     } },
     { id: "lastActivity", header: "最近活动", meta: { minWidth: 180 }, cell: ({ row }) => row.original.lastActivity ? <LocalTime timestamp={row.original.lastActivity} /> : "—" },

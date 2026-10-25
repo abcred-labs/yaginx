@@ -38,7 +38,7 @@ export const filtersFromSearchParams = (searchParams: URLSearchParams, now: Dayj
   const to = normalizeTimestamp(searchParams.get("to"));
 
   return {
-    hostName: searchParams.get("host")?.trim() ?? "",
+    hostName: (searchParams.get("host") ?? searchParams.get("domain"))?.trim() ?? "",
     from: from && to && to > from ? from : fallback.from,
     to: from && to && to > from ? to : fallback.to
   };

@@ -5,6 +5,7 @@ import { formatBytes, formatNumber, formatPercent } from "@/utils/formatters";
 import { Badge, Button, Empty, Progress } from "@modra/react";
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { hostDetailPath } from "@/utils/analyticsLinks";
 import { MonAlert, MonCard, MonStat, cx } from "@/ui/monParts";
 
 export interface DashboardPanelProps { range: number; selectedDomain?: string; refreshKey?: number; autoRefreshSeconds?: number; onLoadingChange?: (loading: boolean) => void; }
@@ -114,7 +115,7 @@ export const TrafficBreakdownPanel: React.FC<DashboardPanelProps> = (props) => {
         : <Badge key={item.type} variant={variant}>{content}</Badge>;
     }) : <Empty description="暂无状态码" />}</div></div>
     <div><span className={subLabel}>错误分布</span><div className={chipList}>{errors.length ? errors.map(item => <button key={item.type} type="button" onClick={() => navigate(`/monitor/requestHistory/list?errorCode=${item.type}`)}><Badge variant="warning" className="cursor-pointer">{item.type} · {formatNumber(item.value)}</Badge></button>) : <Empty description="当前窗口无错误" />}</div></div>
-    <div><span className={subLabel}>Top 域名</span>{domains.slice(0, 5).map(domain => <button key={domain.domain} type="button" className="flex w-full items-center justify-between border-b border-border py-1.5 text-left text-sm text-primary hover:underline" onClick={() => navigate(`/monitor/traffic/request-trend?domain=${encodeURIComponent(domain.domain)}`)}><span>{domain.domain}</span><span className="font-mono text-muted-foreground">{formatNumber(domain.requests)}</span></button>)}</div>
+    <div><span className={subLabel}>Top 域名</span>{domains.slice(0, 5).map(domain => <button key={domain.domain} type="button" className="flex w-full items-center justify-between border-b border-border py-1.5 text-left text-sm text-primary hover:underline" onClick={() => navigate(hostDetailPath(domain.domain))}><span>{domain.domain}</span><span className="font-mono text-muted-foreground">{formatNumber(domain.requests)}</span></button>)}</div>
   </div></MonCard>;
 };
 

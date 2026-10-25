@@ -417,18 +417,19 @@ const compactText = (value: unknown, maxWidth: number) =>
 
 export interface RequestHistoryListProps {
   fixedHost?: string;
+  fixedWebsiteId?: string;
   embedded?: boolean;
 }
 
 const STATUS_PATTERN = /^[0-9x]{3}$/i;
 
-export const RequestHistoryList: React.FC<RequestHistoryListProps> = ({ fixedHost, embedded = false }) => {
+export const RequestHistoryList: React.FC<RequestHistoryListProps> = ({ fixedHost, fixedWebsiteId, embedded = false }) => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const initialNumber = (key: string) => { const value = Number(searchParams.get(key)); return Number.isFinite(value) && value > 0 ? value : null; };
   const [refreshTable, forceRefreshTable] = useState<number>(0);
   const [host, setHost] = useState<string>(() => searchParams.get("host") || "");
-  const websiteId = searchParams.get("websiteId") || undefined;
+  const websiteId = fixedWebsiteId || searchParams.get("websiteId") || undefined;
   const initialStatusCodePattern = () => {
     const pattern = searchParams.get("statusCodePattern");
     if (pattern !== null) return pattern;
@@ -782,7 +783,7 @@ export const RequestHistoryList: React.FC<RequestHistoryListProps> = ({ fixedHos
       />
     </>;
   if (embedded) {
-    return <SectionCard title="请求追踪" description={`完整追踪记录已限定为 ${fixedHost}。`}><div className="flex flex-col gap-4">{content}</div></SectionCard>;
+    return <SectionCard title="请求追踪" description={`完整追踪记录已限定为 ${fixedHost ?? "当前站点"}。`}><div className="flex flex-col gap-4">{content}</div></SectionCard>;
   }
   return <WorkbenchPage eyebrow="ANALYTICS / REQUEST TRACE" title="请求追踪" description="定位上游返回、代理异常和请求上下文；选择任意记录查看完整诊断详情。">{content}</WorkbenchPage>;
 };

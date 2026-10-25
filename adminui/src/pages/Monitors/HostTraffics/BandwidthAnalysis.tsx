@@ -6,27 +6,27 @@ import { Button } from "@modra/react";
 import { MonAlert } from "@/ui/monParts";
 import React, { useEffect, useState } from "react";
 import { HostTrafficPage } from "./HostTrafficPage";
+import type { TrafficPanelProps } from "./panelTypes";
 import { buildBandwidthRankOption, buildBandwidthTrendOption } from "./chartOptions";
 import { HostTrafficKpiCards, useHostTrafficFilters, useHostTrafficRefresh, useHostTrafficWorkspace } from "./dashboard";
 import { trafficGrainLabel } from "./shared";
 
-const BandwidthAnalysis: React.FC = () => {
+export const BandwidthPanel: React.FC<TrafficPanelProps> = ({ query, refreshToken, onRetry, onMeta }) => {
   const { effectiveTheme } = useAppearance();
   const colors = chartPalette(effectiveTheme);
-  const { filters, setFilters } = useHostTrafficFilters();
-  const { autoRefreshSeconds, autoRefreshEnabled, setAutoRefreshSeconds, setAutoRefreshEnabled } = useHostTrafficWorkspace();
-  const { refreshToken, refresh } = useHostTrafficRefresh(autoRefreshEnabled, autoRefreshSeconds);
   const [loading, setLoading] = useState(true);
   const [overview, setOverview] = useState<IAnalyticsOverview>();
   const [domains, setDomains] = useState<IAnalyticsDomain[]>([]);
   const [points, setPoints] = useState<IAnalyticsPoint[]>([]);
   const [error, setError] = useState<string>();
+  const queryKey = `${query.from}|${query.to}|${query.domain ?? ""}|${(query.domains ?? []).join(",")}`;
+  useEffect(() => { onMeta?.({ grain: overview?.grain, coverageState: overview?.coverage.state }); }, [overview?.grain, overview?.coverage.state]);
 
   useEffect(() => {
     const controller = new AbortController();
     setLoading(true);
     setError(undefined);
-    const params = { from: filters.from, to: filters.to, domain: filters.hostName || undefined };
+    const params = { from: query.from, to: query.to, domain: query.domain, domains: query.domains };
     getAnalyticsOverview(params, ["overview", "domains", "timeseries"], { ignoreGlobalError: true, signal: controller.signal })
       .then((response) => {
         const summary = response.data ? overviewSection(response.data) : undefined;
@@ -58,7 +58,7 @@ const BandwidthAnalysis: React.FC = () => {
     return () => {
       controller.abort();
     };
-  }, [filters, refreshToken]);
+  }, [queryKey, refreshToken]);
 
   const rankings = domains.map((domain) => ({
     hostName: domain.domain,
@@ -76,19 +76,7 @@ const BandwidthAnalysis: React.FC = () => {
   const grain = overview?.grain ?? "minute";
 
   return (
-    <HostTrafficPage
-      title="流量消耗"
-      description="按实际收发字节分析带宽来源，避免请求量掩盖大响应体或上传流量。"
-      filters={filters}
-      onFiltersChange={setFilters}
-      onRefresh={refresh}
-      autoRefreshSeconds={autoRefreshSeconds}
-      autoRefreshEnabled={autoRefreshEnabled}
-      onAutoRefreshSecondsChange={setAutoRefreshSeconds}
-      onAutoRefreshEnabledChange={setAutoRefreshEnabled}
-      grain={overview?.grain}
-      coverageState={overview?.coverage.state}
-    >
+    <>
       <HostTrafficKpiCards
         loading={loading}
         items={[
@@ -103,7 +91,7 @@ const BandwidthAnalysis: React.FC = () => {
           }
         ]}
       />
-      {error ? <MonAlert type="error" message={error} action={<Button size="sm" variant="outline" onClick={refresh}>重试</Button>} /> : null}
+      {error ? <MonAlert type="error" message={error} action={<Button size="sm" variant="outline" onClick={onRetry}>重试</Button>} /> : null}
       <div className="grid grid-cols-1 gap-3 xl:grid-cols-24">
         <div className="xl:col-span-14">
           <EChartPanel
@@ -130,6 +118,30 @@ const BandwidthAnalysis: React.FC = () => {
           />
         </div>
       </div>
+    </>
+  );
+};
+
+const BandwidthAnalysis: React.FC = () => {
+  const { filters, setFilters } = useHostTrafficFilters();
+  const { autoRefreshSeconds, autoRefreshEnabled, setAutoRefreshSeconds, setAutoRefreshEnabled } = useHostTrafficWorkspace();
+  const { refreshToken, refresh } = useHostTrafficRefresh(autoRefreshEnabled, autoRefreshSeconds);
+  const [meta, setMeta] = useState<{ grain?: "minute" | "hour" | "day"; coverageState?: "collecting" | "complete" | "incomplete" }>({});
+  return (
+    <HostTrafficPage
+      title="流量消耗"
+      description="按实际收发字节分析带宽来源，避免请求量掩盖大响应体或上传流量。"
+      filters={filters}
+      onFiltersChange={setFilters}
+      onRefresh={refresh}
+      autoRefreshSeconds={autoRefreshSeconds}
+      autoRefreshEnabled={autoRefreshEnabled}
+      onAutoRefreshSecondsChange={setAutoRefreshSeconds}
+      onAutoRefreshEnabledChange={setAutoRefreshEnabled}
+      grain={meta.grain}
+      coverageState={meta.coverageState}
+    >
+      <BandwidthPanel query={{ from: filters.from, to: filters.to, domain: filters.hostName || undefined }} refreshToken={refreshToken} onRetry={refresh} onMeta={setMeta} />
     </HostTrafficPage>
   );
 };

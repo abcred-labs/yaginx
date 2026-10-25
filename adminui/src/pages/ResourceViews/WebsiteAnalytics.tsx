@@ -4,7 +4,11 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { ArrowRight, RefreshCw } from "@/ui/icons";
 import React, { useEffect, useMemo, useState } from "react";
 import type { EChartsOption } from "echarts";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { BandwidthPanel } from "@/pages/Monitors/HostTraffics/BandwidthAnalysis";
+import { ContributionPanel } from "@/pages/Monitors/HostTraffics/RequestContribution";
+import { RequestHistoryList } from "@/pages/Monitors/RequestHistory/List";
+import { acmeOrdersPath, hostDetailPath, requestHistoryPath } from "@/utils/analyticsLinks";
 import { LocalTime } from "@/components/LocalTime";
 import { SectionCard, SignalTag, WorkbenchPage, WorkbenchTabs } from "@/ui/workbench";
 import { MonAlert, MonCard, MonDateTimeRange, MonDescriptions, MonSegmented, type MonDayjsRange } from "@/ui/monParts";
@@ -36,6 +40,8 @@ const latencyOption = (domain: IAnalyticsDomain | undefined, colors: ReturnType<
 const WebsiteAnalytics: React.FC = () => {
   const { id = "" } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const initialTab = ["overview", "hosts", "contribution", "bandwidth", "history", "quality"].includes(searchParams.get("tab") ?? "") ? searchParams.get("tab")! : "overview";
   const { effectiveTheme } = useAppearance();
   const colors = chartPalette(effectiveTheme);
   const [range, setRange] = useState(defaultResourceViewWindowSeconds);
@@ -47,7 +53,9 @@ const WebsiteAnalytics: React.FC = () => {
   const [error, setError] = useState("");
   const window = useMemo(() => { const to = Math.floor(Date.now() / 1000); if (customRange?.[0] && customRange?.[1]) return { from: Math.floor(customRange[0].valueOf() / 1000), to: Math.floor(customRange[1].valueOf() / 1000) }; return { from: to - range, to }; }, [range, customRange]);
 
+  const [refreshNonce, setRefreshNonce] = useState(0);
   const load = async () => {
+    setRefreshNonce((value) => value + 1);
     setLoadingOverview(true); setLoadingHosts(true); setError("");
     try {
       const response = await getWebsiteAnalytics({ id: id as Int64, ...window });
@@ -63,19 +71,21 @@ const WebsiteAnalytics: React.FC = () => {
   };
   useEffect(() => { void load(); }, [id, window.from, window.to]);
 
+  const hostNames = useMemo(() => (data?.hosts ?? []).map((host) => host.host), [data]);
+  // 站点没有任何 Host 时不能传空 domains，否则后端会汇总全部 Host。
+  const trafficQuery = { from: window.from, to: window.to, domains: hostNames };
+  const noHosts = <Empty description="该站点尚未绑定 Host" />;
   const overview = data?.overview;
   const kpis = overview?.kpis;
   const openHistory = (filters: Record<string, string | number>) => {
-    const query = new URLSearchParams(Object.entries(filters).map(([key, value]) => [key, String(value)]));
-    query.set("websiteId", id);
-    navigate(`/monitor/requestHistory/list?${query.toString()}`);
+    navigate(requestHistoryPath({ ...filters, websiteId: id }));
   };
   const quality = overview ? `${overview.isPartial ? "统计桶仍在收集" : "数据完整"} · 延迟 ${formatNumber(overview.dataLagSeconds)} 秒` : "等待数据";
   const topHost = hostStats[0];
   const latencyWarning = (kpis?.maxDurationMs ?? 0) > 30000 || (kpis?.p95Ms ?? 0) > 30000;
 
   const hostColumns: ColumnDef<IAnalyticsDomain, unknown>[] = [
-    { id: "domain", header: "Host", cell: ({ row }) => <Button variant="link" className="h-auto p-0" onClick={() => navigate(`/resource/hosts/view/${encodeURIComponent(row.original.domain)}`)}>{row.original.domain}</Button> },
+    { id: "domain", header: "Host", cell: ({ row }) => <Button variant="link" className="h-auto p-0" onClick={() => navigate(hostDetailPath(row.original.domain))}>{row.original.domain}</Button> },
     { id: "requests", header: "请求", cell: ({ row }) => formatNumber(row.original.requests) },
     { id: "errorRate", header: "错误率", cell: ({ row }) => formatPercent(row.original.errorRate) },
     { id: "p95Ms", header: "P95", cell: ({ row }) => metric(row.original.p95Ms, " ms") }
@@ -94,7 +104,7 @@ const WebsiteAnalytics: React.FC = () => {
   </>}>
     {loadingOverview && !data ? <Spin /> : !data ? <Empty description="站点不存在或已删除" /> : <>
       {error ? <MonAlert type="error" message={error} /> : null}
-      <WorkbenchTabs items={[{ key: "overview", label: "概览", children: <div className="flex flex-col gap-3">
+      <WorkbenchTabs defaultKey={initialTab} items={[{ key: "overview", label: "概览", children: <div className="flex flex-col gap-3">
       {latencyWarning ? <MonAlert type="warning" message="检测到异常耗时" description="P95 或最大耗时超过 30 秒。请结合客户端取消、上游超时和统计桶完整度判断是否为真实慢请求。" /> : null}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">{kpiCards.map(([title, value]) => <Card key={title}><CardContent className="p-4"><Statistic title={title} value={value} /></CardContent></Card>)}</div>
       <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
@@ -105,14 +115,14 @@ const WebsiteAnalytics: React.FC = () => {
         </MonCard>
       </div>
       </div> }, { key: "hosts", label: "Host 明细", children: <div className="flex flex-col gap-3">
-      <SectionCard title="站点主机" description="点击 Host 可进入单 Host 的完整排查视图。"><MonDescriptions columnsClass="md:grid-cols-2" items={(data.hosts ?? []).map((host) => ({ key: host.host, label: <Button variant="link" className="h-auto p-0" onClick={() => navigate(`/resource/hosts/view/${encodeURIComponent(host.host)}`)}>{host.host}</Button>, children: <SignalTag tone={host.certificate ? "success" : "warning"}>{host.certificate ? <>证书有效至 <LocalTime timestamp={host.certificate.notAfter} /></> : "未发现有效证书"}</SignalTag> }))} /></SectionCard>
+      <SectionCard title="站点主机" description="点击 Host 可进入单 Host 的完整排查视图。"><MonDescriptions columnsClass="md:grid-cols-2" items={(data.hosts ?? []).map((host) => ({ key: host.host, label: <Button variant="link" className="h-auto p-0" onClick={() => navigate(hostDetailPath(host.host))}>{host.host}</Button>, children: <><SignalTag tone={host.certificate ? "success" : "warning"}>{host.certificate ? <>证书有效至 <LocalTime timestamp={host.certificate.notAfter} /></> : "未发现有效证书"}</SignalTag><Button variant="link" size="sm" onClick={() => navigate(acmeOrdersPath(host.host))}>ACME 订单</Button></> }))} /></SectionCard>
       <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
         <MonCard title="Host 排名" extra={<span className="text-sm text-muted-foreground">按请求量</span>}>
           <DataTable columns={hostColumns} data={hostStats} getRowId={(record) => record.domain} loading={loadingHosts} />
         </MonCard>
         <EChartPanel title="延迟分位" loading={loadingHosts} option={topHost ? latencyOption(topHost, colors) : undefined} isEmpty={!topHost} height={260} emptyDescription="暂无 Host 延迟数据" />
       </div>
-      </div> }, { key: "quality", label: "分布与数据质量", children: <div className="flex flex-col gap-3">
+      </div> }, { key: "contribution", label: "请求贡献", children: hostNames.length ? <div className="flex flex-col gap-3"><ContributionPanel query={trafficQuery} refreshToken={refreshNonce} /></div> : noHosts }, { key: "bandwidth", label: "带宽分析", children: hostNames.length ? <div className="flex flex-col gap-3"><BandwidthPanel query={trafficQuery} refreshToken={refreshNonce} onRetry={load} /></div> : noHosts }, { key: "history", label: "请求追踪", children: <RequestHistoryList fixedWebsiteId={id} embedded /> }, { key: "quality", label: "分布与数据质量", children: <div className="flex flex-col gap-3">
       <SectionCard title="分析状态" description="数据覆盖与采集延迟始终随窗口展示。"><div className="flex flex-wrap items-center gap-2"><SignalTag tone={overview?.isPartial ? "warning" : "success"}>{quality}</SignalTag><span className="text-sm text-muted-foreground">来源：{overview?.source || "站点汇总"}</span><Button variant="link" onClick={() => openHistory({ from: window.from, to: window.to })}>查看窗口请求 <ArrowRight className="size-4" aria-hidden="true" /></Button></div></SectionCard>
       <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
         <MonCard title="状态码分布"><div className="flex flex-wrap gap-2">{(overview?.statusBreakdown ?? []).map((item) => {
