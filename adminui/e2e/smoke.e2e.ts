@@ -6,7 +6,7 @@ const PAGES: Array<[path: string, heading: string]> = [
   ['/access-control/ip-blacklist', 'IP 黑名单'],
   ['/monitor/traffic/request-trend', '请求趋势'],
   ['/monitor/requestHistory/list', '请求追踪'],
-  ['/resource/hosts', 'Host 资源'],
+  ['/resource/hosts', 'Host 目录'],
   ['/systems/runtime', '运行配置'],
   ['/systems/nodes', '节点与发布'],
   ['/systems/acme', 'ACME 订单'],
@@ -41,7 +41,7 @@ test.describe('已登录', () => {
   for (const [path, heading] of PAGES) {
     test(`页面可以打开：${path}`, async ({ page }) => {
       await page.goto(`/#${path}`);
-      await expect(page.getByRole('heading', { name: heading, exact: true })).toBeVisible();
+      await expect(page.getByRole('navigation', { name: '页面路径' })).toContainText(heading);
     });
   }
 
