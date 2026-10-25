@@ -19,6 +19,7 @@ type resourceHost struct {
 	domainConfig *management.DomainListItem
 	websites     []resourceWebsiteRef
 	certificate  *resourceCertificate
+	autoSummary  *ACMEAutoSummary
 	lastActivity int64
 }
 
@@ -93,9 +94,11 @@ func (p *Postgres) resourceHosts(ctx context.Context, hostFilter []string) (map[
 		timestamp int64
 	}
 	var activities []activityRow
+	var autoSummaries map[string]*ACMEAutoSummary
 	group, groupCtx := errgroup.WithContext(ctx)
 	group.Go(func() error { var err error; websites, err = p.ListWebsites(groupCtx); return err })
 	group.Go(func() error { var err error; domains, err = p.ListDomains(groupCtx); return err })
+	group.Go(func() error { var err error; autoSummaries, err = p.ACMEAutoSummaries(groupCtx); return err })
 	group.Go(func() error {
 		rows, err := p.pool.Query(groupCtx, `SELECT lower(trim(name)), fingerprint, not_before, not_after
 			FROM gateway_certificate c CROSS JOIN LATERAL unnest(c.dns_names) AS name
@@ -158,6 +161,11 @@ func (p *Postgres) resourceHosts(ctx context.Context, hostFilter []string) (map[
 			}
 		}
 	}
+	for name, summary := range autoSummaries {
+		if item := items[normalizeResourceHost(name)]; item != nil {
+			item.autoSummary = summary
+		}
+	}
 	for _, activity := range activities {
 		if item := ensure(activity.name); item != nil && activity.timestamp > item.lastActivity {
 			item.lastActivity = activity.timestamp
@@ -179,7 +187,28 @@ func resourceHostDTO(item *resourceHost) management.ResourceHost {
 	if item.certificate != nil {
 		certificate = &management.ResourceCertificate{Fingerprint: item.certificate.Fingerprint, NotBefore: item.certificate.NotBefore, NotAfter: item.certificate.NotAfter, IsActive: item.certificate.IsActive}
 	}
-	return management.ResourceHost{Host: item.name, ManagementStatus: status, DomainConfig: item.domainConfig, Websites: websites, Certificate: certificate, LastActivity: item.lastActivity}
+	return management.ResourceHost{Host: item.name, ManagementStatus: status, DomainConfig: item.domainConfig, Websites: websites, Certificate: certificate, AutoRenew: resourceAutoRenew(item), LastActivity: item.lastActivity}
+}
+
+// resourceAutoRenew is nil for hosts with no web_domain row (never configured).
+func resourceAutoRenew(item *resourceHost) *management.ResourceAutoRenew {
+	if item.domainConfig == nil {
+		return nil
+	}
+	out := &management.ResourceAutoRenew{Status: "off", MaxPerDay: ACMEAutoMaxAttemptsPerDay}
+	if item.domainConfig.AutoRequestCertificate {
+		out.Status = "active"
+	}
+	if summary := item.autoSummary; summary != nil {
+		out.FailDays, out.AttemptsToday = summary.FailDays, summary.AttemptsToday
+		if summary.StoppedAt != nil && item.domainConfig.AutoRequestCertificate {
+			out.Status, out.StopReason = "stopped", summary.StopReason
+		}
+		if summary.LastOrder != nil {
+			out.LatestOrder = &management.ResourceACMEOrderRef{ID: management.ID(summary.LastOrder.ID), Status: summary.LastOrder.Status, UpdatedAt: summary.LastOrder.UpdatedAt.Unix()}
+		}
+	}
+	return out
 }
 
 type resourceCatalogFilter struct {

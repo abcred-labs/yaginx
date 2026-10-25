@@ -48,6 +48,13 @@ RETURNING id,name,is_use_free_cert,is_verified,coalesce(free_cert_message,'')`, 
 	if err != nil {
 		return management.Domain{}, err
 	}
+	if outFree {
+		// An operator explicitly (re-)enabling auto-request clears a stopped
+		// automatic renewal.
+		if _, err := p.pool.Exec(ctx, "DELETE FROM gateway_acme_auto_state WHERE domain_name=$1", outName); err != nil {
+			return management.Domain{}, err
+		}
+	}
 	return management.Domain{
 		ID: management.ID(outID),
 		DomainUpsertRequest: management.DomainUpsertRequest{
@@ -132,15 +139,62 @@ func (p *Postgres) GetDomain(ctx context.Context, key string) (management.Domain
 	return domainListItem(id, name, free, verified, msg, fingerprint, notBefore, notAfter), nil
 }
 
+// DeleteDomain removes a Host resource. A purely numeric key is the legacy
+// web_domain row ID; anything else is a hostname. Deleting by hostname also
+// covers hosts that only exist as observed traffic (no web_domain row), and is
+// refused while any website still binds the host.
 func (p *Postgres) DeleteDomain(ctx context.Context, key string) error {
-	tag, err := p.pool.Exec(ctx, "DELETE FROM web_domain WHERE id=$1", key)
+	if _, err := strconv.ParseInt(key, 10, 64); err == nil {
+		tag, err := p.pool.Exec(ctx, "DELETE FROM web_domain WHERE id=$1", key)
+		if err != nil {
+			return err
+		}
+		if tag.RowsAffected() == 0 {
+			return management.ErrNotFound
+		}
+		return nil
+	}
+	host := normalizeResourceHost(key)
+	if host == "" {
+		return management.ErrNotFound
+	}
+	websites, err := p.ListWebsites(ctx)
 	if err != nil {
 		return err
 	}
-	if tag.RowsAffected() == 0 {
-		return management.ErrNotFound
+	for _, website := range websites {
+		for _, bound := range normalizedWebsiteHosts(website) {
+			if bound == host {
+				return fmt.Errorf("%w: host %s is bound to website %s", management.ErrConflict, host, stringPointerValue(website.Name))
+			}
+		}
 	}
-	return nil
+	tx, err := p.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	if err := cancelPendingACMEOrders(ctx, tx, host, 0, "host deleted"); err != nil {
+		return err
+	}
+	// Host names are stored as received by the proxy (case and trailing dot are
+	// not normalized on write), so match on the normalized form.
+	const norm = "lower(trim(trailing '.' from %s))"
+	for _, statement := range []string{
+		"DELETE FROM web_domain WHERE " + fmt.Sprintf(norm, "name") + "=$1",
+		"DELETE FROM gateway_acme_auto_state WHERE domain_name=$1",
+		"DELETE FROM gateway_acme_attempt WHERE domain_name=$1",
+		"DELETE FROM host_traffic WHERE " + fmt.Sprintf(norm, "host_name") + "=$1",
+		"DELETE FROM gateway_traffic_contribution WHERE " + fmt.Sprintf(norm, "host_name") + "=$1",
+		"DELETE FROM resource_report WHERE " + fmt.Sprintf(norm, "resource_uuid") + "=$1",
+		"DELETE FROM resource_monitor_info WHERE " + fmt.Sprintf(norm, "resource_uuid") + "=$1",
+		"DELETE FROM request_history WHERE " + fmt.Sprintf(norm, "host") + "=$1",
+	} {
+		if _, err := tx.Exec(ctx, statement, host); err != nil {
+			return err
+		}
+	}
+	return tx.Commit(ctx)
 }
 
 const domainManagedWhere = `WHERE EXISTS (

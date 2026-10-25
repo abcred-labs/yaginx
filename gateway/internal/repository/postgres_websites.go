@@ -402,6 +402,14 @@ VALUES($1,false,false,'') ON CONFLICT (name) WHERE name IS NOT NULL DO NOTHING`,
 	for _, binding := range website.HostBindings {
 		if host := normalizeResourceHost(binding.Hostname); host != "" {
 			requestCertificate := strings.EqualFold(strings.TrimSpace(binding.CertificateMode), "request")
+			if requestCertificate {
+				// Turning auto-request on (off -> on) clears a stopped renewal;
+				// re-saving an already-enabled host leaves it stopped.
+				if _, err := tx.Exec(ctx, `DELETE FROM gateway_acme_auto_state WHERE domain_name=$1
+AND EXISTS (SELECT 1 FROM web_domain WHERE name=$1 AND NOT is_use_free_cert)`, host); err != nil {
+					return err
+				}
+			}
 			if _, err := tx.Exec(ctx, `INSERT INTO web_domain(name,is_use_free_cert,is_verified,free_cert_message)
 VALUES($1,$2,false,'') ON CONFLICT (name) WHERE name IS NOT NULL DO UPDATE SET is_use_free_cert=EXCLUDED.is_use_free_cert,free_cert_message=CASE WHEN EXCLUDED.is_use_free_cert THEN NULL ELSE web_domain.free_cert_message END`, host, requestCertificate); err != nil {
 				return err

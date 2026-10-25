@@ -412,8 +412,16 @@ paths:
       tags: [web_domain]
       operationId: webDomainDelete
       x-go-handler: internal/management/webdomain.Handler.Delete
+      description: Deletes a Host by legacy numeric id or by name. Deleting by name also purges observed traffic and fails with 409 while a website binds the host.
       parameters:
-        - $ref: '#/components/parameters/IdQuery'
+        - name: id
+          in: query
+          required: false
+          schema: { $ref: '#/components/schemas/Int64String' }
+        - name: name
+          in: query
+          required: false
+          schema: { type: string }
       responses:
         '200':
           description: Domain deleted.
@@ -2667,7 +2675,7 @@ components:
     ResourceHost:
       type: object
       additionalProperties: false
-      required: [host, managementStatus, domainConfig, websites, certificate, lastActivity]
+      required: [host, managementStatus, domainConfig, websites, certificate, autoRenew, lastActivity]
       properties:
         host: { type: string }
         managementStatus: { type: string, enum: [managed, unmanaged] }
@@ -2676,7 +2684,29 @@ components:
         websites: { type: array, items: { $ref: '#/components/schemas/ResourceWebsiteReference' } }
         certificate:
           oneOf: [{ $ref: '#/components/schemas/ResourceCertificate' }, { type: 'null' }]
+        autoRenew:
+          oneOf: [{ $ref: '#/components/schemas/ResourceAutoRenew' }, { type: 'null' }]
         lastActivity: { type: integer, format: int64 }
+    ResourceAutoRenew:
+      type: object
+      additionalProperties: false
+      required: [status, failDays, attemptsToday, maxPerDay, latestOrder]
+      properties:
+        status: { type: string, enum: [off, active, stopped] }
+        stopReason: { type: string }
+        failDays: { type: integer }
+        attemptsToday: { type: integer }
+        maxPerDay: { type: integer }
+        latestOrder:
+          oneOf: [{ $ref: '#/components/schemas/ResourceACMEOrderRef' }, { type: 'null' }]
+    ResourceACMEOrderRef:
+      type: object
+      additionalProperties: false
+      required: [id, status, updatedAt]
+      properties:
+        id: { $ref: '#/components/schemas/Int64String' }
+        status: { type: string }
+        updatedAt: { type: integer, format: int64 }
     ResourceCatalog:
       type: object
       additionalProperties: false

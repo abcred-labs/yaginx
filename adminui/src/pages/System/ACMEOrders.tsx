@@ -26,7 +26,7 @@ const logColor = (result?: string) => result === 'failure' ? 'error' : result ==
 const ACMEOrders: React.FC = () => {
   const [rows, setRows] = useState<ACMEOrder[]>([]);
   const [loading, setLoading] = useState(false);
-  const [domain, setDomain] = useState(() => new URLSearchParams(window.location.search).get('domain') ?? '');
+  const [domain, setDomain] = useState(() => new URLSearchParams(window.location.search || window.location.hash.split('?')[1] || '').get('domain') ?? '');
   const [systemLogs, setSystemLogs] = useState<SystemLog[]>([]);
   const [systemLogsLoading, setSystemLogsLoading] = useState(false);
   const [selected, setSelected] = useState<ACMEOrder | null>(null);

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -143,7 +144,13 @@ func (h Handler) GetByName(w http.ResponseWriter, r *http.Request) {
 	management.RespondMissingAsNull(w, out, err)
 }
 
+// Delete removes a Host resource by id (legacy) or by name. The name form also
+// reaches hosts that exist only as observed traffic.
 func (h Handler) Delete(w http.ResponseWriter, r *http.Request) {
+	if name := strings.TrimSpace(r.URL.Query().Get("name")); name != "" {
+		management.RespondStore(w, management.EmptyResponse{}, h.Store.DeleteDomain(r.Context(), name))
+		return
+	}
 	id, err := management.RequiredIDQuery(r, "id")
 	if err != nil {
 		management.Fail(w, http.StatusBadRequest, "invalid query")

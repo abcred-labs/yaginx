@@ -372,7 +372,26 @@ type ResourceHost struct {
 	DomainConfig     *DomainListItem            `json:"domainConfig"`
 	Websites         []ResourceWebsiteReference `json:"websites"`
 	Certificate      *ResourceCertificate       `json:"certificate"`
+	AutoRenew        *ResourceAutoRenew         `json:"autoRenew"`
 	LastActivity     int64                      `json:"lastActivity"`
+}
+
+// ResourceAutoRenew is a host's automatic certificate request state. Status is
+// "off" (auto-request disabled), "active", or "stopped" (stopped for good after
+// consecutive failed days; a successful manual request resumes it).
+type ResourceAutoRenew struct {
+	Status        string                `json:"status"`
+	StopReason    string                `json:"stopReason,omitempty"`
+	FailDays      int                   `json:"failDays"`
+	AttemptsToday int                   `json:"attemptsToday"`
+	MaxPerDay     int                   `json:"maxPerDay"`
+	LatestOrder   *ResourceACMEOrderRef `json:"latestOrder"`
+}
+
+type ResourceACMEOrderRef struct {
+	ID        ID     `json:"id"`
+	Status    string `json:"status"`
+	UpdatedAt int64  `json:"updatedAt"`
 }
 
 type ResourceCatalogQuery struct {

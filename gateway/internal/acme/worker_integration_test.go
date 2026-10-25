@@ -131,7 +131,7 @@ func TestWorkerPersistsSingleCrossNodeACMEOrder(t *testing.T) {
 	target := repository.ACMEDomain{ID: domainID, Name: "worker.example.invalid"}
 	var wait sync.WaitGroup
 	wait.Add(1)
-	go func() { defer wait.Done(); workers[0].processDomain(ctx, target) }()
+	go func() { defer wait.Done(); workers[0].processDomain(ctx, target, repository.ACMETriggerManual) }()
 	select {
 	case <-started:
 	case <-time.After(10 * time.Second):
@@ -139,7 +139,7 @@ func TestWorkerPersistsSingleCrossNodeACMEOrder(t *testing.T) {
 	}
 	for _, worker := range workers[1:] {
 		wait.Add(1)
-		go func(worker *Worker) { defer wait.Done(); worker.processDomain(ctx, target) }(worker)
+		go func(worker *Worker) { defer wait.Done(); worker.processDomain(ctx, target, repository.ACMETriggerManual) }(worker)
 	}
 	time.Sleep(200 * time.Millisecond)
 	close(release)

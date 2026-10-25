@@ -19,7 +19,7 @@ import (
 const MigrationLockKey int64 = 6431500123034371919
 const migrationLockSQL = "SELECT pg_advisory_lock(6431500123034371919)"
 const migrationUnlockSQL = "SELECT pg_advisory_unlock(6431500123034371919)"
-const latestV2Migration int64 = 13
+const latestV2Migration int64 = 14
 
 type State string
 

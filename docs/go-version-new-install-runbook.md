@@ -459,7 +459,7 @@ curl -fsSL https://github.com/abcred-labs/yaginx/releases/latest/download/instal
 | `acme.email` | `operator@example.com` | — | ACME 账户邮箱，可按部署修改 |
 | `acme.keyType` / `acme.challengeType` / `acme.orderMode` | `EC256` / `http-01` / `single-domain` | — | 固定值 |
 | `acme.scanIntervalMinimum` / `acme.scanIntervalMaximum` | `30s` / `120s` | — | 扫描间隔范围 |
-| `acme.renewBefore` | `168h` | — | 续期提前时间 |
+| `acme.renewBefore` | `360h` | — | 续期提前时间 |
 | `acme.lockRetryBase` / `acme.lockRetryJitterMaximum` / `acme.temporaryRetryMaximum` | `60s` / `15s` / `6h` | — | 锁与临时失败重试 |
 | `acme.keyValueEndpointURL` | 未填写时使用本机管理地址 | — | 可选；填写后必须是同集群其他 Yaginx 管理 endpoint，并通过 `/api/identity` 握手 |
 | `acme.keyValueSetPath` / `acme.keyValueGetPath` | `/api/key_value/set` / `/api/key_value/get` | — | 固定键值 API 路径 |

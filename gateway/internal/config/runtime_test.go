@@ -322,8 +322,8 @@ func TestRuntimeNestedSectionAccess(t *testing.T) {
 	if got, err := (RuntimeDocument{Values: v}).Duration("listeners.proxyProtocol", "headerTimeout"); err != nil || got.String() != "30s" {
 		t.Fatalf("header timeout = %s, %v", got, err)
 	}
-	if got, err := (RuntimeDocument{Values: v}).Duration("acme", "renewBefore"); err != nil || got != 7*24*time.Hour {
-		t.Fatalf("ACME renewal window = %s, %v; want %s", got, err, 7*24*time.Hour)
+	if got, err := (RuntimeDocument{Values: v}).Duration("acme", "renewBefore"); err != nil || got != 15*24*time.Hour {
+		t.Fatalf("ACME renewal window = %s, %v; want %s", got, err, 15*24*time.Hour)
 	}
 }
 

@@ -94,3 +94,28 @@ func TestResourceTimelineHasZeroValuedPointsForAnEmptyWindow(t *testing.T) {
 		}
 	}
 }
+
+func TestResourceAutoRenewStatus(t *testing.T) {
+	if resourceAutoRenew(&resourceHost{}) != nil {
+		t.Fatal("host without a web_domain row must have no auto-renew state")
+	}
+	host := &resourceHost{domainConfig: &management.DomainListItem{}}
+	if got := resourceAutoRenew(host); got.Status != "off" || got.MaxPerDay != ACMEAutoMaxAttemptsPerDay {
+		t.Fatalf("disabled host = %+v", got)
+	}
+	host.domainConfig.AutoRequestCertificate = true
+	if got := resourceAutoRenew(host); got.Status != "active" {
+		t.Fatalf("enabled host = %+v", got)
+	}
+	stopped := time.Now()
+	host.autoSummary = &ACMEAutoSummary{FailDays: 3, StoppedAt: &stopped, StopReason: "x", AttemptsToday: 2, LastOrder: &ACMELatestOrder{ID: 7, Status: "failed", UpdatedAt: stopped}}
+	got := resourceAutoRenew(host)
+	if got.Status != "stopped" || got.FailDays != 3 || got.AttemptsToday != 2 || got.LatestOrder == nil || got.LatestOrder.ID != 7 {
+		t.Fatalf("stopped host = %+v", got)
+	}
+	// Stop state is irrelevant once the operator turned auto-request off.
+	host.domainConfig.AutoRequestCertificate = false
+	if got := resourceAutoRenew(host); got.Status != "off" {
+		t.Fatalf("disabled-after-stop host = %+v", got)
+	}
+}

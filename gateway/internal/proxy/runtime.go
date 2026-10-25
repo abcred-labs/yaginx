@@ -420,10 +420,13 @@ func (r *Runtime) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 					}
 				}
 			}
-			if r.RecordAggregation != nil && (r.ShouldAggregate == nil || r.ShouldAggregate(full)) {
+			// Hosts that no website binds (scanners, stray DNS) must not create
+			// traffic or history rows: they would otherwise appear in the Host
+			// catalog as unmanaged resources. Metrics still see the event.
+			if matched && r.RecordAggregation != nil && (r.ShouldAggregate == nil || r.ShouldAggregate(full)) {
 				r.RecordAggregation(aggregate)
 			}
-			if r.RecordHistory != nil && historyRecord {
+			if matched && r.RecordHistory != nil && historyRecord {
 				r.RecordHistory(full)
 			}
 			if r.Record != nil {

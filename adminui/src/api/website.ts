@@ -248,7 +248,7 @@ export const webDomainUpsert = async (data: DomainUpsertInput): Promise<IApiRspE
   const response = await FetchJson<Domain>({ url: '/api/web_domain/upsert', method: 'POST', data });
   return validateResponse(response, validateDomainID);
 };
-export const webDomainDelete = (data: { id: Int64 }): Promise<IApiRspEnvelop<Record<string, never>>> => FetchJson({ url: '/api/web_domain/delete', method: 'DELETE', data });
+export const webDomainDelete = (data: { id: Int64 } | { name: string }): Promise<IApiRspEnvelop<Record<string, never>>> => FetchJson({ url: '/api/web_domain/delete', method: 'DELETE', data });
 export const webDomainRequestCertificate = (data: { name: string }): Promise<IApiRspEnvelop<AcmeRequestResult>> => FetchJson({ url: '/api/web_domain/acme/request', method: 'POST', data });
 export const webDomainCertificateStatus = (data: { name: string }): Promise<IApiRspEnvelop<AcmeStatusResult>> => FetchJson({ url: '/api/web_domain/acme/status', method: 'GET', params: data });
 

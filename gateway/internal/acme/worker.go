@@ -73,7 +73,7 @@ func NewWorker(store *repository.Postgres, pool *pgxpool.Pool, nodeID string, se
 		settings.ScanInterval = 30 * time.Second
 	}
 	if settings.RenewBefore <= 0 {
-		settings.RenewBefore = 7 * 24 * time.Hour
+		settings.RenewBefore = 15 * 24 * time.Hour
 	}
 	if settings.LockRetryBase <= 0 {
 		settings.LockRetryBase = time.Minute
@@ -121,6 +121,9 @@ func (w *Worker) ScanOnce(ctx context.Context) {
 	} else if n > 0 {
 		w.logger.Info("purged completed ACME orders", "count", n)
 	}
+	if err := w.store.PruneACMEAttempts(ctx); err != nil {
+		w.logger.Error("prune ACME attempts", "error", err)
+	}
 	domains, err := w.store.ListDomainsDueForRenewal(ctx)
 	if err != nil {
 		w.logger.Error("scan eligible ACME domains", "error", err)
@@ -131,7 +134,7 @@ func (w *Worker) ScanOnce(ctx context.Context) {
 		if ctx.Err() != nil {
 			return
 		}
-		w.processDomain(ctx, domain)
+		w.processDomain(ctx, domain, repository.ACMETriggerAuto)
 	}
 }
 
@@ -151,6 +154,7 @@ const (
 	StatusInvalidDomain    = "invalid_domain"
 	StatusInternalError    = "internal_error"
 	StatusOrderAlreadyBusy = "order_in_progress"
+	StatusAutoSuppressed   = "auto_suppressed"
 )
 
 // RequestNow is the manual-trigger entry point used by the console's "立即
@@ -167,10 +171,10 @@ func (w *Worker) RequestNow(ctx context.Context, domain repository.ACMEDomain) P
 		}
 	}
 	w.logger.Info("ACME immediate issuance requested", "domain", domain.Name, "trigger", "manual")
-	return w.processDomain(ctx, domain)
+	return w.processDomain(ctx, domain, repository.ACMETriggerManual)
 }
 
-func (w *Worker) processDomain(ctx context.Context, domain repository.ACMEDomain) ProcessResult {
+func (w *Worker) processDomain(ctx context.Context, domain repository.ACMEDomain, trigger string) ProcessResult {
 	normalized := normalizeDomain(domain.Name)
 	if normalized == "" {
 		// No CA or key-value call is made for a domain that HTTP-01 cannot
@@ -210,6 +214,55 @@ func (w *Worker) processDomain(ctx context.Context, domain repository.ACMEDomain
 		return ProcessResult{Status: StatusLockBusy, Message: "该域名正在被其他节点处理，请稍后重试"}
 	}
 	defer lock.Release(context.Background())
+	attemptID, allowed, reason, err := w.store.BeginACMEAttempt(ctx, normalized, trigger)
+	if err != nil {
+		w.logger.Error("begin ACME attempt", "domain", normalized, "error", err)
+		w.recordSystemError("attempt_begin", "ACME_ATTEMPT_RECORD_FAILED", err)
+		return ProcessResult{Status: StatusInternalError, Message: err.Error()}
+	}
+	if !allowed {
+		w.logger.Info("automatic ACME attempt suppressed", "domain", normalized, "reason", reason)
+		return ProcessResult{Status: StatusAutoSuppressed, Message: autoSuppressedMessage(reason)}
+	}
+	result, orderID := w.issueLocked(ctx, domain, normalized)
+	outcome := repository.ACMEAttemptFailure
+	switch result.Status {
+	case StatusIssued:
+		outcome = repository.ACMEAttemptSuccess
+	case StatusOrderAlreadyBusy:
+		outcome = repository.ACMEAttemptSkipped
+	}
+	// The request context may already be canceled (shutdown); the attempt must
+	// still be closed so the daily cap counts it.
+	stopped, err := w.store.FinishACMEAttempt(context.WithoutCancel(ctx), attemptID, normalized, trigger, outcome, orderID, result.Message)
+	if err != nil {
+		w.logger.Error("finish ACME attempt", "domain", normalized, "error", err)
+		w.recordSystemError("attempt_finish", "ACME_ATTEMPT_RECORD_FAILED", err)
+	}
+	if stopped {
+		w.logger.Error("automatic ACME renewal stopped after consecutive failed days", "domain", normalized)
+		w.recordSystemError("auto_stopped", "ACME_AUTO_STOPPED", fmt.Errorf("automatic renewal for %s stopped after %d consecutive failed days", normalized, repository.ACMEAutoMaxFailureDays))
+	}
+	return result
+}
+
+func autoSuppressedMessage(reason string) string {
+	switch reason {
+	case "auto_stopped":
+		return "已连续多日自动申请失败，自动申请已停止，请手动申请"
+	case "daily_limit":
+		return "今日自动申请次数已达上限"
+	case "backoff":
+		return "上次申请失败，正在等待重试时间"
+	default:
+		return "距离上次自动申请时间过短，稍后再试"
+	}
+}
+
+// issueLocked runs preflight, order creation and issuance. The caller holds
+// the domain lock and has recorded the attempt. It returns the order ID (0
+// when no order was created) so the attempt can reference it.
+func (w *Worker) issueLocked(ctx context.Context, domain repository.ACMEDomain, normalized string) (ProcessResult, int64) {
 	if w.config.Preflight != nil {
 		if err := w.config.Preflight(ctx, normalized, w.config.Provider); err != nil {
 			var preflightErr *PreflightError
@@ -220,7 +273,7 @@ func (w *Worker) processDomain(ctx context.Context, domain repository.ACMEDomain
 			w.observeAttempt("failure", class)
 			w.recordSystemError("preflight", "ACME_PREFLIGHT_FAILED", err)
 			w.logger.Warn("ACME preflight blocked order", "domain", normalized, "error", err)
-			return ProcessResult{Status: StatusTemporaryFailure, Message: err.Error()}
+			return ProcessResult{Status: StatusTemporaryFailure, Message: err.Error()}, 0
 		}
 	}
 	orderID, started, err := w.store.StartACMEOrder(ctx, normalized, w.nodeID)
@@ -228,10 +281,10 @@ func (w *Worker) processDomain(ctx context.Context, domain repository.ACMEDomain
 		w.logger.Error("start ACME order", "domain", normalized, "error", err)
 		w.recordSystemError("order_start", "ACME_ORDER_START_FAILED", err)
 		w.observeAttempt("failure", "other")
-		return ProcessResult{Status: StatusInternalError, Message: err.Error()}
+		return ProcessResult{Status: StatusInternalError, Message: err.Error()}, orderID
 	}
 	if !started {
-		return ProcessResult{Status: StatusOrderAlreadyBusy, Message: "该域名已有一次申请正在进行中"}
+		return ProcessResult{Status: StatusOrderAlreadyBusy, Message: "该域名已有一次申请正在进行中"}, 0
 	}
 	attempt, attemptErr := w.store.ACMEOrderAttempt(ctx, orderID)
 	if attemptErr != nil {
@@ -243,25 +296,25 @@ func (w *Worker) processDomain(ctx context.Context, domain repository.ACMEDomain
 		w.logger.Error("mark ACME order authorizing", "order", orderID, "error", err)
 		w.recordSystemError("order_authorizing", "ACME_ORDER_UPDATE_FAILED", err)
 		w.observeAttempt("failure", "other")
-		return ProcessResult{Status: StatusInternalError, Message: err.Error()}
+		return ProcessResult{Status: StatusInternalError, Message: err.Error()}, orderID
 	}
 	issued, err := w.issue(ctx, normalized)
 	if err != nil {
-		return w.recordIssueFailure(ctx, domain, orderID, attempt, err)
+		return w.recordIssueFailure(ctx, domain, orderID, attempt, err), orderID
 	}
 	if err := w.store.MarkACMEFinalizing(ctx, orderID, issued.OrderURL); err != nil {
 		_ = w.store.RecordACMEOrderEvent(ctx, orderID, "finalizing", "finalizing", "failure", "ACME_ORDER_UPDATE_FAILED", err.Error())
 		w.recordSystemError("order_finalizing", "ACME_ORDER_UPDATE_FAILED", err)
-		return w.recordIssueFailure(ctx, domain, orderID, attempt, err)
+		return w.recordIssueFailure(ctx, domain, orderID, attempt, err), orderID
 	}
 	if err := w.store.CompleteACMEOrder(ctx, domain.ID, orderID, normalized, issued.ChainPEM, issued.KeyPEM); err != nil {
 		_ = w.store.RecordACMEOrderEvent(ctx, orderID, "certificate_store", "finalizing", "failure", "ACME_CERTIFICATE_STORE_FAILED", err.Error())
 		w.recordSystemError("certificate_store", "ACME_CERTIFICATE_STORE_FAILED", err)
-		return w.recordIssueFailure(ctx, domain, orderID, attempt, err)
+		return w.recordIssueFailure(ctx, domain, orderID, attempt, err), orderID
 	}
 	w.observeAttempt("success", "none")
 	w.logger.Info("ACME certificate activated", "domain", normalized, "order", orderID, "attempt", attempt)
-	return ProcessResult{Status: StatusIssued, Message: "证书申请成功"}
+	return ProcessResult{Status: StatusIssued, Message: "证书申请成功"}, orderID
 }
 
 func (w *Worker) recordIssueFailure(ctx context.Context, domain repository.ACMEDomain, orderID int64, attempt int, err error) ProcessResult {

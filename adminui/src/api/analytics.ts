@@ -312,12 +312,22 @@ export interface IResourceCertificate {
 
 export interface IResourceWebsiteRef { id: Int64; name: string; }
 
+export interface IResourceAutoRenew {
+  status: "off" | "active" | "stopped";
+  stopReason?: string;
+  failDays: number;
+  attemptsToday: number;
+  maxPerDay: number;
+  latestOrder?: { id: Int64; status: string; updatedAt: number } | null;
+}
+
 export interface IResourceHost {
   host: string;
   managementStatus: "managed" | "unmanaged";
   domainConfig?: DomainListItem | null;
   websites: IResourceWebsiteRef[];
   certificate?: IResourceCertificate | null;
+  autoRenew?: IResourceAutoRenew | null;
   lastActivity: number;
 }
 

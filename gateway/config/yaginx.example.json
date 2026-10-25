@@ -42,7 +42,7 @@
   "acme": {
     "email": "operator@example.com",
     "directoryURL": "https://acme-v02.api.letsencrypt.org/directory",
-    "renewBefore": "168h",
+    "renewBefore": "360h",
     "keyValueEndpointURL": ""
   }
 }

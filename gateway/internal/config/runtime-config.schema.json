@@ -429,7 +429,7 @@
         "orderMode": { "const": "single-domain", "default": "single-domain" },
         "scanIntervalMinimum": { "$ref": "#/$defs/duration", "default": "30s" },
         "scanIntervalMaximum": { "$ref": "#/$defs/duration", "default": "120s" },
-        "renewBefore": { "$ref": "#/$defs/duration", "default": "168h" },
+        "renewBefore": { "$ref": "#/$defs/duration", "default": "360h" },
         "lockRetryBase": { "$ref": "#/$defs/duration", "default": "60s" },
         "lockRetryJitterMaximum": { "$ref": "#/$defs/duration", "default": "15s" },
         "temporaryRetryMaximum": { "$ref": "#/$defs/duration", "default": "6h" },

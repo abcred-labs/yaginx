@@ -1998,8 +1998,24 @@ export interface components {
             domainConfig: components["schemas"]["WebDomainListItem"] | null;
             websites: components["schemas"]["ResourceWebsiteReference"][];
             certificate: components["schemas"]["ResourceCertificate"] | null;
+            autoRenew: components["schemas"]["ResourceAutoRenew"] | null;
             /** Format: int64 */
             lastActivity: number;
+        };
+        ResourceAutoRenew: {
+            /** @enum {string} */
+            status: "off" | "active" | "stopped";
+            stopReason?: string;
+            failDays: number;
+            attemptsToday: number;
+            maxPerDay: number;
+            latestOrder: components["schemas"]["ResourceACMEOrderRef"] | null;
+        };
+        ResourceACMEOrderRef: {
+            id: components["schemas"]["Int64String"];
+            status: string;
+            /** Format: int64 */
+            updatedAt: number;
         };
         ResourceCatalog: {
             records: components["schemas"]["ResourceHost"][];
@@ -2958,8 +2974,9 @@ export interface operations {
     };
     webDomainDelete: {
         parameters: {
-            query: {
-                id: components["parameters"]["IdQuery"];
+            query?: {
+                id?: components["schemas"]["Int64String"];
+                name?: string;
             };
             header?: never;
             path?: never;
