@@ -2,7 +2,7 @@ import { Badge, Button } from "@modra/react";
 import React, { useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { MonCard } from "@/ui/monParts";
-import { DatabaseHealthPanel, GatewayHealthPanel, TrafficBreakdownPanel, TrafficKpiPanel, TrafficTrendPanel } from "./DashboardPanels";
+import { BlacklistBlockedPanel, DatabaseHealthPanel, GatewayHealthPanel, TrafficBreakdownPanel, TrafficKpiPanel, TrafficTrendPanel } from "./DashboardPanels";
 import { RefreshRequestKind } from "./refreshMode";
 
 interface AnalyticsDashboardProps {
@@ -30,7 +30,7 @@ export const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ range, r
     <TrafficKpiPanel range={range} selectedDomain={selectedDomain} refreshKey={refreshKey} autoRefreshSeconds={autoRefreshSeconds} onLoadingChange={kpiLoading} />
     <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
       <div className="xl:col-span-2"><TrafficTrendPanel range={range} selectedDomain={selectedDomain} refreshKey={refreshKey} autoRefreshSeconds={autoRefreshSeconds} onLoadingChange={trendLoading} /></div>
-      <div className="flex flex-col gap-3"><GatewayHealthPanel /><DatabaseHealthPanel /></div>
+      <div className="flex flex-col gap-3"><BlacklistBlockedPanel /><GatewayHealthPanel /><DatabaseHealthPanel /></div>
     </div>
     <TrafficBreakdownPanel range={range} selectedDomain={selectedDomain} refreshKey={refreshKey} autoRefreshSeconds={autoRefreshSeconds} onLoadingChange={breakdownLoading} />
     <MonCard title="运行状态与下一步">

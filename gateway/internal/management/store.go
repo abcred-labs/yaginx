@@ -555,6 +555,13 @@ type IPBlacklistRule struct {
 	IsActive      bool      `json:"isActive"`
 }
 
+// IPBlacklistSummary aggregates every blacklist rule, removed ones included,
+// because their historical block counts are retained.
+type IPBlacklistSummary struct {
+	ActiveRules  int64 `json:"activeRules"`
+	BlockedTotal int64 `json:"blockedTotal"`
+}
+
 // SystemErrorStore is the recorded error journal. It is separate because a
 // deployment can run without it, and the search operation answers 501 then.
 type SystemErrorStore interface {

@@ -112,6 +112,12 @@ func (p *Postgres) RemoveIPBlacklist(ctx context.Context, key string) (managemen
 	return p.GetIPBlacklist(ctx, key)
 }
 
+func (p *Postgres) SummarizeIPBlacklist(ctx context.Context) (management.IPBlacklistSummary, error) {
+	var summary management.IPBlacklistSummary
+	err := p.pool.QueryRow(ctx, "SELECT COUNT(*) FILTER (WHERE removed_at IS NULL), COALESCE(SUM(blocked_count),0)::bigint FROM gateway_ip_blacklist").Scan(&summary.ActiveRules, &summary.BlockedTotal)
+	return summary, err
+}
+
 func (p *Postgres) LookupIP(ctx context.Context, raw string) (management.IPProfile, error) {
 	raw = strings.TrimSpace(raw)
 	if _, err := netip.ParseAddr(raw); err != nil {

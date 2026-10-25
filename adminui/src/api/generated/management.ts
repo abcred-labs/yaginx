@@ -665,6 +665,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/ip_blacklist/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ipBlacklistSummary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/diagnostics/database": {
         parameters: {
             query?: never;
@@ -1581,6 +1597,15 @@ export interface components {
         };
         IPProfileEnvelope: components["schemas"]["EnvelopeBase"] & {
             data: components["schemas"]["IPProfile"];
+        };
+        IPBlacklistSummary: {
+            /** Format: int64 */
+            activeRules: number;
+            /** Format: int64 */
+            blockedTotal: number;
+        };
+        IPBlacklistSummaryEnvelope: components["schemas"]["EnvelopeBase"] & {
+            data: components["schemas"]["IPBlacklistSummary"];
         };
         MetricItem: {
             type: string;
@@ -3561,6 +3586,29 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["IPProfileEnvelope"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    ipBlacklistSummary: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Active rule count and the cumulative number of requests blocked by every blacklist rule, including removed ones. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IPBlacklistSummaryEnvelope"];
                 };
             };
             401: components["responses"]["Unauthorized"];

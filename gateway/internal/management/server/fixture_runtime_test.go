@@ -384,6 +384,9 @@ func (s fixtureStore) UpsertIPBlacklist(context.Context, management.IPBlacklistU
 func (s fixtureStore) RemoveIPBlacklist(context.Context, string) (management.IPBlacklistRule, error) {
 	return management.IPBlacklistRule{}, s.err
 }
+func (s fixtureStore) SummarizeIPBlacklist(context.Context) (management.IPBlacklistSummary, error) {
+	return management.IPBlacklistSummary{}, s.err
+}
 func (s fixtureStore) LookupIP(context.Context, string) (management.IPProfile, error) {
 	return management.IPProfile{}, s.err
 }

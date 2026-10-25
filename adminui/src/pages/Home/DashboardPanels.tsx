@@ -1,3 +1,4 @@
+import { ipBlacklistSummary, type IIPBlacklistSummary } from "@/api/accessControl";
 import { getAnalyticsOverview, getDatabasePerformance, getGatewayDiagnosticsOverview, overviewSection, type IAnalyticsModeMetrics, type IAnalyticsOverview, type IAnalyticsPoint, type IDatabasePerformance, type IGatewayDiagnosticsOverview } from "@/api/analytics";
 import EChartPanel from "@/components/charts/EChartPanel";
 import { buildAnalyticsTrendOption } from "@/components/charts/analyticsTrend";
@@ -147,4 +148,17 @@ export const DatabaseHealthPanel: React.FC = () => {
   const health = data?.health.level ?? "healthy";
   const poolPercent = Math.round((data?.pool.usageRate ?? 0) * 100);
   return <MonCard title="数据库健康" loading={state.loading} extra={<Button variant="link" size="sm" onClick={() => navigate("/systems/database")}>查看详情</Button>}>{cardError(state.error)}<div className="mb-3 flex flex-wrap items-center gap-2"><Badge variant={health === "healthy" ? "success" : health === "critical" ? "destructive" : "warning"}>{health === "healthy" ? "健康" : health === "critical" ? "严重" : "注意"}</Badge>{data?.health.reasons?.map(reason => <Badge key={reason} variant="warning">{reason}</Badge>)}</div><div className="mb-3"><div className="mb-1 text-sm">连接池 {poolPercent}%</div><Progress value={poolPercent} className={(data?.pool.usageRate ?? 0) >= .8 ? "[&>div]:bg-destructive" : undefined} /></div><div className="grid grid-cols-2 gap-3"><MonStat title="锁等待" value={formatNumber(data?.activity.lockWaits)} /><MonStat title="缓存命中率" value={`${Math.round((data?.database.cacheHitRate ?? 0) * 100)}%`} /></div></MonCard>;
+};
+
+export const BlacklistBlockedPanel: React.FC = () => {
+  const navigate = useNavigate();
+  const [state, setState] = useState<FetchState<IIPBlacklistSummary>>({ loading: true });
+  const load = React.useCallback(() => {
+    ipBlacklistSummary({ ignoreGlobalError: true })
+      .then((response) => { if (response.code === 200 && response.data) setState({ data: response.data, loading: false }); else setState((current) => ({ ...current, loading: false, error: "黑名单统计加载失败" })); })
+      .catch(() => setState((current) => ({ ...current, loading: false, error: "黑名单统计加载失败" })));
+  }, []);
+  useIntervalRefresh(undefined, 15000, load);
+  const data = state.data;
+  return <MonCard title="黑名单拦截" loading={state.loading} extra={<Button variant="link" size="sm" onClick={() => navigate("/access-control/ip-blacklist")}>管理黑名单</Button>}>{cardError(state.error)}<div className="grid grid-cols-2 gap-3"><MonStat title="累计拦截请求" value={formatNumber(data?.blockedTotal)} /><MonStat title="生效规则" value={formatNumber(data?.activeRules)} /></div><div className="mt-2 text-xs text-muted-foreground">累计值，含已移除规则的历史拦截，不受时间窗口影响。</div></MonCard>;
 };

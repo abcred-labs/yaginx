@@ -16,6 +16,7 @@ type Store interface {
 	UpsertIPBlacklist(context.Context, management.IPBlacklistUpsertRequest) (management.IPBlacklistRule, error)
 	RemoveIPBlacklist(context.Context, string) (management.IPBlacklistRule, error)
 	LookupIP(context.Context, string) (management.IPProfile, error)
+	SummarizeIPBlacklist(context.Context) (management.IPBlacklistSummary, error)
 }
 
 type Handler struct {
@@ -29,6 +30,7 @@ func (h Handler) Routes(r chi.Router) {
 	r.Post("/ip_blacklist/upsert", h.Upsert)
 	r.Post("/ip_blacklist/remove", h.Remove)
 	r.Get("/ip_blacklist/lookup", h.Lookup)
+	r.Get("/ip_blacklist/summary", h.Summary)
 }
 
 func (h Handler) Search(w http.ResponseWriter, r *http.Request) {
@@ -80,5 +82,10 @@ func (h Handler) Remove(w http.ResponseWriter, r *http.Request) {
 
 func (h Handler) Lookup(w http.ResponseWriter, r *http.Request) {
 	out, err := h.Store.LookupIP(r.Context(), r.URL.Query().Get("ip"))
+	management.RespondStore(w, out, err)
+}
+
+func (h Handler) Summary(w http.ResponseWriter, r *http.Request) {
+	out, err := h.Store.SummarizeIPBlacklist(r.Context())
 	management.RespondStore(w, out, err)
 }

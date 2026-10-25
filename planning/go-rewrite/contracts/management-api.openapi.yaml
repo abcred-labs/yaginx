@@ -851,6 +851,21 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '500': { $ref: '#/components/responses/InternalError' }
 
+  /api/ip_blacklist/summary:
+    get:
+      tags: [ip_blacklist]
+      operationId: ipBlacklistSummary
+      x-go-handler: internal/management/ipblacklist.Handler.Summary
+      responses:
+        '200':
+          description: Active rule count and the cumulative number of requests blocked by every blacklist rule, including removed ones.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IPBlacklistSummaryEnvelope' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
   /api/diagnostics/database:
     get:
       tags: [diagnostics]
@@ -2210,6 +2225,21 @@ components:
           required: [data]
           properties:
             data: { $ref: '#/components/schemas/IPProfile' }
+    IPBlacklistSummary:
+      type: object
+      additionalProperties: false
+      required: [activeRules, blockedTotal]
+      properties:
+        activeRules: { type: integer, format: int64 }
+        blockedTotal: { type: integer, format: int64 }
+    IPBlacklistSummaryEnvelope:
+      unevaluatedProperties: false
+      allOf:
+        - $ref: '#/components/schemas/EnvelopeBase'
+        - type: object
+          required: [data]
+          properties:
+            data: { $ref: '#/components/schemas/IPBlacklistSummary' }
     MetricItem:
       type: object
       additionalProperties: false

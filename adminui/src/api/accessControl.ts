@@ -4,6 +4,7 @@ export {
   ipBlacklistLookup,
   ipBlacklistRemove,
   ipBlacklistSearch,
+  ipBlacklistSummary,
   ipBlacklistUpsert,
 } from "./website";
-export type { IIPBlacklistRule, IIPBlacklistSearchRequest, IIPProfile } from "./website";
+export type { IIPBlacklistRule, IIPBlacklistSearchRequest, IIPBlacklistSummary, IIPProfile } from "./website";

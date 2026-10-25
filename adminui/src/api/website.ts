@@ -286,6 +286,8 @@ export const ipBlacklistRemove = async (data: { id: Int64 }): Promise<IApiRspEnv
   const response = await FetchJson<IIPBlacklistRule>({ url: '/api/ip_blacklist/remove', method: 'POST', data });
   return validateResponse(response, validateIPBlacklistID);
 };
+export interface IIPBlacklistSummary { activeRules: number; blockedTotal: number }
+export const ipBlacklistSummary = (options: { ignoreGlobalError?: boolean; signal?: AbortSignal } = {}): Promise<IApiRspEnvelop<IIPBlacklistSummary>> => FetchJson({ url: '/api/ip_blacklist/summary', method: 'GET', ...options });
 export const ipBlacklistLookup = (data: { ip: string }): Promise<IApiRspEnvelop<IIPProfile>> => FetchJson({ url: '/api/ip_blacklist/lookup', method: 'GET', params: data });
 
 export interface IRequestHistorySearchRequest extends PageRequest {
