@@ -3,15 +3,15 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@modra/react';
 import type { ColumnDef } from '@tanstack/react-table';
-import { Download, Trash2, Upload } from '@/ui/icons';
-import React, { useMemo, useRef, useState } from 'react';
+import { Trash2 } from '@/ui/icons';
+import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { requireInt64String } from '@/api/identifier';
 import { websiteBatchDelete, websiteDelete, websiteSearch, type IWebsiteSearchRequest, type Website } from '@/api/website';
 import { confirmDanger } from '@/ui/confirmAction';
-import { notifyError, notifySuccess } from '@/ui/notify';
+import { notifySuccess } from '@/ui/notify';
 import ServerDataTable from '@/ui/ServerDataTable';
-import { SectionCard, WorkbenchPage } from '@/ui/workbench';
+import { WorkbenchPage } from '@/ui/workbench';
 import { buildWebsiteSearchRequest, websiteBatchDeleteResultText, websiteListOperationPath } from './websiteListState';
 import { websiteAnalyticsPath } from '@/utils/analyticsLinks';
 
@@ -34,8 +34,6 @@ const List: React.FC = () => {
   const [draftFilters, setDraftFilters] = useState<FilterValues>(EMPTY_FILTERS);
   const [appliedFilters, setAppliedFilters] = useState<Record<string, unknown>>({});
   const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([]);
-  const [restoring, setRestoring] = useState(false);
-  const restoreInputRef = useRef<HTMLInputElement>(null);
   const reload = () => setReloadKey((value) => value + 1);
 
   const applyFilters = () => {
@@ -75,28 +73,6 @@ const List: React.FC = () => {
         reload();
       },
     });
-  };
-
-  const downloadConfig = () => {
-    const newTab = window.open('/api/website/config/backup', '_blank');
-    newTab?.focus();
-    notifySuccess('已打开站点配置备份文件');
-  };
-
-  const restoreConfig = async (file: File) => {
-    setRestoring(true);
-    try {
-      const body = new FormData();
-      body.append('file', file);
-      const response = await fetch('/api/website/config/restore', { method: 'POST', body, credentials: 'same-origin' });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      reload();
-      notifySuccess(`${file.name} 已恢复`);
-    } catch {
-      notifyError(`${file.name} 恢复失败`);
-    } finally {
-      setRestoring(false);
-    }
   };
 
   const columns = useMemo<ColumnDef<Website, unknown>[]>(() => [
@@ -182,61 +158,43 @@ const List: React.FC = () => {
         <Button onClick={() => navigate('../create')}>创建站点</Button>
       </>}
     >
-      <SectionCard
-        title="站点资源"
-        description="选择站点进入工作区，集中维护主机与转发规则。"
-        extra={<>
-          <Button variant="outline" onClick={downloadConfig}><Download className="size-4" aria-hidden="true" />备份</Button>
-          <Button variant="outline" loading={restoring} onClick={() => restoreInputRef.current?.click()}><Upload className="size-4" aria-hidden="true" />恢复</Button>
-          <input
-            ref={restoreInputRef}
-            type="file"
-            className="hidden"
-            aria-label="选择站点配置备份文件"
-            onChange={(event) => {
-              const file = event.target.files?.[0];
-              event.target.value = '';
-              if (file) void restoreConfig(file);
-            }}
-          />
-        </>}
-      >
-        <div className="flex flex-col gap-4">
-          <FilterBar columns={4} onApply={applyFilters} onReset={resetFilters}>
-            <FilterField label="域名" htmlFor="website-filter-domain">
-              <Input id="website-filter-domain" placeholder="默认或附加域名" value={draftFilters.domain} onChange={(event) => setDraftFilters((current) => ({ ...current, domain: event.target.value }))} />
-            </FilterField>
-            <FilterField label="上游地址" htmlFor="website-filter-upstream">
-              <Input id="website-filter-upstream" placeholder="默认上游地址" value={draftFilters.upstream} onChange={(event) => setDraftFilters((current) => ({ ...current, upstream: event.target.value }))} />
-            </FilterField>
-            <FilterField label="证书" htmlFor="website-filter-certificate">
-              <Select value={draftFilters.hasCertificate} onValueChange={(value) => setDraftFilters((current) => ({ ...current, hasCertificate: value as CertificateFilter }))}>
-                <SelectTrigger id="website-filter-certificate"><SelectValue placeholder="全部" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">全部</SelectItem>
-                  <SelectItem value="true">有证书</SelectItem>
-                  <SelectItem value="false">无证书</SelectItem>
-                </SelectContent>
-              </Select>
-            </FilterField>
-          </FilterBar>
+      <div className="flex flex-col gap-4">
+        <FilterBar columns={4} onApply={applyFilters} onReset={resetFilters}>
+          <FilterField label="域名" htmlFor="website-filter-domain">
+            <Input id="website-filter-domain" placeholder="默认或附加域名" value={draftFilters.domain} onChange={(event) => setDraftFilters((current) => ({ ...current, domain: event.target.value }))} />
+          </FilterField>
+          <FilterField label="上游地址" htmlFor="website-filter-upstream">
+            <Input id="website-filter-upstream" placeholder="默认上游地址" value={draftFilters.upstream} onChange={(event) => setDraftFilters((current) => ({ ...current, upstream: event.target.value }))} />
+          </FilterField>
+          <FilterField label="证书" htmlFor="website-filter-certificate">
+            <Select value={draftFilters.hasCertificate} onValueChange={(value) => setDraftFilters((current) => ({ ...current, hasCertificate: value as CertificateFilter }))}>
+              <SelectTrigger id="website-filter-certificate"><SelectValue placeholder="全部" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">全部</SelectItem>
+                <SelectItem value="true">有证书</SelectItem>
+                <SelectItem value="false">无证书</SelectItem>
+              </SelectContent>
+            </Select>
+          </FilterField>
+        </FilterBar>
+        {selectedRowKeys.length > 0 && (
           <BulkActionBar
             selectedCount={selectedRowKeys.length}
             selectionLabel={(count) => `已选择 ${count} 个站点`}
             onClearSelection={() => setSelectedRowKeys([])}
             actions={[{ key: 'delete', label: '批量删除', icon: <Trash2 className="size-4" aria-hidden="true" />, destructive: true, onSelect: deleteSelected }]}
           />
-          <ServerDataTable<Website>
-            columns={columns}
-            searchAction={searchWebsites}
-            getRowId={getWebsiteRowId}
-            filter={appliedFilters}
-            reloadKey={reloadKey}
-            selectedRowKeys={selectedRowKeys}
-            onSelectedRowKeysChange={setSelectedRowKeys}
-          />
-        </div>
-      </SectionCard>
+        )}
+        <ServerDataTable<Website>
+          columns={columns}
+          searchAction={searchWebsites}
+          getRowId={getWebsiteRowId}
+          filter={appliedFilters}
+          reloadKey={reloadKey}
+          selectedRowKeys={selectedRowKeys}
+          onSelectedRowKeysChange={setSelectedRowKeys}
+        />
+      </div>
     </WorkbenchPage>
   );
 };
