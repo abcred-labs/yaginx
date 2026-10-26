@@ -153,14 +153,6 @@ func (p *Postgres) resourceHosts(ctx context.Context, hostFilter []string) (map[
 		}
 	}
 
-	for _, certificate := range certificates {
-		if item := ensure(certificate.name); item != nil {
-			item.managed = true
-			if item.certificate == nil {
-				item.certificate = &resourceCertificate{Fingerprint: certificate.fingerprint, NotBefore: certificate.notBefore.Unix(), NotAfter: certificate.notAfter.Unix(), IsActive: true}
-			}
-		}
-	}
 	for name, summary := range autoSummaries {
 		if item := items[normalizeResourceHost(name)]; item != nil {
 			item.autoSummary = summary
@@ -169,6 +161,17 @@ func (p *Postgres) resourceHosts(ctx context.Context, hostFilter []string) (map[
 	for _, activity := range activities {
 		if item := ensure(activity.name); item != nil && activity.timestamp > item.lastActivity {
 			item.lastActivity = activity.timestamp
+		}
+	}
+	// A certificate only decorates a host that is otherwise known (website,
+	// web_domain row or observed traffic). Deleting a host keeps its issued
+	// certificate, so certificates must not resurrect a deleted host.
+	for _, certificate := range certificates {
+		if item := items[normalizeResourceHost(certificate.name)]; item != nil {
+			item.managed = true
+			if item.certificate == nil {
+				item.certificate = &resourceCertificate{Fingerprint: certificate.fingerprint, NotBefore: certificate.notBefore.Unix(), NotAfter: certificate.notAfter.Unix(), IsActive: true}
+			}
 		}
 	}
 	return items, nil

@@ -146,7 +146,7 @@ func runSetup(ctx context.Context, configPath, reason string, stdout, stderr io.
 		fmt.Fprintf(stderr, "setup listener: %v\n", err)
 		return 1
 	}
-	fmt.Fprintf(stdout, "setup mode: listen=%s; open http://<server>:9090/; token=%s; token expires at %s; setup closes after initialization\n", setupAddress, auth.token, auth.expires.Format(time.RFC3339))
+	fmt.Fprintf(stdout, "setup mode: reason=%q; listen=%s; open http://<server>:9090/; token=%s; token expires at %s; setup closes after initialization\n", reason, setupAddress, auth.token, auth.expires.Format(time.RFC3339))
 	go func() {
 		<-ctx.Done()
 		_ = server.Shutdown(context.Background())

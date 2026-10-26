@@ -54,20 +54,20 @@ func runServe(ctx context.Context, args []string, stdout, stderr io.Writer) int 
 
 	cfg, err := config.LoadRuntime(*path)
 	if err != nil {
-		return runSetup(ctx, *path, "runtime configuration is missing or invalid", stdout, stderr)
+		return runSetup(ctx, *path, fmt.Sprintf("runtime configuration is missing or invalid: %v", err), stdout, stderr)
 	}
 	checkContext, checkCancel := context.WithTimeout(ctx, 10*time.Second)
 	if err := database.Check(checkContext, cfg.DatabaseDSN(), cfg.Int("database", "minimumServerMajor")); err != nil {
 		checkCancel()
-		return runSetup(ctx, *path, "database is not ready; check the connection details", stdout, stderr)
+		return runSetup(ctx, *path, fmt.Sprintf("database is not ready; check the connection details: %v", err), stdout, stderr)
 	}
 	needsMigration, err := database.DatabaseNeedsMigration(checkContext, cfg.DatabaseDSN())
 	checkCancel()
 	if err != nil {
-		return runSetup(ctx, *path, "database setup or upgrade is required", stdout, stderr)
+		return runSetup(ctx, *path, fmt.Sprintf("cannot determine database schema state: %v", err), stdout, stderr)
 	}
 	if needsMigration {
-		return runSetup(ctx, *path, "database setup or upgrade is required", stdout, stderr)
+		return runSetup(ctx, *path, fmt.Sprintf("DATABASE MIGRATION REQUIRED: the installed version needs a newer database schema; run `yaginx database migrate --config %s` and restart the service (or use the setup page)", *path), stdout, stderr)
 	}
 	for _, warning := range cfg.Warnings {
 		fmt.Fprintf(stderr, "configuration warning: %s\n", warning)

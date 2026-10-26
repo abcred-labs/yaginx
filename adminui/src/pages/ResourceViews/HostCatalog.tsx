@@ -27,7 +27,7 @@ const HostCatalog: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([]);
-  const load = async (pageIndex = DEFAULT_PAGE_INDEX, pageSize = DEFAULT_PAGE_SIZE) => { setLoading(true); setError(""); setSelectedRowKeys([]); try { const result = await getResourceCatalog({ host, status, websiteAssociation, pageIndex, pageSize }); setCatalog(result.data); } catch (reason) { setError(reason instanceof Error ? reason.message : "无法加载资源目录，请稍后重试。"); } finally { setLoading(false); } };
+  const load = async (pageIndex = DEFAULT_PAGE_INDEX, pageSize = DEFAULT_PAGE_SIZE, filters: { status?: ResourceCatalogStatus; websiteAssociation?: ResourceCatalogWebsiteAssociation } = { status, websiteAssociation }) => { setLoading(true); setError(""); setSelectedRowKeys([]); try { const result = await getResourceCatalog({ host, status: filters.status, websiteAssociation: filters.websiteAssociation, pageIndex, pageSize }); setCatalog(result.data); } catch (reason) { setError(reason instanceof Error ? reason.message : "无法加载资源目录，请稍后重试。"); } finally { setLoading(false); } };
   useEffect(() => { load(); }, []);
   const removeHost = async (hostName: string) => {
     const response = await webDomainDelete({ name: hostName });
@@ -106,20 +106,20 @@ const HostCatalog: React.FC = () => {
   return <WorkbenchPage eyebrow="CONFIG / HOSTS" title="Host 目录" description="Host 资产清单：托管状态、关联站点、证书与自动申请、最近活动。点击 Host 查看流量与请求，配置请从关联站点进入。">
     <DataToolbar actions={<Button onClick={() => load(1)}>搜索</Button>}>
       <Input value={host} onChange={(event) => setHost(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") load(1); }} placeholder="Host（支持模糊搜索）" aria-label="Host" className="w-[280px]" />
-      <Select value={status ?? ""} onValueChange={(value) => setStatus((value || undefined) as ResourceCatalogStatus | undefined)}>
+      <Select value={status ?? ""} onValueChange={(value) => { const next = (value || undefined) as ResourceCatalogStatus | undefined; setStatus(next); void load(1, catalog?.paging.pageSize ?? DEFAULT_PAGE_SIZE, { status: next, websiteAssociation }); }}>
         <SelectTrigger aria-label="状态" className="w-[132px]">
           <SelectValue placeholder="状态" />
-          {status ? <SelectClearButton aria-label="清除状态" onClear={() => setStatus(undefined)} /> : null}
+          {status ? <SelectClearButton aria-label="清除状态" onClear={() => { setStatus(undefined); void load(1, catalog?.paging.pageSize ?? DEFAULT_PAGE_SIZE, { status: undefined, websiteAssociation }); }} /> : null}
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="managed">已托管</SelectItem>
           <SelectItem value="unmanaged">未托管</SelectItem>
         </SelectContent>
       </Select>
-      <Select value={websiteAssociation ?? ""} onValueChange={(value) => setWebsiteAssociation((value || undefined) as ResourceCatalogWebsiteAssociation | undefined)}>
+      <Select value={websiteAssociation ?? ""} onValueChange={(value) => { const next = (value || undefined) as ResourceCatalogWebsiteAssociation | undefined; setWebsiteAssociation(next); void load(1, catalog?.paging.pageSize ?? DEFAULT_PAGE_SIZE, { status, websiteAssociation: next }); }}>
         <SelectTrigger aria-label="关联网站" className="w-[144px]">
           <SelectValue placeholder="关联网站" />
-          {websiteAssociation ? <SelectClearButton aria-label="清除关联网站" onClear={() => setWebsiteAssociation(undefined)} /> : null}
+          {websiteAssociation ? <SelectClearButton aria-label="清除关联网站" onClear={() => { setWebsiteAssociation(undefined); void load(1, catalog?.paging.pageSize ?? DEFAULT_PAGE_SIZE, { status, websiteAssociation: undefined }); }} /> : null}
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="associated">已关联</SelectItem>
