@@ -35,13 +35,30 @@ func (t Telemetry) Run(ctx context.Context) {
 			t.Logger.Error("prune ACME key-value retention", "error", err)
 			t.Events.Record(ctx, "certificate", "key_value_prune", "warning", "ACME_KEY_VALUE_RETENTION_FAILED", err)
 		}
-		if err := t.Store.PruneTelemetry(ctx, now, t.ContributionRetention, t.MonitorInfoRetention, t.TrafficDays, t.ReportDays, t.HistoryHours, t.BatchSize); err != nil && ctx.Err() == nil {
+		stats, err := t.Store.PruneTelemetryWithStats(ctx, now, t.ContributionRetention, t.MonitorInfoRetention, t.TrafficDays, t.ReportDays, t.HistoryHours, t.BatchSize)
+		if err != nil && ctx.Err() == nil {
 			t.Logger.Error("prune telemetry retention", "error", err)
 			t.Events.Record(ctx, "telemetry", "prune", "warning", "TELEMETRY_RETENTION_FAILED", err)
+		} else if ctx.Err() == nil {
+			for table, rows := range stats.Deleted {
+				if rows > 0 {
+					t.Logger.Info("pruned telemetry retention", "table", table, "rows", rows)
+				}
+			}
+			if stats.BlockedContributionRows > 0 {
+				t.Logger.Warn("telemetry retention waiting for complete reports", "table", "gateway_traffic_contribution", "rows", stats.BlockedContributionRows)
+			}
 		}
-		if err := t.Store.PruneReportCycles(ctx, now, t.MinuteReportDays, t.HourlyReportDays, t.BatchSize); err != nil && ctx.Err() == nil {
+		reportDeleted, err := t.Store.PruneReportCyclesWithStats(ctx, now, t.MinuteReportDays, t.HourlyReportDays, t.BatchSize)
+		if err != nil && ctx.Err() == nil {
 			t.Logger.Error("prune detailed report retention", "error", err)
 			t.Events.Record(ctx, "telemetry", "report_prune", "warning", "REPORT_RETENTION_FAILED", err)
+		} else if ctx.Err() == nil {
+			for table, rows := range reportDeleted {
+				if rows > 0 {
+					t.Logger.Info("pruned detailed report retention", "table", table, "rows", rows)
+				}
+			}
 		}
 	})
 }

@@ -23,6 +23,14 @@
       "code": 200,
       "data": {
         "clientIp": "",
+        "clientInfo": {
+          "bot": {"isBot": false, "name": ""},
+          "browser": {"major": "", "name": "", "version": ""},
+          "device": {"brand": "", "model": "", "type": ""},
+          "os": {"major": "", "name": "", "version": ""},
+          "parseStatus": ""
+        },
+        "clientSummary": {"botName": "", "browser": "", "deviceType": "", "isBot": false, "os": "", "parseStatus": ""},
         "durationMs": "1",
         "errorCategory": "",
         "errorCode": "",

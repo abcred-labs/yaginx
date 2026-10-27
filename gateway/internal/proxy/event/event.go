@@ -19,6 +19,7 @@ type Event struct {
 	Inbound, Outbound, DurationMS                                          int64
 	At                                                                     time.Time
 	UserAgent                                                              string
+	UserAgentInfo                                                          ClientInfo
 	RequestHeaders, ResponseHeaders                                        map[string][]string
 	RequestBodyBase64, ResponseBodyBase64                                  string
 	RequestContentType, ResponseContentType                                string
@@ -27,8 +28,30 @@ type Event struct {
 	ExceptionStage, ForwarderError, ProxyStage                             string
 	UpstreamStatus                                                         *int
 	BlacklistRuleID                                                        int64
+	BlacklistScope, BlacklistCIDR                                          string
 	ResponseMode                                                           string
 	TTFBMS, TTFTMS                                                         int64
+}
+
+// ClientInfo is the normalized result of parsing an HTTP User-Agent. It is
+// populated by the asynchronous request-history sink so proxy handling never
+// needs to wait for UA parsing.
+type ClientInfo struct {
+	BrowserName    string
+	BrowserVersion string
+	BrowserMajor   string
+	OSName         string
+	OSVersion      string
+	OSMajor        string
+	DeviceType     string
+	DeviceBrand    string
+	DeviceModel    string
+	IsBot          bool
+	BotName        string
+	ParseStatus    string
+	// ParseFailed distinguishes parser errors from valid unknown User-Agents
+	// for asynchronous parsing metrics; it is not persisted or exposed by API.
+	ParseFailed bool
 }
 
 // HistoryDecision is made once after the final proxy status is known. Keeping

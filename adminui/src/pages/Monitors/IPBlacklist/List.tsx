@@ -43,8 +43,8 @@ const IPBlacklistList: React.FC = () => {
     }
     setAdding(true);
     try {
-      const response = await ipBlacklistUpsert({ cidr: value });
-      notifySuccess("黑名单规则已生效", `${response.data.cidr} 将在所有节点热更新。`);
+      const response = await ipBlacklistUpsert({ cidr: value, scope: "gateway" });
+      notifySuccess("网关黑名单规则已生效", `${response.data.cidr} 将在所有节点热更新。`);
       setCIDR("");
       reload();
     } catch {
@@ -57,18 +57,19 @@ const IPBlacklistList: React.FC = () => {
   const removeRule = async (record: IIPBlacklistRule) => {
     try {
       await ipBlacklistRemove({ id: record.id });
-      notifySuccess("已移出黑名单", `${record.cidr} 的历史拦截数据已保留。`);
+      notifySuccess("已移出网关黑名单", `${record.cidr} 的历史拦截数据已保留。`);
       reload();
     } catch {
       // FetchJson already presents the service error.
     }
   };
 
-  const addProfileRule = async (value: string, scope: IPBlacklistScope) => {
+  const addProfileRule = async (value: string, scope: IPBlacklistScope, target: "gateway" | "site") => {
     try {
-      const response = await ipBlacklistUpsert({ cidr: value });
+      if (target !== "gateway") return;
+      const response = await ipBlacklistUpsert({ cidr: value, scope: "gateway" });
       const label = scope === "network" ? "网络段" : "IP";
-      notifySuccess(`${label}黑名单规则已生效`, `${response.data.cidr} 将在所有节点热更新。`);
+      notifySuccess(`${label}网关黑名单规则已生效`, `${response.data.cidr} 将在所有节点热更新。`);
       reload();
     } catch {
       // FetchJson already presents the service error.
@@ -77,6 +78,7 @@ const IPBlacklistList: React.FC = () => {
 
   const columns = useMemo<ColumnDef<IIPBlacklistRule, unknown>[]>(() => [
     { id: "cidr", header: "CIDR", meta: { minWidth: 190 }, cell: ({ row }) => <CopyableText>{row.original.cidr}</CopyableText> },
+    { id: "scope", header: "生效范围", cell: () => <Badge variant="warning">网关</Badge> },
     {
       id: "networkType",
       header: "网络类型",
@@ -143,8 +145,8 @@ const IPBlacklistList: React.FC = () => {
   return (
     <WorkbenchPage
       eyebrow="SECURITY / IP BLACKLIST"
-      title="IP 黑名单"
-      description="全局规则会在所有代理节点热更新。支持 IPv4、IPv6、单 IP 与 CIDR，ACME challenge 保持绕过。"
+      title="网关黑名单"
+      description="规则会在所有代理节点、所有站点及未匹配 Host 的请求上生效。支持 IPv4、IPv6、单 IP 与 CIDR，ACME challenge 保持绕过。"
     >
       <DataToolbar>
         <form className="flex items-center gap-2" onSubmit={(event) => { event.preventDefault(); void addRule(); }}>
@@ -155,7 +157,7 @@ const IPBlacklistList: React.FC = () => {
             value={cidr}
             onChange={(event) => setCIDR(event.target.value)}
           />
-          <Button type="submit" loading={adding}>添加到黑名单</Button>
+          <Button type="submit" loading={adding}>添加到网关黑名单</Button>
         </form>
         <form className="flex items-center gap-2" onSubmit={(event) => { event.preventDefault(); reload(); }}>
           <Input className="w-[180px]" placeholder="搜索 CIDR" aria-label="搜索 CIDR" value={keyword} onChange={(event) => setKeyword(event.target.value)} />

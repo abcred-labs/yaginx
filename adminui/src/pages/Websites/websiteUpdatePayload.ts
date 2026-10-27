@@ -41,6 +41,7 @@ export const websiteUpdatePayload = (id: Int64, values: WebsiteUpdateValues): We
   return {
     ...current,
     id,
+    ...(values.expectedUpdatedAt ? { expectedUpdatedAt: values.expectedUpdatedAt } : {}),
     ...(values.ipAccessCIDRs !== undefined ? { ipAccessCIDRs } : {}),
     responseHeaderTimeout: values.responseHeaderTimeout?.trim() || undefined,
     ...(values.proxyTransforms !== undefined && values.proxyTransforms !== null ? { proxyTransforms: normalizeProxyTransforms(values.proxyTransforms) } : {}),

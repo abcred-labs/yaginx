@@ -73,6 +73,9 @@ func (p *Postgres) GetIPBlacklist(ctx context.Context, key string) (management.I
 }
 
 func (p *Postgres) UpsertIPBlacklist(ctx context.Context, input management.IPBlacklistUpsertRequest) (management.IPBlacklistRule, error) {
+	if scope := strings.ToLower(strings.TrimSpace(input.Scope)); scope != "" && scope != "gateway" {
+		return management.IPBlacklistRule{}, fmt.Errorf("gateway IP blacklist scope must be gateway")
+	}
 	cidr, base, err := normalizeBlacklistCIDR(input.CIDR)
 	if err != nil {
 		return management.IPBlacklistRule{}, err
@@ -262,6 +265,7 @@ func scanBlacklist(row blacklistScanner) (management.IPBlacklistRule, error) {
 	result := management.IPBlacklistRule{
 		ID:            strconv.FormatInt(id, 10),
 		CIDR:          cidr,
+		Scope:         "gateway",
 		Profile:       decoded,
 		BlockedCount:  count,
 		LastBlockedAt: optionalEpochSeconds(lastBlocked),

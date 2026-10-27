@@ -218,8 +218,8 @@ Yaginx 的应用级默认数据库配置以
 
 | 数据 | 标准 |
 | --- | --- |
-| `request_history` | 全局默认错误请求完整记录；成功请求仅在 `AllMetadata` 下按 `successSamplingRate=0.05` 采样。网站可覆盖为 `errorsOnly` 或 `all`（站点 `all` 默认成功采样率为 1）；显式全量策略会保留普通 404 和客户端取消的可观测结果。生产保留 `48h`。 |
-| `gateway_traffic_contribution` | 按运行时 `resourceReports.contributionRetention` 保留；清理前确认报表已覆盖历史窗口。 |
+| `request_history` | 全局默认错误请求完整记录；成功请求仅在 `AllMetadata` 下按 `successSamplingRate=0.05` 采样。网站可覆盖为 `errorsOnly` 或 `all`（站点 `all` 默认成功采样率为 1）；显式全量策略会保留普通 404 和客户端取消的可观测结果。生产推荐保留 `72h`，可按排障要求调整。 |
+| `gateway_traffic_contribution` | 按运行时 `resourceReports.contributionRetention` 保留；默认 168h，可配置范围为 72h–8760h；仅删除 `is_final` 且对应 `resource_report`/`host_traffic` 汇总完整的周期。 |
 | `resource_report` | 分别保留分钟、小时、日报；默认 `30/365/730` 天。 |
 | `host_traffic` | 按 `trafficAggregation.retentionDays` 保留；变更保留期前评估磁盘、索引和查询窗口。 |
 | 清理作业 | 使用现有分批删除机制；禁止在线执行无条件的大范围 `DELETE`。 |

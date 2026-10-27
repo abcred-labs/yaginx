@@ -284,7 +284,10 @@ func ParseWebsiteResponseHeaderTimeout(raw string) (time.Duration, error) {
 }
 
 type WebsiteUpsertRequest struct {
-	ID                         *ID                          `json:"id"`
+	ID *ID `json:"id"`
+	// ExpectedUpdatedAt is supplied by the editor for optimistic concurrency.
+	// Older clients may omit it and retain the legacy unconditional update.
+	ExpectedUpdatedAt          *time.Time                   `json:"expectedUpdatedAt,omitempty"`
 	Name                       *string                      `json:"name"`
 	DefaultHost                *string                      `json:"defaultHost"`
 	DefaultDestination         *string                      `json:"defaultDestination"`
@@ -308,9 +311,31 @@ type WebsiteUpsertRequest struct {
 }
 
 type Website struct {
-	ID ID `json:"id"`
+	ID        ID         `json:"id"`
+	UpdatedAt *time.Time `json:"updatedAt,omitempty"`
 	WebsiteUpsertRequest
 	HasCertificate bool `json:"hasCertificate"`
+}
+
+// WebsiteIPAccessUpsertRequest is the atomic operation used by quick actions
+// such as "block this IP for the current site". It deliberately lives beside
+// the website write model so the repository can update only the access-policy
+// fields without requiring the console to round-trip the entire website.
+type WebsiteIPAccessUpsertRequest struct {
+	WebsiteID ID     `json:"websiteId"`
+	CIDR      string `json:"cidr"`
+}
+
+type WebsiteIPAccessRemoveRequest struct {
+	WebsiteID ID     `json:"websiteId"`
+	CIDR      string `json:"cidr"`
+}
+
+type WebsiteIPAccessRule struct {
+	WebsiteID ID       `json:"websiteId"`
+	CIDR      string   `json:"cidr"`
+	Mode      string   `json:"mode"`
+	CIDRs     []string `json:"cidrs"`
 }
 
 type WebsiteBatchDeleteRequest struct {
@@ -507,7 +532,8 @@ type IPBlacklistSearchRequest struct {
 }
 
 type IPBlacklistUpsertRequest struct {
-	CIDR string `json:"cidr"`
+	CIDR  string `json:"cidr"`
+	Scope string `json:"scope,omitempty"`
 }
 
 type IPProfileName struct {
@@ -547,6 +573,7 @@ type IPProfile struct {
 type IPBlacklistRule struct {
 	ID            string    `json:"id"`
 	CIDR          string    `json:"cidr"`
+	Scope         string    `json:"scope"`
 	Profile       IPProfile `json:"profile"`
 	BlockedCount  int64     `json:"blockedCount"`
 	LastBlockedAt *int64    `json:"lastBlockedAt"`

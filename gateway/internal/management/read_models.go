@@ -492,48 +492,91 @@ type RequestHistorySearchQuery struct {
 	ErrorCode          string      `json:"errorCode"`
 	ClientIP           string      `json:"clientIp"`
 	UserAgent          string      `json:"userAgent"`
+	ClientBrowser      string      `json:"clientBrowser"`
+	ClientOS           string      `json:"clientOs"`
+	ClientDeviceType   string      `json:"clientDeviceType"`
+	ClientDevice       string      `json:"clientDevice"`
+	ClientBotName      string      `json:"clientBotName"`
+	ClientIsBot        *bool       `json:"clientIsBot"`
+}
+
+type RequestHistoryClientSummary struct {
+	Browser     string `json:"browser"`
+	OS          string `json:"os"`
+	DeviceType  string `json:"deviceType"`
+	BotName     string `json:"botName"`
+	IsBot       bool   `json:"isBot"`
+	ParseStatus string `json:"parseStatus"`
+}
+
+type RequestHistoryClientInfo struct {
+	Browser struct {
+		Name    string `json:"name"`
+		Version string `json:"version"`
+		Major   string `json:"major"`
+	} `json:"browser"`
+	OS struct {
+		Name    string `json:"name"`
+		Version string `json:"version"`
+		Major   string `json:"major"`
+	} `json:"os"`
+	Device struct {
+		Type  string `json:"type"`
+		Brand string `json:"brand"`
+		Model string `json:"model"`
+	} `json:"device"`
+	Bot struct {
+		IsBot bool   `json:"isBot"`
+		Name  string `json:"name"`
+	} `json:"bot"`
+	ParseStatus string `json:"parseStatus"`
 }
 
 // RequestHistoryListItem is the compact record returned by search. IDs and
 // durations remain strings so JavaScript clients do not lose bigint precision.
 type RequestHistoryListItem struct {
-	ID                 string `json:"id"`
-	RequestAt          int64  `json:"requestAt"`
-	DurationMs         string `json:"durationMs"`
-	ClientIP           string `json:"clientIp"`
-	Method             string `json:"method"`
-	Host               string `json:"host"`
-	Path               string `json:"path"`
-	StatusCode         int    `json:"statusCode"`
-	UpstreamStatusCode *int   `json:"upstreamStatusCode"`
-	StatusSource       string `json:"statusSource"`
-	ErrorCategory      string `json:"errorCategory"`
-	ErrorCode          string `json:"errorCode"`
-	UserAgent          string `json:"userAgent"`
-	ProxyStage         string `json:"proxyStage"`
-	ExceptionStage     string `json:"exceptionStage"`
-	ForwarderError     string `json:"forwarderError"`
-	HasException       bool   `json:"hasException"`
-	ExceptionType      string `json:"exceptionType"`
-	TraceID            string `json:"traceId,omitempty"`
+	ID                 string                      `json:"id"`
+	RequestAt          int64                       `json:"requestAt"`
+	DurationMs         string                      `json:"durationMs"`
+	ClientIP           string                      `json:"clientIp"`
+	Method             string                      `json:"method"`
+	Host               string                      `json:"host"`
+	Path               string                      `json:"path"`
+	StatusCode         int                         `json:"statusCode"`
+	UpstreamStatusCode *int                        `json:"upstreamStatusCode"`
+	StatusSource       string                      `json:"statusSource"`
+	ErrorCategory      string                      `json:"errorCategory"`
+	ErrorCode          string                      `json:"errorCode"`
+	BlacklistScope     string                      `json:"blacklistScope,omitempty"`
+	BlacklistRuleID    string                      `json:"blacklistRuleId,omitempty"`
+	BlacklistCIDR      string                      `json:"blacklistCidr,omitempty"`
+	UserAgent          string                      `json:"userAgent"`
+	ClientSummary      RequestHistoryClientSummary `json:"clientSummary"`
+	ProxyStage         string                      `json:"proxyStage"`
+	ExceptionStage     string                      `json:"exceptionStage"`
+	ForwarderError     string                      `json:"forwarderError"`
+	HasException       bool                        `json:"hasException"`
+	ExceptionType      string                      `json:"exceptionType"`
+	TraceID            string                      `json:"traceId,omitempty"`
 }
 
 type RequestHistoryDetail struct {
 	RequestHistoryListItem
-	Scheme                string              `json:"scheme"`
-	QueryString           string              `json:"queryString"`
-	URL                   string              `json:"url"`
-	Protocol              string              `json:"protocol"`
-	RequestHeaders        map[string][]string `json:"requestHeaders"`
-	ResponseHeaders       map[string][]string `json:"responseHeaders"`
-	RequestBodyBase64     string              `json:"requestBodyBase64"`
-	ResponseBodyBase64    string              `json:"responseBodyBase64"`
-	RequestContentType    string              `json:"requestContentType"`
-	ResponseContentType   string              `json:"responseContentType"`
-	RequestBodyTruncated  bool                `json:"requestBodyTruncated"`
-	ResponseBodyTruncated bool                `json:"responseBodyTruncated"`
-	ExceptionMessage      string              `json:"exceptionMessage"`
-	ExceptionStackTrace   string              `json:"exceptionStackTrace"`
+	ClientInfo            RequestHistoryClientInfo `json:"clientInfo"`
+	Scheme                string                   `json:"scheme"`
+	QueryString           string                   `json:"queryString"`
+	URL                   string                   `json:"url"`
+	Protocol              string                   `json:"protocol"`
+	RequestHeaders        map[string][]string      `json:"requestHeaders"`
+	ResponseHeaders       map[string][]string      `json:"responseHeaders"`
+	RequestBodyBase64     string                   `json:"requestBodyBase64"`
+	ResponseBodyBase64    string                   `json:"responseBodyBase64"`
+	RequestContentType    string                   `json:"requestContentType"`
+	ResponseContentType   string                   `json:"responseContentType"`
+	RequestBodyTruncated  bool                     `json:"requestBodyTruncated"`
+	ResponseBodyTruncated bool                     `json:"responseBodyTruncated"`
+	ExceptionMessage      string                   `json:"exceptionMessage"`
+	ExceptionStackTrace   string                   `json:"exceptionStackTrace"`
 }
 
 type RequestHistoryPage = Page[RequestHistoryListItem]

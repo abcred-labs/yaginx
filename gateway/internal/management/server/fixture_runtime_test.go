@@ -236,6 +236,12 @@ func (s fixtureStore) ListAccountSessions(context.Context, int64) ([]management.
 func (s fixtureStore) UpsertWebsite(context.Context, management.WebsiteUpsertRequest) (management.Website, error) {
 	return fixtureValue[management.Website](s.value, s.err)
 }
+func (s fixtureStore) UpsertWebsiteIPAccess(context.Context, management.WebsiteIPAccessUpsertRequest) (management.WebsiteIPAccessRule, error) {
+	return fixtureValue[management.WebsiteIPAccessRule](s.value, s.err)
+}
+func (s fixtureStore) RemoveWebsiteIPAccess(context.Context, management.WebsiteIPAccessRemoveRequest) (management.WebsiteIPAccessRule, error) {
+	return fixtureValue[management.WebsiteIPAccessRule](s.value, s.err)
+}
 func (s fixtureStore) ListWebsites(context.Context) ([]management.Website, error) {
 	return fixtureValue[[]management.Website](s.value, s.err)
 }

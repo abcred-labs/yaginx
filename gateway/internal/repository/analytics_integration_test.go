@@ -286,3 +286,62 @@ func TestAnalyticsCombinesColdReportsAndHotContributionsWithoutUAFalsePositives(
 		t.Fatalf("enabled UA health=%#v", enabledHealth)
 	}
 }
+
+func TestAnalyticsFallsBackToRawContributionWhenReportMissing(t *testing.T) {
+	dsn := os.Getenv("YAGINX_TEST_DATABASE_URL")
+	if dsn == "" {
+		t.Skip("YAGINX_TEST_DATABASE_URL is not set")
+	}
+	ctx := context.Background()
+	base, err := pgx.Connect(ctx, dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer base.Close(ctx)
+	schema := "yaginx_goal_analytics_fallback" + uuid.NewString()[:10]
+	if _, err := base.Exec(ctx, "CREATE SCHEMA "+pgx.Identifier{schema}.Sanitize()); err != nil {
+		t.Fatal(err)
+	}
+	isolation, err := database.WithSearchPath(dsn, schema)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := database.InitializeV2(ctx, isolation, bytes.NewBuffer(nil)); err != nil {
+		t.Fatal(err)
+	}
+	pool, err := pgxpool.New(ctx, isolation)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer pool.Close()
+	store := New(pool)
+	store.SetContributionRetention(2 * time.Hour)
+	nodeID := uuid.NewString()
+	if _, err := store.RegisterNode(ctx, management.NodeRegistrationRequest{NodeID: nodeID, MachineFingerprint: strings.Repeat("f", 64)}); err != nil {
+		t.Fatal(err)
+	}
+	now, err := store.databaseNow(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	at := now.Add(-4 * time.Hour).UTC().Truncate(time.Minute)
+	if _, err := pool.Exec(ctx, `INSERT INTO gateway_traffic_contribution(
+		node_id,process_id,host_name,cycle_type,period,request_qty,duration_sum,duration_max,
+		inbound_bytes,outbound_bytes,status_code,spider,browser,os,duration_buckets,
+		error_counts,latency_histogram,response_mode_metrics,is_final,updated_at)
+		VALUES($1::uuid,$2::uuid,'fallback.example.invalid',5,$3,7,70,30,100,200,
+		'{"200":7}'::jsonb,'{}'::jsonb,'{}'::jsonb,'{}'::jsonb,
+		'{"<=100":7}'::jsonb,'{}'::jsonb,'{"<=100":7}'::jsonb,'{}'::jsonb,true,clock_timestamp())`,
+		nodeID, uuid.NewString(), at.Unix()); err != nil {
+		t.Fatal(err)
+	}
+	result, err := store.AnalyticsSummary(ctx, management.AnalyticsQuery{
+		From: at.Unix(), To: at.Add(time.Minute).Unix(), Domain: "fallback.example.invalid",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Source != analyticsMixedSource || result.Kpis.Requests != 7 || !result.HasData {
+		t.Fatalf("fallback analytics=%#v", result)
+	}
+}

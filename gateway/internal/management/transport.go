@@ -14,6 +14,10 @@ var ErrNotFound = errors.New("not found")
 
 var ErrConflict = errors.New("conflict")
 
+// ErrInvalid marks a domain validation error that should be returned as a
+// client error by management handlers.
+var ErrInvalid = errors.New("invalid request")
+
 // RequestError keeps the legacy wording for a request that failed to decode.
 func RequestError(err error) string {
 	if err == nil {
@@ -54,6 +58,8 @@ func FailStoreError(w http.ResponseWriter, err error) {
 		status = http.StatusNotFound
 	} else if errors.Is(err, ErrConflict) {
 		status = http.StatusConflict
+	} else if errors.Is(err, ErrInvalid) {
+		status = http.StatusBadRequest
 	}
 	FailWithTransactionID(w, status, tid, err.Error())
 }
@@ -110,7 +116,7 @@ func (w *journalResponseWriter) logStoreError(tid string, err error) string {
 }
 
 func isManagementSystemError(err error) bool {
-	if err == nil || errors.Is(err, ErrNotFound) || errors.Is(err, context.Canceled) {
+	if err == nil || errors.Is(err, ErrNotFound) || errors.Is(err, ErrConflict) || errors.Is(err, ErrInvalid) || errors.Is(err, context.Canceled) {
 		return false
 	}
 	var pgErr *pgconn.PgError

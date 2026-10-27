@@ -121,7 +121,22 @@ CREATE TABLE request_history (
     status_source text,
     error_category text,
     error_code text,
-    trace_id text
+    blacklist_scope text,
+    blacklist_rule_id bigint,
+    blacklist_cidr cidr,
+    trace_id text,
+    user_agent_browser text,
+    user_agent_browser_version text,
+    user_agent_browser_major text,
+    user_agent_os text,
+    user_agent_os_version text,
+    user_agent_os_major text,
+    user_agent_device_type text,
+    user_agent_device_brand text,
+    user_agent_device_model text,
+    user_agent_is_bot boolean,
+    user_agent_bot_name text,
+    user_agent_parse_status text
 );
 
 CREATE TABLE yaginx_system_error (
@@ -385,6 +400,10 @@ CREATE INDEX ix_request_history_client_ip_request_ts ON request_history (client_
 CREATE INDEX ix_request_history_status_source_request_ts ON request_history (status_source, request_ts DESC);
 CREATE INDEX ix_request_history_error_category_request_ts ON request_history (error_category, request_ts DESC);
 CREATE INDEX ix_request_history_host_ts ON request_history (host, request_ts DESC);
+CREATE INDEX ix_request_history_ua_browser_ts ON request_history (user_agent_browser, request_ts DESC);
+CREATE INDEX ix_request_history_ua_os_ts ON request_history (user_agent_os, request_ts DESC);
+CREATE INDEX ix_request_history_ua_device_type_ts ON request_history (user_agent_device_type, request_ts DESC);
+CREATE INDEX ix_request_history_ua_bot_ts ON request_history (user_agent_is_bot, request_ts DESC);
 CREATE INDEX ix_gateway_node_status_heartbeat ON gateway_node (status, last_heartbeat_at DESC);
 CREATE UNIQUE INDEX ux_gateway_node_node_number
     ON gateway_node (node_number) WHERE node_number IS NOT NULL;

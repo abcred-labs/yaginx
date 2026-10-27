@@ -116,7 +116,7 @@ export const requestHistoryDetail = () => ({
 export const ipProfile = (ip: string) => ({ ip, country: { name: '美国', isoCode: 'US' }, city: { name: 'Ashburn' }, asn: { number: 14618, organization: 'Amazon', network: '3.0.0.0/8' }, network: { type: 'datacenter', isp: 'AWS' }, traits: {} });
 
 export const ipBlacklist = [
-  { id: '7001', cidr: '198.51.100.0/24', profile: ipProfile('198.51.100.7'), blockedCount: 1280, lastBlockedAt: now() - 30, createdAt: now() - 86400, isActive: true },
+  { id: '7001', cidr: '198.51.100.0/24', scope: 'gateway', profile: ipProfile('198.51.100.7'), blockedCount: 1280, lastBlockedAt: now() - 30, createdAt: now() - 86400, isActive: true },
 ];
 
 export const nodes = [

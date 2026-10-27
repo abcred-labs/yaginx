@@ -92,7 +92,7 @@ OTLP v1 默认关闭；启用时由 `gateway/internal/observability/tracing.go` 
 
 当前实现中 `gateway/internal/telemetry.Aggregator` 在每个 process 维护 minute/hour absolute snapshot，并在启用时以有界 UA family cache 生成 browser/spider/OS 维度；duration bucket 固定为 `<=100`、`>100 & <=500`、`>500 & <=1000`、`>1000`。`repository.SaveTrafficContributions` UPSERT `(node_id,process_id,host,cycle,period)` 的 status/duration/UA JSONB，并将已结束周期标记 `is_final=true`；`MaterializeTraffic` 用 `resourceReports.leaderLockNamespace` 对应的 transaction advisory lock 将所有 process snapshot 绝对写入 `host_traffic`、cycle 5/10 `resource_report`，并从 cycle 10 加权绝对汇总 cycle 20 日报。`traffic_contribution_integration_test.go` 验证两个 node/process 合计、分钟/小时/日报、状态/时长分桶/UA 维度、重复 snapshot 重放、加密 cutover、post-cutover 排除，以及旧 raw JSON 的 status/duration/spider/browser/OS backfill。retention 与 legacy raw shadow backfill 均已实现。
 
-retention：contribution 2 天、resource_monitor_info 48 小时、host_traffic 默认 90 天；`resource_report` 按粒度独立保留分钟 30 天、小时 365 天、日 730 天。`reportRetentionDays` 保留为旧配置兼容字段，并作为日报保留的下限；新的部署应只配置三个粒度字段。`repository.PruneTelemetry` 与 `PruneReportCycles` 每批删除 5000 行并单独 commit，`serve` 在启动和每 24 小时执行；PostgreSQL 16 integration 以 batch=2 验证所有过期 rows 清理、保留未过期 row，并覆盖分钟/小时清理不影响日报。
+retention：contribution 默认 7 天，可配置为 3 天；只有 `is_final` 且对应 `resource_report`/`host_traffic` 汇总完整的周期才会清理。`resource_monitor_info` 保留 48 小时，并且只有 `traffic.legacy_monitor_backfill_complete` marker 存在时才进入清理；`host_traffic` 默认 90 天；`resource_report` 按粒度独立保留分钟 30 天、小时 365 天、日 730 天。`reportRetentionDays` 保留为旧配置兼容字段，并作为日报保留的下限；新的部署应只配置三个粒度字段。`repository.PruneTelemetry` 与 `PruneReportCycles` 每批删除 5000 行并单独 commit，`serve` 在启动和每 24 小时执行；清理会记录删除行数和等待汇总完成的 contribution 行数。PostgreSQL 16 integration 以 batch=2 验证所有过期 rows 清理、保留未过期 row，并覆盖分钟/小时清理不影响日报。
 
 ## host_traffic
 

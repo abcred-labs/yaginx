@@ -58,8 +58,8 @@ func parseServeSettings(cfg config.RuntimeDocument) (serveSettings, error) {
 	if out.ContributionRetention, err = duration("resourceReports", "contributionRetention"); err != nil {
 		return out, err
 	}
-	if out.ContributionRetention < 31*24*time.Hour {
-		return out, fmt.Errorf("resourceReports.contributionRetention must be at least 744h")
+	if out.ContributionRetention < 72*time.Hour || out.ContributionRetention > 8760*time.Hour {
+		return out, fmt.Errorf("resourceReports.contributionRetention must be between 72h and 8760h")
 	}
 	if out.ResourceMinutelyDelay, err = duration("resourceReports", "minutelyDelay"); err != nil {
 		return out, err

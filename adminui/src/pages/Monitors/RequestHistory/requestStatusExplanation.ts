@@ -56,7 +56,7 @@ const httpStatusDetails: Record<number, StatusDetail> = {
   400: { label: "请求错误", meaning: "服务器无法理解或接受请求，通常是参数、格式或协议不符合要求。", actions: ["核对请求 URL、查询参数、请求体格式和必填请求头。"] },
   401: { label: "未认证", meaning: "访问该资源需要有效认证凭据，或当前凭据无效。", actions: ["检查 Authorization、令牌有效期、签名和认证服务配置。"] },
   402: { label: "需要付款", meaning: "该状态没有统一的通用语义，常被业务系统用于配额或计费限制。", actions: ["查看上游 API 文档和响应体中的业务错误说明。"] },
-  403: { label: "禁止访问", meaning: "服务器理解请求，但当前身份或来源没有访问权限。", actions: ["检查账号权限、来源 IP、CORS、黑名单和资源访问策略。"] },
+  403: { label: "禁止访问", meaning: "服务器理解请求，但当前身份或来源没有访问权限。", actions: ["检查账号权限、来源 IP、网关/站点黑名单、CORS 和资源访问策略。"] },
   404: { label: "未找到", meaning: "请求的路由、资源或匹配的网站不存在。", actions: ["核对 Host、Path、路由规则和上游服务是否已部署。"] },
   405: { label: "方法不允许", meaning: "资源存在，但不接受当前 HTTP 方法。", actions: ["检查 GET、POST 等请求方法，以及响应 Allow 请求头。"] },
   406: { label: "不可接受", meaning: "服务器无法根据 Accept 等内容协商请求头返回可接受的表示。", actions: ["检查 Accept、Accept-Language 和内容协商配置。"] },
@@ -129,7 +129,9 @@ const categoryDetails: Record<string, { label: string; meaning: string }> = {
   ClientWriteFailure: { label: "向客户端写失败", meaning: "向客户端传输响应时连接中断或写入失败。" },
   ProxyPipelineException: { label: "Yaginx 管线异常", meaning: "Yaginx 本地处理流程遇到配置或运行时异常。" },
   UnknownProxyError: { label: "未知代理异常", meaning: "代理错误无法归类到更具体的稳定类别。" },
-  Blacklist: { label: "IP 黑名单", meaning: "请求命中了 Yaginx 配置的 IP 黑名单并被本地拒绝。" },
+  Blacklist: { label: "网关黑名单", meaning: "请求命中了 Yaginx 配置的网关级 IP 黑名单并被本地拒绝。" },
+  SiteIPBlacklist: { label: "站点黑名单", meaning: "请求命中了当前站点配置的 IP 黑名单并被本地拒绝。" },
+  SiteIPWhitelist: { label: "站点白名单", meaning: "请求未通过当前站点配置的 IP 白名单。" },
   SiteMaintenance: { label: "站点维护中", meaning: "站点已由管理员切换至维护模式，Yaginx 在访问上游前固定返回 503。" }
 };
 
@@ -211,7 +213,7 @@ const missingUpstreamExplanation = (context: RequestStatusContext): RequestStatu
   } else if (source === "YaginxPipeline" || source === "CorsPreflight") {
     conclusion = "该请求由 Yaginx 本地流程处理，未必会访问上游，因此没有上游状态码。";
     impact = "上游服务通常不是首要排查对象。";
-    actions = ["检查路由、简单响应、重定向、CORS 或本地安全策略。", "若状态为 403，进一步检查 IP 黑名单和访问控制配置。"];
+    actions = ["检查路由、简单响应、重定向、CORS 或本地安全策略。", "若状态为 403，进一步检查网关/站点黑名单和访问控制配置。"];
   } else if (source === "ClientCanceled") {
     conclusion = "客户端已取消或断开，请求结束前未记录到可用的上游状态码。";
     impact = "这通常反映客户端等待或网络中断，不一定表示上游不可用。";

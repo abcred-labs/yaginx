@@ -1,4 +1,4 @@
-import { ipBlacklistLookup, ipBlacklistUpsert } from "@/api/accessControl";
+import { ipBlacklistLookup, ipBlacklistUpsert, websiteIPAccessUpsert } from "@/api/accessControl";
 import { requestHistoryGet, requestHistorySearch, type IRequestHistoryDetail, type IRequestHistoryListItem } from "@/api/requestHistory";
 import { LocalTime } from "@/components/LocalTime";
 import ServerDataTable from "@/ui/ServerDataTable";
@@ -6,6 +6,7 @@ import { ClearableSelect } from "@/ui/reqFilters";
 import { notifySuccess } from "@/ui/notify";
 import { DataToolbar, SectionCard, WorkbenchPage } from "@/ui/workbench";
 import IPProfileDrawer, { type IPBlacklistScope } from "../IPProfileDrawer";
+import BlacklistScopeDialog, { type IPBlacklistTargetScope } from "../BlacklistScopeDialog";
 import {
   canDecompressResponseBody,
   decompressResponseBody,
@@ -79,9 +80,19 @@ const errorCategoryText: Record<string, string> = {
   ClientWriteFailure: "向客户端写失败",
   ProxyPipelineException: "Yaginx 管线异常",
   UnknownProxyError: "未知代理异常",
-  Blacklist: "IP 黑名单",
+  Blacklist: "网关黑名单",
+  SiteIPBlacklist: "站点黑名单",
+  SiteIPWhitelist: "站点白名单",
   SiteMaintenance: "站点维护中"
 };
+
+const blacklistScopeText = (category?: string) => category === "Blacklist"
+  ? "网关级（所有站点）"
+  : category === "SiteIPBlacklist"
+    ? "站点级"
+    : category === "SiteIPWhitelist"
+      ? "站点级白名单"
+      : "";
 
 const statusSourceOptions = Object.entries(statusSourceText).map(([value, label]) => ({ value, label }));
 const errorCategoryOptions = Object.entries(errorCategoryText).map(([value, label]) => ({ value, label }));
@@ -405,7 +416,7 @@ const RequestIPCell = ({
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start">
           <DropdownMenuItem onSelect={() => onProfile(normalized)}>IP 详情</DropdownMenuItem>
-          <DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={() => onBlacklist(normalized)}>添加到黑名单</DropdownMenuItem>
+          <DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={() => onBlacklist(normalized)}>选择黑名单范围</DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
     </span>
@@ -414,6 +425,17 @@ const RequestIPCell = ({
 
 const compactText = (value: unknown, maxWidth: number) =>
   typeof value === "string" && value ? <TruncatedText className="inline-block align-bottom" style={{ maxWidth }}>{value}</TruncatedText> : "-";
+
+const deviceTypeLabels: Record<string, string> = { desktop: "Desktop", mobile: "Mobile", tablet: "Tablet", console: "Console", smarttv: "Smart TV", embedded: "Embedded", bot: "Bot", unknown: "Unknown" };
+
+const clientSummaryText = (value: IRequestHistoryListItem["clientSummary"]) => {
+  if (!value || value.parseStatus === "" || value.parseStatus === "unknown" || value.parseStatus === "empty") return "未解析";
+  const parts = [value.browser, value.os, value.deviceType && value.deviceType !== "unknown" ? (deviceTypeLabels[value.deviceType] || value.deviceType) : ""].filter(Boolean);
+  if (value.isBot) parts.unshift(value.botName || "Bot");
+  return parts.length ? parts.join(" · ") : "未解析";
+};
+
+const clientParseStatusText = (value?: string) => ({ parsed: "已解析", unknown: "无法识别", empty: "无 User-Agent", disabled: "解析已关闭" }[value || ""] || "未解析");
 
 export interface RequestHistoryListProps {
   fixedHost?: string;
@@ -425,7 +447,7 @@ const STATUS_PATTERN = /^[0-9x]{3}$/i;
 
 export const RequestHistoryList: React.FC<RequestHistoryListProps> = ({ fixedHost, fixedWebsiteId, embedded = false }) => {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const initialNumber = (key: string) => { const value = Number(searchParams.get(key)); return Number.isFinite(value) && value > 0 ? value : null; };
   const [refreshTable, forceRefreshTable] = useState<number>(0);
   const [host, setHost] = useState<string>(() => searchParams.get("host") || "");
@@ -447,6 +469,12 @@ export const RequestHistoryList: React.FC<RequestHistoryListProps> = ({ fixedHos
   const [errorCode, setErrorCode] = useState<string>(() => searchParams.get("errorCode") || "");
   const [clientIp, setClientIp] = useState<string>("");
   const [userAgent, setUserAgent] = useState<string>("");
+  const [clientBrowser, setClientBrowser] = useState<string>(() => searchParams.get("clientBrowser") || "");
+  const [clientOs, setClientOs] = useState<string>(() => searchParams.get("clientOs") || "");
+  const [clientDeviceType, setClientDeviceType] = useState<string>(() => searchParams.get("clientDeviceType") || "");
+  const [clientDevice, setClientDevice] = useState<string>(() => searchParams.get("clientDevice") || "");
+  const [clientBotName, setClientBotName] = useState<string>(() => searchParams.get("clientBotName") || "");
+  const [clientIsBot, setClientIsBot] = useState<string>(() => searchParams.get("clientIsBot") || "");
   const [timeRange, setTimeRange] = useState<DateTimeRange | undefined>(() => {
     const from = initialNumber("from"); const to = initialNumber("to");
     return from && to ? { from: new Date(from * 1000), to: new Date(to * 1000) } : undefined;
@@ -460,6 +488,7 @@ export const RequestHistoryList: React.FC<RequestHistoryListProps> = ({ fixedHos
   const [profile, setProfile] = useState<any>(null);
   const [profileError, setProfileError] = useState("");
   const [currentPageRecords, setCurrentPageRecords] = useState<IRequestHistoryListItem[]>([]);
+  const [pendingQuickBlock, setPendingQuickBlock] = useState<string | null>(null);
 
   const updateStatusCodePatternInput = (value: string) => {
     setStatusCodePatternInput(value);
@@ -513,12 +542,27 @@ export const RequestHistoryList: React.FC<RequestHistoryListProps> = ({ fixedHos
     if (userAgent.trim()) {
       filters.userAgent = userAgent.trim();
     }
+    if (clientBrowser.trim()) filters.clientBrowser = clientBrowser.trim();
+    if (clientOs.trim()) filters.clientOs = clientOs.trim();
+    if (clientDeviceType) filters.clientDeviceType = clientDeviceType;
+    if (clientDevice.trim()) filters.clientDevice = clientDevice.trim();
+    if (clientBotName.trim()) filters.clientBotName = clientBotName.trim();
+    if (clientIsBot === "true" || clientIsBot === "false") filters.clientIsBot = clientIsBot === "true";
     if (timeRange?.from && timeRange?.to) {
       filters.from = Math.floor(timeRange.from.getTime() / 1000);
       filters.to = Math.floor(timeRange.to.getTime() / 1000);
     }
     return filters;
-  }, [clientIp, errorCategory, errorCode, fixedHost, host, statusCodePattern, statusSource, timeRange, upstreamStatusCode, userAgent, websiteId]);
+  }, [clientBotName, clientBrowser, clientDevice, clientDeviceType, clientIp, clientIsBot, clientOs, errorCategory, errorCode, fixedHost, host, statusCodePattern, statusSource, timeRange, upstreamStatusCode, userAgent, websiteId]);
+
+  useEffect(() => {
+    const next = new URLSearchParams(searchParams);
+    const values: Record<string, string> = { clientBrowser, clientOs, clientDeviceType, clientDevice, clientBotName, clientIsBot };
+    Object.entries(values).forEach(([key, value]) => value ? next.set(key, value) : next.delete(key));
+    setSearchParams(next, { replace: true });
+    // Only client filters are synchronized here; existing request-history URL state is preserved.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clientBotName, clientBrowser, clientDevice, clientDeviceType, clientIsBot, clientOs]);
 
   const openDetail = async (record: IRequestHistoryListItem) => {
     setDetailOpen(true);
@@ -553,11 +597,18 @@ export const RequestHistoryList: React.FC<RequestHistoryListProps> = ({ fixedHos
     }
   };
 
-  const addToBlacklist = async (cidr: string, scope: IPBlacklistScope = "ip") => {
+  const addToBlacklist = async (cidr: string, scope: IPBlacklistScope = "ip", target: IPBlacklistTargetScope = websiteId ? "site" : "gateway") => {
     try {
-      const response = await ipBlacklistUpsert({ cidr });
+      if (target === "site") {
+        if (!websiteId) return;
+        const response = await websiteIPAccessUpsert({ websiteId, cidr });
+        const label = scope === "network" ? "网络段" : "IP";
+        notifySuccess(`已添加${label}到站点黑名单`, `${response.data.cidr} 仅对当前站点生效。`);
+        return;
+      }
+      const response = await ipBlacklistUpsert({ cidr, scope: "gateway" });
       const label = scope === "network" ? "网络段" : "IP";
-      notifySuccess(`已添加${label}到黑名单`, `${response.data.cidr} 将在所有节点热更新。`);
+      notifySuccess(`已添加${label}到网关黑名单`, `${response.data.cidr} 将在所有节点热更新。`);
     } catch {
       // FetchJson already presents the service error.
     }
@@ -584,7 +635,7 @@ export const RequestHistoryList: React.FC<RequestHistoryListProps> = ({ fixedHos
       id: "clientIp",
       header: "客户端IP",
       meta: { minWidth: 150 },
-      cell: ({ row }) => <RequestIPCell ip={row.original.clientIp} onProfile={openIPProfile} onBlacklist={addToBlacklist} />
+      cell: ({ row }) => <RequestIPCell ip={row.original.clientIp} onProfile={openIPProfile} onBlacklist={setPendingQuickBlock} />
     },
     { id: "method", header: "方法", cell: ({ row }) => row.original.method },
     {
@@ -615,7 +666,12 @@ export const RequestHistoryList: React.FC<RequestHistoryListProps> = ({ fixedHos
       }
     },
     { id: "durationMs", header: "耗时", cell: ({ row }) => `${row.original.durationMs}ms` },
-    { id: "userAgent", header: "User-Agent", meta: { minWidth: 220 }, cell: ({ row }) => compactText(row.original.userAgent, 204) },
+    {
+      id: "clientSummary",
+      header: "客户端",
+      meta: { minWidth: 190 },
+      cell: ({ row }) => row.original.clientSummary?.isBot ? <span className="inline-flex items-center gap-1"><Badge variant="warning">Bot</Badge>{compactText(clientSummaryText(row.original.clientSummary), 140)}</span> : compactText(clientSummaryText(row.original.clientSummary), 174)
+    },
     {
       id: "statusSource",
       header: "来源",
@@ -643,6 +699,27 @@ export const RequestHistoryList: React.FC<RequestHistoryListProps> = ({ fixedHos
     { key: "requestAt", label: "时间", children: <LocalTime timestamp={detail.requestAt} /> },
     { key: "duration", label: "耗时", children: `${detail.durationMs}ms` },
     { key: "clientIp", label: "客户端 IP", children: detail.clientIp || "-" },
+    {
+      key: "clientInfo",
+      label: "客户端",
+      span: 2,
+      children: detail.clientInfo ? (() => {
+        const browser = detail.clientInfo.browser.name ? `${detail.clientInfo.browser.name}${detail.clientInfo.browser.version ? ` ${detail.clientInfo.browser.version}` : ""}` : "";
+        const os = detail.clientInfo.os.name ? `${detail.clientInfo.os.name}${detail.clientInfo.os.version ? ` ${detail.clientInfo.os.version}` : ""}` : "";
+        const device = detail.clientInfo.device.type ? `${deviceTypeLabels[detail.clientInfo.device.type] || detail.clientInfo.device.type}${detail.clientInfo.device.brand || detail.clientInfo.device.model ? ` · ${[detail.clientInfo.device.brand, detail.clientInfo.device.model].filter(Boolean).join(" ")}` : ""}` : "";
+        const parsed = detail.clientInfo.parseStatus === "parsed";
+        const hasClientFields = Boolean(browser || os || device || (parsed && (detail.clientInfo.bot.isBot || detail.clientInfo.bot.name)));
+        return <div className="grid gap-1">
+          {browser ? <div>浏览器：{browser}</div> : null}
+          {os ? <div>操作系统：{os}</div> : null}
+          {device ? <div>设备：{device}</div> : null}
+          <div>爬虫：{parsed ? (detail.clientInfo.bot.isBot ? detail.clientInfo.bot.name || "是" : "否") : "未解析"}</div>
+          {!hasClientFields ? <div className="text-muted-foreground">客户端字段未识别</div> : null}
+          <div>解析状态：{clientParseStatusText(detail.clientInfo.parseStatus)}</div>
+        </div>;
+      })() : "未解析"
+    },
+    { key: "userAgent", label: "原始 User-Agent", span: 2, children: detail.userAgent ? <div className="flex items-start gap-1"><span className="min-w-0 flex-1 [overflow-wrap:anywhere]">{detail.userAgent}</span><CopyButton text={detail.userAgent} className="size-6 shrink-0" /></div> : "-" },
     { key: "statusCode", label: "最终状态码", children: <Badge variant={statusVariant(detail.statusCode)}>{detail.statusCode}</Badge> },
     { key: "upstream", label: "上游状态码", children: detail.upstreamStatusCode ? <Badge variant={statusVariant(detail.upstreamStatusCode)}>{detail.upstreamStatusCode}</Badge> : "-" },
     { key: "source", label: "状态来源", children: <Badge variant={sourceVariant(detail.statusSource)}>{formatSource(detail.statusSource)}</Badge> },
@@ -653,6 +730,9 @@ export const RequestHistoryList: React.FC<RequestHistoryListProps> = ({ fixedHos
     { key: "query", label: "Query", span: 2, children: detail.queryString || "-" },
     { key: "url", label: "URL", span: 2, children: <span className="[overflow-wrap:anywhere]">{detail.url}</span> },
     { key: "errorCategory", label: "错误分类", children: formatErrorCategory(detail.errorCategory) },
+    ...(detail.blacklistScope || blacklistScopeText(detail.errorCategory) ? [{ key: "blacklistScope", label: "访问控制范围", children: detail.errorCategory === "SiteIPWhitelist" ? "站点白名单" : detail.blacklistScope === "gateway" ? "网关黑名单" : detail.blacklistScope === "site" ? "站点黑名单" : blacklistScopeText(detail.errorCategory) }] : []),
+    ...(detail.blacklistCidr ? [{ key: "blacklistCidr", label: "命中 CIDR", children: detail.blacklistCidr }] : []),
+    ...(detail.blacklistRuleId ? [{ key: "blacklistRuleId", label: "规则 ID", children: detail.blacklistRuleId }] : []),
     { key: "errorCode", label: "错误代码", children: detail.errorCode || "-" },
     { key: "traceId", label: "Trace ID", span: 2, children: detail.traceId || "-" },
     { key: "proxyStage", label: "代理阶段", children: formatStage(detail.proxyStage) },
@@ -700,6 +780,12 @@ export const RequestHistoryList: React.FC<RequestHistoryListProps> = ({ fixedHos
           <ClearableSelect className="w-[140px]" placeholder="状态来源" value={statusSource} onChange={setStatusSource} options={statusSourceOptions} />
           <ClearableSelect className="w-[180px]" placeholder="错误分类" value={errorCategory} onChange={setErrorCategory} options={errorCategoryOptions} />
           <Input className="w-[150px]" placeholder="客户端 IP" aria-label="客户端 IP" value={clientIp} onChange={(event) => setClientIp(event.target.value)} />
+          <Input className="w-[150px]" placeholder="浏览器" aria-label="客户端浏览器" value={clientBrowser} onChange={(event) => setClientBrowser(event.target.value)} />
+          <Input className="w-[140px]" placeholder="操作系统" aria-label="客户端操作系统" value={clientOs} onChange={(event) => setClientOs(event.target.value)} />
+          <ClearableSelect className="w-[130px]" placeholder="设备类型" value={clientDeviceType} onChange={(value) => setClientDeviceType(value || "")} options={["desktop", "mobile", "tablet", "console", "smarttv", "embedded", "unknown"].map((value) => ({ value, label: value }))} />
+          <Input className="w-[140px]" placeholder="设备品牌/型号" aria-label="客户端设备" value={clientDevice} onChange={(event) => setClientDevice(event.target.value)} />
+          <ClearableSelect className="w-[120px]" placeholder="爬虫" value={clientIsBot} onChange={(value) => setClientIsBot(value || "")} options={[{ value: "true", label: "是" }, { value: "false", label: "否" }]} />
+          <Input className="w-[130px]" placeholder="爬虫名称" aria-label="爬虫名称" value={clientBotName} onChange={(event) => setClientBotName(event.target.value)} />
           <Input className="w-[160px]" placeholder="错误代码" aria-label="错误代码" value={errorCode} onChange={(event) => setErrorCode(event.target.value)} />
           <form
             className="flex items-center gap-1"
@@ -783,6 +869,19 @@ export const RequestHistoryList: React.FC<RequestHistoryListProps> = ({ fixedHos
         error={profileError}
         onClose={() => setProfileOpen(false)}
         onBlacklist={addToBlacklist}
+        websiteId={websiteId}
+        siteLabel={fixedHost?.trim() || host.trim() || (websiteId ? `站点 ${websiteId}` : undefined)}
+        defaultTargetScope={websiteId ? "site" : "gateway"}
+      />
+      <BlacklistScopeDialog
+        open={pendingQuickBlock !== null}
+        cidr={pendingQuickBlock || ""}
+        entryLabel="IP"
+        siteId={websiteId}
+        siteLabel={fixedHost?.trim() || host.trim() || (websiteId ? `站点 ${websiteId}` : undefined)}
+        defaultScope={websiteId ? "site" : "gateway"}
+        onClose={() => setPendingQuickBlock(null)}
+        onConfirm={(target) => addToBlacklist(pendingQuickBlock || "", "ip", target)}
       />
     </>;
   if (embedded) {

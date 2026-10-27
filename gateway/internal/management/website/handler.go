@@ -4,8 +4,11 @@ package website
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
+	"net/netip"
+	"strings"
 	"sync"
 	"time"
 
@@ -20,6 +23,8 @@ const RuleRefreshDebounce = 30 * time.Second
 // Store is the website slice of the management repository.
 type Store interface {
 	UpsertWebsite(context.Context, management.WebsiteUpsertRequest) (management.Website, error)
+	UpsertWebsiteIPAccess(context.Context, management.WebsiteIPAccessUpsertRequest) (management.WebsiteIPAccessRule, error)
+	RemoveWebsiteIPAccess(context.Context, management.WebsiteIPAccessRemoveRequest) (management.WebsiteIPAccessRule, error)
 	ListWebsites(context.Context) ([]management.Website, error)
 	SearchWebsites(context.Context, management.WebsiteSearchRequest) (management.Page[management.Website], error)
 	GetWebsite(context.Context, string) (management.Website, error)
@@ -37,6 +42,8 @@ type Handler struct {
 
 func (h *Handler) Routes(r chi.Router) {
 	r.Post("/website/upsert", h.Upsert)
+	r.Post("/website/ip_access/upsert", h.UpsertIPAccess)
+	r.Post("/website/ip_access/remove", h.RemoveIPAccess)
 	r.Get("/website/search", h.Search)
 	r.Post("/website/search", h.Search)
 	r.Get("/website/get", h.Get)
@@ -44,6 +51,49 @@ func (h *Handler) Routes(r chi.Router) {
 	r.Delete("/website/delete", h.Delete)
 	r.Post("/website/delete_batch", h.DeleteBatch)
 	r.Post("/website/rule/refresh", h.RefreshRules)
+}
+
+func (h *Handler) UpsertIPAccess(w http.ResponseWriter, r *http.Request) {
+	input, err := management.DecodeTypedJSONBody[management.WebsiteIPAccessUpsertRequest](r.Body, h.BodyMax)
+	if err != nil || input.WebsiteID <= 0 {
+		management.Fail(w, http.StatusBadRequest, management.RequestError(err))
+		return
+	}
+	if err := validateIPAccessCIDR(input.CIDR); err != nil {
+		management.Fail(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	out, err := h.Store.UpsertWebsiteIPAccess(r.Context(), input)
+	management.RespondStore(w, out, err)
+}
+
+func (h *Handler) RemoveIPAccess(w http.ResponseWriter, r *http.Request) {
+	input, err := management.DecodeTypedJSONBody[management.WebsiteIPAccessRemoveRequest](r.Body, h.BodyMax)
+	if err != nil || input.WebsiteID <= 0 {
+		management.Fail(w, http.StatusBadRequest, management.RequestError(err))
+		return
+	}
+	if err := validateIPAccessCIDR(input.CIDR); err != nil {
+		management.Fail(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	out, err := h.Store.RemoveWebsiteIPAccess(r.Context(), input)
+	management.RespondStore(w, out, err)
+}
+
+func validateIPAccessCIDR(raw string) error {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return fmt.Errorf("CIDR must be a valid IPv4 or IPv6 address/network")
+	}
+	if address, err := netip.ParseAddr(raw); err == nil {
+		_ = address
+		return nil
+	}
+	if _, err := netip.ParsePrefix(raw); err != nil {
+		return fmt.Errorf("CIDR must be a valid IPv4 or IPv6 address/network")
+	}
+	return nil
 }
 
 func (h *Handler) Upsert(w http.ResponseWriter, r *http.Request) {

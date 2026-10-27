@@ -30,7 +30,7 @@ type Postgres struct {
 }
 
 func New(pool *pgxpool.Pool) *Postgres {
-	return &Postgres{pool: pool, heartbeatStaleAfter: 45 * time.Second, inactiveNodeAfter: 168 * time.Hour, trafficMaterializerLock: "yaginx:resource-report", contributionRetention: 31 * 24 * time.Hour, ipProfileEndpoint: "https://tools.abc.red", ipProfileClient: &http.Client{Timeout: 3 * time.Second}}
+	return &Postgres{pool: pool, heartbeatStaleAfter: 45 * time.Second, inactiveNodeAfter: 168 * time.Hour, trafficMaterializerLock: "yaginx:resource-report", contributionRetention: 7 * 24 * time.Hour, ipProfileEndpoint: "https://tools.abc.red", ipProfileClient: &http.Client{Timeout: 3 * time.Second}}
 }
 
 // SetRequestIDGenerator activates Snowflake IDs after this process has an

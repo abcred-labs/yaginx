@@ -1,5 +1,4 @@
 import { IIPProfile } from "@/api/accessControl";
-import { confirmDanger } from "@/ui/confirmAction";
 import {
   Alert,
   AlertDescription,
@@ -18,6 +17,7 @@ import {
 } from "@modra/react";
 import React, { useState } from "react";
 import { actionableProfileNetworkCIDR } from "./ipProfileNetwork";
+import BlacklistScopeDialog, { type IPBlacklistTargetScope } from "./BlacklistScopeDialog";
 
 const valueOrDash = (value?: string | number | null) => value === null || value === undefined || value === "" ? "-" : value;
 
@@ -43,29 +43,38 @@ export const IPProfileDrawer = ({
   profile,
   error,
   onClose,
-  onBlacklist
+  onBlacklist,
+  websiteId,
+  siteLabel,
+  defaultTargetScope
 }: {
   open: boolean;
   loading?: boolean;
   profile: IIPProfile | null;
   error?: string;
   onClose: () => void;
-  onBlacklist?: (cidr: string, scope: IPBlacklistScope) => Promise<void>;
+  onBlacklist?: (cidr: string, scope: IPBlacklistScope, target: IPBlacklistTargetScope) => Promise<void>;
+  websiteId?: string;
+  siteLabel?: string;
+  defaultTargetScope?: IPBlacklistTargetScope;
 }) => {
   const [submitting, setSubmitting] = useState<IPBlacklistScope | null>(null);
+  const [pending, setPending] = useState<{ cidr: string; scope: IPBlacklistScope } | null>(null);
   const networkCIDR = actionableProfileNetworkCIDR(profile?.asn?.network);
 
-  const addToBlacklist = async (cidr: string, scope: IPBlacklistScope) => {
+  const addToBlacklist = async (cidr: string, scope: IPBlacklistScope, target: IPBlacklistTargetScope) => {
     if (!onBlacklist) {
       return;
     }
     setSubmitting(scope);
     try {
-      await onBlacklist(cidr, scope);
+      await onBlacklist(cidr, scope, target);
     } finally {
       setSubmitting(null);
     }
   };
+
+  const requestBlacklist = (cidr: string, scope: IPBlacklistScope) => setPending({ cidr, scope });
 
   const traits = Object.entries(profile?.traits || {}).filter(([, enabled]) => enabled);
 
@@ -91,13 +100,7 @@ export const IPProfileDrawer = ({
               size="sm"
               variant="destructive-outline"
               disabled={submitting !== null}
-              onClick={() => confirmDanger({
-                title: `封禁网络段 ${networkCIDR}？`,
-                description: `ASN ${valueOrDash(profile.asn?.number)}${profile.asn?.organization ? ` / ${profile.asn.organization}` : ""} 下该网段的后续访问将被拒绝，并热更新到所有节点。`,
-                confirmText: "确认封禁",
-                cancelText: "取消",
-                onConfirm: () => addToBlacklist(networkCIDR, "network")
-              })}
+              onClick={() => requestBlacklist(networkCIDR, "network")}
             >
               封禁网段
             </Button>
@@ -117,31 +120,46 @@ export const IPProfileDrawer = ({
   ] : [];
 
   return (
-    <Sheet open={open} onOpenChange={(next) => { if (!next) onClose(); }}>
-      <SheetContent className="w-full overflow-y-auto sm:max-w-[560px]">
-        <SheetHeader className="pe-8">
-          <SheetTitle>IP 详情</SheetTitle>
-          <SheetDescription className="sr-only">查看 IP 的网络、位置与 ASN 资料，并可加入黑名单。</SheetDescription>
-          {profile && onBlacklist ? (
-            <div>
-              <Button variant="destructive-outline" loading={submitting === "ip"} disabled={submitting === "network"} onClick={() => addToBlacklist(profile.ip, "ip")}>
-                添加此 IP 到黑名单
-              </Button>
-            </div>
-          ) : null}
-        </SheetHeader>
-        <div className="mt-4 flex flex-col gap-4">
-          {loading ? <div className="flex justify-center"><Spin /></div> : null}
-          {error ? (
-            <Alert variant="warning">
-              <AlertTitle>IP 资料暂时不可用</AlertTitle>
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          ) : null}
-          {!profile ? (loading ? null : <Empty description={error ? "可稍后重试" : "暂无 IP 资料"} />) : <Descriptions bordered column={1} items={items} />}
-        </div>
-      </SheetContent>
-    </Sheet>
+    <>
+      <Sheet open={open} onOpenChange={(next) => { if (!next) onClose(); }}>
+        <SheetContent className="w-full overflow-y-auto sm:max-w-[560px]">
+          <SheetHeader className="pe-8">
+            <SheetTitle>IP 详情</SheetTitle>
+            <SheetDescription className="sr-only">查看 IP 的网络、位置与 ASN 资料，并选择黑名单生效范围。</SheetDescription>
+            {profile && onBlacklist ? (
+              <div>
+                <Button variant="destructive-outline" loading={submitting === "ip"} disabled={submitting === "network"} onClick={() => requestBlacklist(profile.ip, "ip")}>
+                  选择黑名单范围
+                </Button>
+              </div>
+            ) : null}
+          </SheetHeader>
+          <div className="mt-4 flex flex-col gap-4">
+            {loading ? <div className="flex justify-center"><Spin /></div> : null}
+            {error ? (
+              <Alert variant="warning">
+                <AlertTitle>IP 资料暂时不可用</AlertTitle>
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            ) : null}
+            {!profile ? (loading ? null : <Empty description={error ? "可稍后重试" : "暂无 IP 资料"} />) : <Descriptions bordered column={1} items={items} />}
+          </div>
+        </SheetContent>
+      </Sheet>
+      <BlacklistScopeDialog
+        open={pending !== null}
+        cidr={pending?.cidr || ""}
+        entryLabel={pending?.scope === "network" ? "网络段" : "IP"}
+        siteId={websiteId}
+        siteLabel={siteLabel}
+        defaultScope={defaultTargetScope}
+        onClose={() => { if (!submitting) setPending(null); }}
+        onConfirm={async (target) => {
+          if (!pending) return;
+          await addToBlacklist(pending.cidr, pending.scope, target);
+        }}
+      />
+    </>
   );
 };
 

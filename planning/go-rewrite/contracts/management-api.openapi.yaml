@@ -266,10 +266,55 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/WebsiteUpsertEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
         '500': { $ref: '#/components/responses/InternalError' }
         '503': { $ref: '#/components/responses/Unavailable' }
+  /api/website/ip_access/upsert:
+    post:
+      tags: [website]
+      operationId: websiteIPAccessUpsert
+      x-go-handler: internal/management/website.Handler.UpsertIPAccess
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/WebsiteIPAccessUpsertRequest' }
+      responses:
+        '200':
+          description: Adds one normalized CIDR to the website blacklist atomically.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WebsiteIPAccessEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/website/ip_access/remove:
+    post:
+      tags: [website]
+      operationId: websiteIPAccessRemove
+      x-go-handler: internal/management/website.Handler.RemoveIPAccess
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/WebsiteIPAccessRemoveRequest' }
+      responses:
+        '200':
+          description: Removes one normalized CIDR from the website access policy atomically.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WebsiteIPAccessEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
   /api/website/rule/refresh:
     post:
       tags: [website]
@@ -1588,6 +1633,7 @@ components:
       required: [name, defaultHost, defaultDestination, defaultDestinationHost, webProxy, authorizationPolicy, preserveOriginalHost, allowInvalidTlsCertificate, redirectHttpToHttps, isMaintenanceMode, hosts, proxyRules, proxyTransforms, simpleResponses]
       properties:
         name: { type: [string, 'null'] }
+        updatedAt: { type: string, format: date-time }
         defaultHost: { type: [string, 'null'] }
         defaultDestination: { type: [string, 'null'] }
         defaultDestinationHost: { type: [string, 'null'] }
@@ -1634,6 +1680,7 @@ components:
             - $ref: '#/components/schemas/Int64String'
             - type: 'null'
           default: null
+        expectedUpdatedAt: { type: [string, 'null'], format: date-time, description: Optimistic concurrency token returned by website reads. }
         name: { type: [string, 'null'], default: null }
         defaultHost: { type: [string, 'null'], default: null }
         defaultDestination: { type: [string, 'null'], default: null }
@@ -1983,9 +2030,57 @@ components:
         errorCode: { type: [string, 'null'], default: '' }
         clientIp: { type: [string, 'null'], default: '' }
         userAgent: { type: [string, 'null'], default: '' }
+        clientBrowser: { type: [string, 'null'], default: '' }
+        clientOs: { type: [string, 'null'], default: '' }
+        clientDeviceType: { type: [string, 'null'], default: '' }
+        clientDevice: { type: [string, 'null'], default: '' }
+        clientBotName: { type: [string, 'null'], default: '' }
+        clientIsBot: { type: [boolean, 'null'] }
+    RequestHistoryClientSummary:
+      type: object
+      required: [browser, os, deviceType, botName, isBot, parseStatus]
+      properties:
+        browser: { type: string }
+        os: { type: string }
+        deviceType: { type: string }
+        botName: { type: string }
+        isBot: { type: boolean }
+        parseStatus: { type: string }
+    RequestHistoryClientInfo:
+      type: object
+      required: [browser, os, device, bot, parseStatus]
+      properties:
+        browser:
+          type: object
+          required: [name, version, major]
+          properties:
+            name: { type: string }
+            version: { type: string }
+            major: { type: string }
+        os:
+          type: object
+          required: [name, version, major]
+          properties:
+            name: { type: string }
+            version: { type: string }
+            major: { type: string }
+        device:
+          type: object
+          required: [type, brand, model]
+          properties:
+            type: { type: string }
+            brand: { type: string }
+            model: { type: string }
+        bot:
+          type: object
+          required: [isBot, name]
+          properties:
+            isBot: { type: boolean }
+            name: { type: string }
+        parseStatus: { type: string }
     RequestHistoryCommon:
       type: object
-      required: [id, requestAt, durationMs, clientIp, method, host, path, statusCode, upstreamStatusCode, statusSource, errorCategory, errorCode, userAgent, proxyStage, exceptionStage, forwarderError, hasException, exceptionType]
+      required: [id, requestAt, durationMs, clientIp, method, host, path, statusCode, upstreamStatusCode, statusSource, errorCategory, errorCode, userAgent, clientSummary, proxyStage, exceptionStage, forwarderError, hasException, exceptionType]
       properties:
         id: { $ref: '#/components/schemas/Int64String' }
         requestAt: { $ref: '#/components/schemas/EpochSeconds' }
@@ -1999,7 +2094,11 @@ components:
         statusSource: { type: string }
         errorCategory: { type: string }
         errorCode: { type: string }
+        blacklistScope: { type: string, enum: [gateway, site] }
+        blacklistRuleId: { $ref: '#/components/schemas/Int64String' }
+        blacklistCidr: { type: string }
         userAgent: { type: string }
+        clientSummary: { $ref: '#/components/schemas/RequestHistoryClientSummary' }
         proxyStage: { type: string }
         exceptionStage: { type: string }
         forwarderError: { type: string }
@@ -2019,7 +2118,7 @@ components:
       allOf:
         - $ref: '#/components/schemas/RequestHistoryCommon'
         - type: object
-          required: [scheme, queryString, url, protocol, requestHeaders, responseHeaders, requestBodyBase64, responseBodyBase64, requestContentType, responseContentType, requestBodyTruncated, responseBodyTruncated, exceptionMessage, exceptionStackTrace]
+          required: [scheme, queryString, url, protocol, requestHeaders, responseHeaders, requestBodyBase64, responseBodyBase64, requestContentType, responseContentType, requestBodyTruncated, responseBodyTruncated, exceptionMessage, exceptionStackTrace, clientInfo]
           properties:
             scheme: { type: string }
             queryString: { type: string }
@@ -2035,6 +2134,7 @@ components:
             responseBodyTruncated: { type: boolean }
             exceptionMessage: { type: string }
             exceptionStackTrace: { type: string }
+            clientInfo: { $ref: '#/components/schemas/RequestHistoryClientInfo' }
     RequestHistoryPage:
       type: object
       additionalProperties: false
@@ -2107,10 +2207,11 @@ components:
     IPBlacklistRule:
       type: object
       additionalProperties: false
-      required: [id, cidr, profile, blockedCount, lastBlockedAt, createdAt, removedAt, isActive]
+      required: [id, cidr, scope, profile, blockedCount, lastBlockedAt, createdAt, removedAt, isActive]
       properties:
         id: { $ref: '#/components/schemas/Int64String' }
         cidr: { type: string }
+        scope: { type: string, enum: [gateway] }
         profile: { $ref: '#/components/schemas/IPProfile' }
         blockedCount: { $ref: '#/components/schemas/Int64String' }
         lastBlockedAt:
@@ -2133,6 +2234,38 @@ components:
       required: [cidr]
       properties:
         cidr: { type: string, description: IPv4/IPv6 address or CIDR. Literal addresses are persisted as /32 or /128. }
+        scope: { type: string, enum: [gateway], description: Explicitly identifies this as a gateway rule; omitted for legacy clients. }
+    WebsiteIPAccessUpsertRequest:
+      type: object
+      additionalProperties: false
+      required: [websiteId, cidr]
+      properties:
+        websiteId: { $ref: '#/components/schemas/Int64String' }
+        cidr: { type: string, description: IPv4/IPv6 address or CIDR. Literal addresses are normalized to /32 or /128. }
+    WebsiteIPAccessRemoveRequest:
+      type: object
+      additionalProperties: false
+      required: [websiteId, cidr]
+      properties:
+        websiteId: { $ref: '#/components/schemas/Int64String' }
+        cidr: { type: string }
+    WebsiteIPAccessRule:
+      type: object
+      additionalProperties: false
+      required: [websiteId, cidr, mode, cidrs]
+      properties:
+        websiteId: { $ref: '#/components/schemas/Int64String' }
+        cidr: { type: string }
+        mode: { type: string, enum: [blacklist, whitelist, disabled] }
+        cidrs: { type: array, items: { type: string } }
+    WebsiteIPAccessEnvelope:
+      unevaluatedProperties: false
+      allOf:
+        - $ref: '#/components/schemas/EnvelopeBase'
+        - type: object
+          required: [data]
+          properties:
+            data: { $ref: '#/components/schemas/WebsiteIPAccessRule' }
     IPBlacklistPage:
       type: object
       additionalProperties: false

@@ -104,7 +104,7 @@ export interface HostAcmeOrderStatus {
   status: string;
   attempt: number;
   createdAt: string;
-  updatedAt: string;
+  updatedAt?: string;
   nextAttemptAt?: string | null;
   finishedAt?: string | null;
   errorClass: string;
@@ -127,6 +127,8 @@ export interface WebsiteRequestHistoryPolicy {
 
 export interface WebsiteUpsertInput {
   id?: Int64;
+  /** Server concurrency token returned by websiteGet. */
+  expectedUpdatedAt?: string;
   name?: string;
   defaultHost?: string | null;
   defaultDestination?: string | null;
@@ -153,6 +155,7 @@ export interface WebsiteUpsertInput {
 export interface Website extends Omit<WebsiteUpsertInput, "id" | "name"> {
   id: Int64;
   name: string;
+  updatedAt: string;
   hasCertificate: boolean;
 }
 
@@ -278,7 +281,7 @@ export const ipBlacklistGet = async (data: { id: Int64 }): Promise<IApiRspEnvelo
   const response = await FetchJson<IIPBlacklistRule | null>({ url: '/api/ip_blacklist/get', method: 'GET', params: data });
   return validateResponse(response, (value) => value ? validateIPBlacklistID(value) : value);
 };
-export const ipBlacklistUpsert = async (data: { cidr: string }): Promise<IApiRspEnvelop<IIPBlacklistRule>> => {
+export const ipBlacklistUpsert = async (data: { cidr: string; scope?: "gateway" }): Promise<IApiRspEnvelop<IIPBlacklistRule>> => {
   const response = await FetchJson<IIPBlacklistRule>({ url: '/api/ip_blacklist/upsert', method: 'POST', data });
   return validateResponse(response, validateIPBlacklistID);
 };
@@ -289,6 +292,19 @@ export const ipBlacklistRemove = async (data: { id: Int64 }): Promise<IApiRspEnv
 export interface IIPBlacklistSummary { activeRules: number; blockedTotal: number }
 export const ipBlacklistSummary = (options: { ignoreGlobalError?: boolean; signal?: AbortSignal } = {}): Promise<IApiRspEnvelop<IIPBlacklistSummary>> => FetchJson({ url: '/api/ip_blacklist/summary', method: 'GET', ...options });
 export const ipBlacklistLookup = (data: { ip: string }): Promise<IApiRspEnvelop<IIPProfile>> => FetchJson({ url: '/api/ip_blacklist/lookup', method: 'GET', params: data });
+
+export interface IWebsiteIPAccessRule {
+  websiteId: Int64;
+  cidr: string;
+  mode: 'blacklist' | 'whitelist' | 'disabled' | string;
+  cidrs: string[];
+}
+
+export const websiteIPAccessUpsert = (data: { websiteId: Int64; cidr: string }): Promise<IApiRspEnvelop<IWebsiteIPAccessRule>> =>
+  FetchJson({ url: '/api/website/ip_access/upsert', method: 'POST', data });
+
+export const websiteIPAccessRemove = (data: { websiteId: Int64; cidr: string }): Promise<IApiRspEnvelop<IWebsiteIPAccessRule>> =>
+  FetchJson({ url: '/api/website/ip_access/remove', method: 'POST', data });
 
 export interface IRequestHistorySearchRequest extends PageRequest {
 	websiteId?: Int64;
@@ -304,6 +320,29 @@ export interface IRequestHistorySearchRequest extends PageRequest {
   errorCode?: string;
   clientIp?: string;
   userAgent?: string;
+  clientBrowser?: string;
+  clientOs?: string;
+  clientDeviceType?: string;
+  clientDevice?: string;
+  clientBotName?: string;
+  clientIsBot?: boolean;
+}
+
+export interface IRequestHistoryClientSummary {
+  browser: string;
+  os: string;
+  deviceType: string;
+  botName: string;
+  isBot: boolean;
+  parseStatus: string;
+}
+
+export interface IRequestHistoryClientInfo {
+  browser: { name: string; version: string; major: string };
+  os: { name: string; version: string; major: string };
+  device: { type: string; brand: string; model: string };
+  bot: { isBot: boolean; name: string };
+  parseStatus: string;
 }
 
 export interface IRequestHistoryListItem {
@@ -319,7 +358,11 @@ export interface IRequestHistoryListItem {
   statusSource: string;
   errorCategory: string;
   errorCode: string;
+  blacklistScope?: string;
+  blacklistRuleId?: Int64;
+  blacklistCidr?: string;
   userAgent: string;
+  clientSummary: IRequestHistoryClientSummary;
   proxyStage: string;
   exceptionStage: string;
   forwarderError: string;
@@ -328,6 +371,7 @@ export interface IRequestHistoryListItem {
 }
 
 export interface IRequestHistoryDetail extends IRequestHistoryListItem {
+  clientInfo: IRequestHistoryClientInfo;
   traceId?: string;
   scheme: string;
   queryString: string;
@@ -371,6 +415,7 @@ export interface IIPProfile {
 export interface IIPBlacklistRule {
   id: Int64;
   cidr: string;
+  scope: 'gateway';
   profile: IIPProfile;
   blockedCount: number | string;
   lastBlockedAt?: number | string | null;

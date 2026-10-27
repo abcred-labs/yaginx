@@ -212,7 +212,7 @@ const AccessControlSection: React.FC = () => (
     <div><InfoHint label="访问控制" content="访问控制只影响当前站点。ACME challenge 不受此设置影响。" /></div>
     <RadioField
       name="ipAccessMode"
-      label="网站级模式"
+      label="站点级模式"
       defaultValue="disabled"
       options={[{ label: '不限制', value: 'disabled' }, { label: '黑名单', value: 'blacklist' }, { label: '白名单', value: 'whitelist' }]}
     />
@@ -275,7 +275,7 @@ export const WebsiteWorkspace: React.FC<{ section: WorkspaceSection }> = ({ sect
       const hasFallback = (response.data.proxyRules ?? []).some((rule) => rule.isEnabled && rule.isFallback);
       const loadedRules = (response.data.proxyRules ?? []).map((rule) => ({ ...rule, targetType: rule.upstreamPoolId ? 'pool' as const : 'direct' as const })).sort((a, b) => Number(Boolean(a.isFallback)) - Number(Boolean(b.isFallback)));
       const proxyRules = loadedRules.length ? (response.data.defaultDestination && !hasFallback ? [...loadedRules, { isEnabled: true, isFallback: true, upstreamPoolId: 'legacy-default', targetType: 'pool' as const }] : loadedRules) : (upstreamPools.length ? [{ isEnabled: true, isFallback: true, upstreamPoolId: upstreamPools[0].id, targetType: 'pool' as const }] : []);
-      form.reset({ ...response.data, hostBindings, upstreamPools, proxyRules, requestHistory: response.data.requestHistory ?? { mode: 'inherit' } });
+      form.reset({ ...response.data, expectedUpdatedAt: response.data.updatedAt, hostBindings, upstreamPools, proxyRules, requestHistory: response.data.requestHistory ?? { mode: 'inherit' } });
       setWebsiteName(response.data.name ?? '');
       setDirty(false);
       setLoadState('ready');
@@ -321,6 +321,10 @@ export const WebsiteWorkspace: React.FC<{ section: WorkspaceSection }> = ({ sect
     cancelPendingLoad();
     try {
       const response = await websiteUpsert(websiteUpdatePayload(id, values));
+      if (response.code === 409) {
+        notifyError('站点配置已更新', '其他操作已修改该站点配置，请重新加载后再保存。');
+        return;
+      }
       if (websiteResponseID(response) === null) return;
       setDirty(false);
       notifySuccess('站点配置已保存', '已使用服务端返回的最新配置同步工作区。');

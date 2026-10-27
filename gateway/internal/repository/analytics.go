@@ -26,6 +26,27 @@ const analyticsContributionRowsSQL = `SELECT host_name,
 	WHERE cycle_type=$3 AND period >= $4 AND period <= $5 AND (cardinality($6::text[])=0 OR host_name = ANY($6))
 	ORDER BY report_ts,host_name`
 
+// analyticsFallbackContributionRowsSQL loads only contribution buckets that
+// do not yet have a complete report projection. It keeps analytics available
+// during a delayed materialization run without retaining every raw bucket in
+// the normal query path.
+const analyticsFallbackContributionRowsSQL = `SELECT c.host_name,
+	CASE WHEN $1::integer=$2::integer THEN (c.period / 86400) * 86400 ELSE c.period END AS report_ts,
+	c.request_qty,c.inbound_bytes,c.outbound_bytes,c.duration_sum,c.duration_max,
+	c.status_code,c.spider,c.browser,c.os,c.duration_buckets,c.error_counts,c.latency_histogram,c.response_mode_metrics,NOT c.is_final
+	FROM gateway_traffic_contribution c
+	WHERE c.cycle_type=$3
+	  AND c.period >= $4 AND c.period <= $5
+	  AND (cardinality($6::text[])=0 OR c.host_name = ANY($6))
+	  AND NOT EXISTS (
+		SELECT 1 FROM resource_report r
+		WHERE r.resource_uuid=c.host_name
+		  AND r.cycle_type=$1
+		  AND r.report_ts=CASE WHEN $1::integer=$2::integer THEN (c.period / 86400) * 86400 ELSE c.period END
+		  AND NOT r.is_partial
+	  )
+	ORDER BY report_ts,c.host_name`
+
 type analyticsSnapshot struct {
 	now      time.Time
 	window   analyticsWindowValue
@@ -175,13 +196,14 @@ func (p *Postgres) AnalyticsDetails(ctx context.Context, input management.Analyt
 	var total int64
 	var firstBucket, lastFinalBucket int64
 	var finalizedBuckets int64
+	var fallbackUsed bool
 	var rawRecords []byte
 	err = p.pool.QueryRow(ctx, analyticsDetailsPageSQL,
 		window.cycle, reportCycleDaily, contributionCycle,
 		includeReports, reportFrom, reportTo,
 		includeContributions, contributionFrom, contributionTo,
 		domains, pageRequest.PageIndex, pageRequest.PageSize,
-	).Scan(&pageIndex, &pageSize, &total, &firstBucket, &lastFinalBucket, &finalizedBuckets, &rawRecords)
+	).Scan(&pageIndex, &pageSize, &total, &firstBucket, &lastFinalBucket, &finalizedBuckets, &fallbackUsed, &rawRecords)
 	if err != nil {
 		return management.AnalyticsDetails{}, err
 	}
@@ -195,6 +217,9 @@ func (p *Postgres) AnalyticsDetails(ctx context.Context, input management.Analyt
 	coverage := management.AnalyticsCoverage{
 		From: firstBucket, IsComplete: firstBucket > 0 && missingBuckets == 0,
 		MissingBuckets: missingBuckets, WindowBuckets: windowBuckets, State: "collecting",
+	}
+	if fallbackUsed {
+		source = analyticsMixedSource
 	}
 	if lastFinalBucket > 0 {
 		coverage.To = lastFinalBucket + int64(window.step.Seconds())
@@ -257,7 +282,7 @@ WITH params AS (
 ), source_rows AS (
 	SELECT c.host_name,
 		CASE WHEN p.window_cycle=p.daily_cycle THEN (c.period / 86400) * 86400 ELSE c.period END AS period,
-		c.request_qty, c.inbound_bytes, c.outbound_bytes, c.duration_sum, NOT c.is_final AS is_partial
+		c.request_qty, c.inbound_bytes, c.outbound_bytes, c.duration_sum, NOT c.is_final AS is_partial, false AS is_fallback
 	FROM gateway_traffic_contribution c CROSS JOIN params p
 	WHERE p.include_contributions AND c.cycle_type=p.contribution_cycle
 		AND c.period >= p.contribution_from AND c.period <= p.contribution_to
@@ -266,15 +291,34 @@ WITH params AS (
 	SELECT r.resource_uuid AS host_name, r.report_ts AS period, r.request_qty,
 		r.inbound_bytes, r.outbound_bytes,
 		CASE WHEN COALESCE(r.duration->>'avg','') ~ '^-?[0-9]+$' THEN (r.duration->>'avg')::bigint * r.request_qty ELSE 0 END AS duration_sum,
-		r.is_partial
+		r.is_partial, false AS is_fallback
 	FROM resource_report r CROSS JOIN params p
 	WHERE p.include_reports AND r.cycle_type=p.window_cycle
 		AND r.report_ts >= p.report_from AND r.report_ts <= p.report_to
 		AND (cardinality(p.domains)=0 OR r.resource_uuid=ANY(p.domains))
+		AND (NOT r.is_partial OR NOT EXISTS (
+			SELECT 1 FROM gateway_traffic_contribution c
+			WHERE c.cycle_type=p.contribution_cycle AND c.host_name=r.resource_uuid
+			  AND CASE WHEN p.window_cycle=p.daily_cycle THEN (c.period / 86400) * 86400 ELSE c.period END = r.report_ts
+		))
+	UNION ALL
+	SELECT c.host_name,
+		CASE WHEN p.window_cycle=p.daily_cycle THEN (c.period / 86400) * 86400 ELSE c.period END AS period,
+		c.request_qty, c.inbound_bytes, c.outbound_bytes, c.duration_sum, NOT c.is_final AS is_partial, true AS is_fallback
+	FROM gateway_traffic_contribution c CROSS JOIN params p
+	WHERE p.include_reports AND c.cycle_type=p.contribution_cycle
+		AND c.period >= p.report_from AND c.period <= p.report_to
+		AND (cardinality(p.domains)=0 OR c.host_name=ANY(p.domains))
+		AND NOT EXISTS (
+			SELECT 1 FROM resource_report r
+			WHERE r.resource_uuid=c.host_name AND r.cycle_type=p.window_cycle
+			  AND r.report_ts=CASE WHEN p.window_cycle=p.daily_cycle THEN (c.period / 86400) * 86400 ELSE c.period END
+			  AND NOT r.is_partial
+		)
 ), numeric_groups AS (
 	SELECT host_name, period, SUM(request_qty)::bigint AS request_counts,
 		SUM(inbound_bytes)::bigint AS inbound_bytes, SUM(outbound_bytes)::bigint AS outbound_bytes,
-		SUM(duration_sum)::bigint AS duration_sum, BOOL_OR(is_partial) AS is_partial
+		SUM(duration_sum)::bigint AS duration_sum, BOOL_OR(is_partial) AS is_partial, BOOL_OR(is_fallback) AS is_fallback
 	FROM source_rows
 	GROUP BY host_name, period
 ), totals AS (
@@ -312,9 +356,33 @@ WITH params AS (
 	WHERE p.include_reports AND r.cycle_type=p.window_cycle
 		AND r.report_ts >= p.report_from AND r.report_ts <= p.report_to
 		AND (cardinality(p.domains)=0 OR r.resource_uuid=ANY(p.domains))
+		AND (NOT r.is_partial OR NOT EXISTS (
+			SELECT 1 FROM gateway_traffic_contribution c
+			WHERE c.cycle_type=p.contribution_cycle AND c.host_name=r.resource_uuid
+			  AND CASE WHEN p.window_cycle=p.daily_cycle THEN (c.period / 86400) * 86400 ELSE c.period END = r.report_ts
+		))
 		AND EXISTS (
 			SELECT 1 FROM page_rows selected
 			WHERE selected.host_name=r.resource_uuid AND selected.period=r.report_ts
+		)
+	UNION ALL
+	SELECT c.host_name,
+		CASE WHEN p.window_cycle=p.daily_cycle THEN (c.period / 86400) * 86400 ELSE c.period END AS period,
+		c.status_code, c.latency_histogram
+	FROM gateway_traffic_contribution c CROSS JOIN params p
+	WHERE p.include_reports AND c.cycle_type=p.contribution_cycle
+		AND c.period >= p.report_from AND c.period <= p.report_to
+		AND (cardinality(p.domains)=0 OR c.host_name=ANY(p.domains))
+		AND NOT EXISTS (
+			SELECT 1 FROM resource_report r
+			WHERE r.resource_uuid=c.host_name AND r.cycle_type=p.window_cycle
+			  AND r.report_ts=CASE WHEN p.window_cycle=p.daily_cycle THEN (c.period / 86400) * 86400 ELSE c.period END
+			  AND NOT r.is_partial
+		)
+		AND EXISTS (
+			SELECT 1 FROM page_rows selected
+			WHERE selected.host_name=c.host_name
+			  AND selected.period=CASE WHEN p.window_cycle=p.daily_cycle THEN (c.period / 86400) * 86400 ELSE c.period END
 		)
 ), expanded_counts AS (
 	SELECT s.host_name, s.period, 'status'::text AS kind, item.key,
@@ -335,13 +403,14 @@ WITH params AS (
 	FROM summed_counts
 	GROUP BY host_name, period
 ), coverage_buckets AS (
-	SELECT period, BOOL_OR(NOT is_partial) AS finalized
+	SELECT period, BOOL_OR(NOT is_partial) AS finalized, BOOL_OR(is_fallback) AS is_fallback
 	FROM source_rows
 	GROUP BY period
 ), coverage AS (
 	SELECT COALESCE(MIN(period), 0)::bigint AS first_bucket,
 		COALESCE(MAX(period) FILTER (WHERE finalized), 0)::bigint AS last_final_bucket,
-		COUNT(*) FILTER (WHERE finalized)::bigint AS finalized_buckets
+		COUNT(*) FILTER (WHERE finalized)::bigint AS finalized_buckets,
+		COALESCE(BOOL_OR(is_fallback), false) AS fallback_used
 	FROM coverage_buckets
 ), page_payload AS (
 	SELECT COALESCE(jsonb_agg(jsonb_build_object(
@@ -353,7 +422,7 @@ WITH params AS (
 	FROM page_rows LEFT JOIN json_maps USING (host_name, period)
 )
 SELECT page.page_index, page.page_size, page.total,
-	coverage.first_bucket, coverage.last_final_bucket, coverage.finalized_buckets, records.value
+	coverage.first_bucket, coverage.last_final_bucket, coverage.finalized_buckets, coverage.fallback_used, records.value
 FROM page_meta page CROSS JOIN coverage CROSS JOIN page_payload records`
 
 func (p *Postgres) AnalyticsOverview(ctx context.Context, input management.AnalyticsOverviewQuery) (management.AnalyticsOverview, error) {
@@ -522,7 +591,8 @@ func (p *Postgres) analyticsRows(ctx context.Context, now time.Time, window anal
 	cutover := now.Add(-p.contributionRetention).UTC().Truncate(window.step)
 	result := []analyticsRow{}
 	source := analyticsSource
-	appendContributions := func(from, to time.Time) error {
+	fallbackUsed := false
+	loadContributionRows := func(query string, from, to time.Time) error {
 		if to.Before(from) {
 			return nil
 		}
@@ -530,7 +600,7 @@ func (p *Postgres) analyticsRows(ctx context.Context, now time.Time, window anal
 		if sourceCycle == reportCycleDaily {
 			sourceCycle = reportCycleHourly
 		}
-		rows, err := p.pool.Query(ctx, analyticsContributionRowsSQL, window.cycle, reportCycleDaily, sourceCycle, from.Unix(), to.Unix(), domains)
+		rows, err := p.pool.Query(ctx, query, window.cycle, reportCycleDaily, sourceCycle, from.Unix(), to.Unix(), domains)
 		if err != nil {
 			return err
 		}
@@ -548,17 +618,39 @@ func (p *Postgres) analyticsRows(ctx context.Context, now time.Time, window anal
 		}
 		return rows.Err()
 	}
+	appendContributions := func(from, to time.Time) error {
+		return loadContributionRows(analyticsContributionRowsSQL, from, to)
+	}
+	appendFallbackContributions := func(from, to time.Time) error {
+		before := len(result)
+		if err := loadContributionRows(analyticsFallbackContributionRowsSQL, from, to); err != nil {
+			return err
+		}
+		if len(result) > before {
+			fallbackUsed = true
+		}
+		return nil
+	}
 	appendReports := func(from, to time.Time) error {
 		if to.Before(from) {
 			return nil
 		}
-		rows, err := p.pool.Query(ctx, `SELECT resource_uuid,report_ts,request_qty,inbound_bytes,outbound_bytes,
+		sourceCycle := window.cycle
+		if sourceCycle == reportCycleDaily {
+			sourceCycle = reportCycleHourly
+		}
+		rows, err := p.pool.Query(ctx, `SELECT r.resource_uuid,r.report_ts,r.request_qty,r.inbound_bytes,r.outbound_bytes,
 			CASE WHEN COALESCE(duration->>'avg','') ~ '^-?[0-9]+$' THEN (duration->>'avg')::bigint * request_qty ELSE 0 END,
 			CASE WHEN COALESCE(duration->>'max','') ~ '^-?[0-9]+$' THEN (duration->>'max')::bigint ELSE 0 END,
 			status_code,spider,browser,os,duration,error_counts,latency_histogram,response_mode_metrics,is_partial
-			FROM resource_report
-			WHERE cycle_type=$1 AND report_ts >= $2 AND report_ts <= $3 AND (cardinality($4::text[])=0 OR resource_uuid = ANY($4))
-			ORDER BY report_ts,resource_uuid`, window.cycle, from.Unix(), to.Unix(), domains)
+			FROM resource_report r
+			WHERE r.cycle_type=$1 AND r.report_ts >= $2 AND r.report_ts <= $3 AND (cardinality($4::text[])=0 OR r.resource_uuid = ANY($4))
+			  AND (NOT r.is_partial OR NOT EXISTS (
+				SELECT 1 FROM gateway_traffic_contribution c
+				WHERE c.cycle_type=$5 AND c.host_name=r.resource_uuid
+				  AND CASE WHEN $1::integer=$6::integer THEN (c.period / 86400) * 86400 ELSE c.period END = r.report_ts
+			  ))
+			ORDER BY r.report_ts,r.resource_uuid`, window.cycle, from.Unix(), to.Unix(), domains, sourceCycle, reportCycleDaily)
 		if err != nil {
 			return err
 		}
@@ -589,14 +681,23 @@ func (p *Postgres) analyticsRows(ctx context.Context, now time.Time, window anal
 		if err := appendReports(window.begin, window.end); err != nil {
 			return nil, "", err
 		}
+		if err := appendFallbackContributions(window.begin, window.end); err != nil {
+			return nil, "", err
+		}
 	default:
 		source = analyticsMixedSource
 		if err := appendReports(window.begin, cutover.Add(-window.step)); err != nil {
 			return nil, "", err
 		}
+		if err := appendFallbackContributions(window.begin, cutover.Add(-window.step)); err != nil {
+			return nil, "", err
+		}
 		if err := appendContributions(cutover, window.end); err != nil {
 			return nil, "", err
 		}
+	}
+	if fallbackUsed && source == analyticsReportSource {
+		source = analyticsMixedSource
 	}
 	sort.Slice(result, func(i, j int) bool {
 		if result[i].timestamp != result[j].timestamp {

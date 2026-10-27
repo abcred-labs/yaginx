@@ -358,9 +358,14 @@ func (p *Postgres) resourceAnalytics(ctx context.Context, input management.Resou
 	if err != nil {
 		return management.AnalyticsSubjectOverview{}, management.AnalyticsSubjectTimeseries{}, err
 	}
-	rows, err := p.analyticsRowsForDomains(ctx, window.cycle, window.begin.Unix(), window.end.Unix(), domains)
-	if err != nil {
-		return management.AnalyticsSubjectOverview{}, management.AnalyticsSubjectTimeseries{}, err
+	rows := []analyticsRow{}
+	source := analyticsReportSource
+	if len(domains) > 0 {
+		var err error
+		rows, source, err = p.analyticsRows(ctx, now, window, domains)
+		if err != nil {
+			return management.AnalyticsSubjectOverview{}, management.AnalyticsSubjectTimeseries{}, err
+		}
 	}
 	total := combineAnalyticsRows(rows)
 	latest := latestAnalyticsTimestamp(rows)
@@ -368,7 +373,7 @@ func (p *Postgres) resourceAnalytics(ctx context.Context, input management.Resou
 	if latest > 0 {
 		lag = max(now.Unix()-latest, 0)
 	}
-	overview := management.AnalyticsSubjectOverview{AsOf: now.Unix(), From: window.begin.Unix(), To: window.end.Unix(), Grain: window.grain, DataLagSeconds: lag, HasData: latest > 0, IsPartial: total.partial, Kpis: analyticsKpis(total, window.end.Sub(window.begin)), ErrorBreakdown: metricItemsTyped(total.errors), StatusBreakdown: metricItemsTyped(statusFamilyCounts(total.statuses, total.requests)), DurationBuckets: metricItemsTyped(total.durationBuckets), UserAgents: analyticsUserAgentsTyped(total), Coverage: analyticsCoverage(window, rows), Source: analyticsReportSource}
+	overview := management.AnalyticsSubjectOverview{AsOf: now.Unix(), From: window.begin.Unix(), To: window.end.Unix(), Grain: window.grain, DataLagSeconds: lag, HasData: latest > 0, IsPartial: total.partial, Kpis: analyticsKpis(total, window.end.Sub(window.begin)), ErrorBreakdown: metricItemsTyped(total.errors), StatusBreakdown: metricItemsTyped(statusFamilyCounts(total.statuses, total.requests)), DurationBuckets: metricItemsTyped(total.durationBuckets), UserAgents: analyticsUserAgentsTyped(total), Coverage: analyticsCoverage(window, rows), Source: source}
 	series := management.AnalyticsSubjectTimeseries{AsOf: now.Unix(), From: window.begin.Unix(), To: window.end.Unix(), Grain: window.grain, Domains: domains, Points: denseAnalyticsPointsTyped(rows, window)}
 	return overview, series, nil
 }

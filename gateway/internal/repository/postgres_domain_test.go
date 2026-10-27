@@ -26,6 +26,40 @@ func TestValidateWebsiteIPAccess(t *testing.T) {
 	}
 }
 
+func TestNormalizeWebsiteAccessCIDR(t *testing.T) {
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{input: "203.0.113.9", want: "203.0.113.9/32"},
+		{input: "203.0.113.9/24", want: "203.0.113.0/24"},
+		{input: "2001:db8::42", want: "2001:db8::42/128"},
+		{input: "2001:db8::42/64", want: "2001:db8::/64"},
+	}
+	for _, test := range tests {
+		got, err := normalizeWebsiteAccessCIDR(test.input)
+		if err != nil || got != test.want {
+			t.Fatalf("normalizeWebsiteAccessCIDR(%q) = %q, %v; want %q", test.input, got, err, test.want)
+		}
+	}
+	if _, err := normalizeWebsiteAccessCIDR("not-a-cidr"); err == nil {
+		t.Fatal("invalid CIDR was accepted")
+	}
+}
+
+func TestWebsiteAccessCIDRsFromSpecNormalizesAndDeduplicates(t *testing.T) {
+	got, err := websiteAccessCIDRsFromSpec(map[string]any{
+		"ipAccessCIDRs": []any{"203.0.113.9", "203.0.113.0/24", "203.0.113.9/32"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"203.0.113.9/32", "203.0.113.0/24"}
+	if len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
+		t.Fatalf("CIDRs=%#v, want %#v", got, want)
+	}
+}
+
 func TestDecodeProxySiteIPAccess(t *testing.T) {
 	site, err := decodeProxySite(42, "site", []byte(`{"defaultHost":"site.test","ipAccessMode":"whitelist","ipAccessCIDRs":["198.51.100.9"]}`), []byte(`[]`), []byte(`[]`), []byte(`{}`), []byte(`[]`))
 	if err != nil {

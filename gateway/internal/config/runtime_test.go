@@ -38,11 +38,11 @@ func TestRuntimeDefaultsExposeUnifiedPorts(t *testing.T) {
 	if got, err := runtimeDefaults.Duration("proxy", "responseHeaderTimeout"); err != nil || got != 30*time.Second {
 		t.Fatalf("proxy response header timeout = %s, %v; want 30s", got, err)
 	}
-	if runtimeDefaults.Bool("trafficAggregation", "enableUAParsing") || !runtimeDefaults.Bool("trafficAggregation", "updateCurrentPeriod") || !runtimeDefaults.Bool("requestHistory", "enabled") || runtimeDefaults.Int("requestHistory", "retentionHours") != 168 {
+	if runtimeDefaults.Bool("trafficAggregation", "enableUAParsing") || !runtimeDefaults.Bool("trafficAggregation", "updateCurrentPeriod") || !runtimeDefaults.Bool("requestHistory", "enabled") || !runtimeDefaults.Bool("requestHistory", "enableUAParsing") || runtimeDefaults.Int("requestHistory", "uaCacheSize") != 10000 || runtimeDefaults.Int("requestHistory", "retentionHours") != 168 {
 		t.Fatalf("observability audit defaults were not materialized: %#v", v)
 	}
-	if got, err := runtimeDefaults.Duration("resourceReports", "contributionRetention"); err != nil || got < 31*24*time.Hour {
-		t.Fatalf("contribution retention = %s, %v; want at least 744h", got, err)
+	if got, err := runtimeDefaults.Duration("resourceReports", "contributionRetention"); err != nil || got != 168*time.Hour {
+		t.Fatalf("contribution retention = %s, %v; want 168h", got, err)
 	}
 	if got, err := runtimeDefaults.Duration("resourceReports", "minutelyReconciliationLookback"); err != nil || got != 10*time.Minute {
 		t.Fatalf("minutely reconciliation lookback = %s, %v; want 10m", got, err)

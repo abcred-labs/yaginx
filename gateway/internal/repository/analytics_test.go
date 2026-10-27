@@ -86,6 +86,14 @@ func TestAnalyticsContributionQueryPinsCycleParametersAsIntegers(t *testing.T) {
 	}
 }
 
+func TestAnalyticsFallbackQueryRequiresCompleteReportProjection(t *testing.T) {
+	for _, query := range []string{analyticsFallbackContributionRowsSQL, analyticsDetailsPageSQL} {
+		if !strings.Contains(query, "NOT r.is_partial") || !strings.Contains(query, "gateway_traffic_contribution") {
+			t.Fatalf("fallback query does not guard complete report projections: %s", query)
+		}
+	}
+}
+
 func TestStatusFamilyCountsConservesRequestsAndClassifiesOther(t *testing.T) {
 	families := statusFamilyCounts(map[string]int64{"200": 2, "302": 3, "404": 4, "503": 5, "604": 6, "101": 7, "invalid": 8}, 40)
 	if families["1xx"] != 7 || families["2xx"] != 2 || families["3xx"] != 3 || families["4xx"] != 4 || families["5xx"] != 5 || families["6xx"] != 6 || families["other"] != 13 {

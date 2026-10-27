@@ -177,6 +177,15 @@ func runServe(ctx context.Context, args []string, stdout, stderr io.Writer) int 
 	}
 	lifecycle, cancel := bootstrap.ContextWithSignals(ctx)
 	defer cancel()
+	if cfg.Bool("resourceReports", "enabled") {
+		cutover, err := store.GetOrCreateTrafficCutover(lifecycle, time.Now().UTC())
+		if err != nil {
+			return failServe(stderr, fmt.Errorf("initialize traffic cutover: %w", err))
+		}
+		if err := store.BackfillLegacyMonitorReports(lifecycle, cutover); err != nil {
+			return failServe(stderr, fmt.Errorf("backfill legacy monitor reports: %w", err))
+		}
+	}
 	otlpExportTimeout, err := cfg.Duration("observability.otlp", "exportTimeout")
 	if err != nil {
 		return failServe(stderr, err)
@@ -516,7 +525,8 @@ func runServe(ctx context.Context, args []string, stdout, stderr io.Writer) int 
 			blacklistQueue.Record(event)
 		}
 	}
-	go historyQueue.RunWithRetries(lifecycle, historyFlushInterval, cfg.Int("requestHistory", "batchSize"), telemetry.HistorySink{Store: store}, cfg.Int("requestHistory", "maxFlushRetryCount"))
+	historyParser := telemetry.NewUserAgentParser(cfg.Bool("requestHistory", "enableUAParsing"), cfg.Int("requestHistory", "uaCacheSize"))
+	go historyQueue.RunWithRetries(lifecycle, historyFlushInterval, cfg.Int("requestHistory", "batchSize"), telemetry.HistorySink{Store: store, Parser: historyParser}, cfg.Int("requestHistory", "maxFlushRetryCount"))
 	go runMetricsMaintenance(lifecycle, pool, telemetryQueue, historyQueue, telemetryAggregator, metrics, events)
 	{
 		acmeScanInterval, e := cfg.Duration("acme", "scanIntervalMinimum")

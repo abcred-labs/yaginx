@@ -3,7 +3,7 @@ import { expect, signIn, test } from './support/api';
 const PAGES: Array<[path: string, heading: string]> = [
   ['/', '网关流量概览'],
   ['/website/list', '网站'],
-  ['/access-control/ip-blacklist', 'IP 黑名单'],
+  ['/access-control/ip-blacklist', '网关黑名单'],
   ['/monitor/traffic/request-trend', '请求趋势'],
   ['/monitor/requestHistory/list', '请求追踪'],
   ['/resource/hosts', 'Host 目录'],

@@ -2,6 +2,7 @@ package telemetry
 
 import (
 	"context"
+	"log/slog"
 	"strconv"
 	"strings"
 	"sync"
@@ -48,11 +49,37 @@ type BlacklistHitStore interface {
 
 // HistorySink keeps request-history persistence independent from the traffic
 // contribution cadence. The proxy selects events before they enter this sink.
-type HistorySink struct{ Store HistoryStore }
+type HistorySink struct {
+	Store  HistoryStore
+	Parser *UserAgentParser
+}
 
 func (s HistorySink) Flush(ctx context.Context, events []Event) error {
 	if s.Store == nil {
 		return nil
+	}
+	started := time.Now()
+	parsed, unknown, failed := 0, 0, 0
+	if s.Parser != nil {
+		for i := range events {
+			events[i].UserAgentInfo = s.Parser.Parse(events[i].UserAgent)
+			if events[i].UserAgentInfo.ParseFailed {
+				failed++
+				continue
+			}
+			switch events[i].UserAgentInfo.ParseStatus {
+			case "parsed":
+				parsed++
+			case "unknown":
+				unknown++
+			case "empty", "disabled":
+			default:
+				failed++
+			}
+		}
+	}
+	if s.Parser != nil {
+		slog.Debug("request history User-Agent parsing", "events", len(events), "parsed", parsed, "unknown", unknown, "failed", failed, "duration_ms", time.Since(started).Milliseconds())
 	}
 	return s.Store.FlushRequestHistory(ctx, events)
 }

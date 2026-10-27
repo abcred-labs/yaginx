@@ -216,6 +216,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/website/ip_access/upsert": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["websiteIPAccessUpsert"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/ip_access/remove": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["websiteIPAccessRemove"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/website/rule/refresh": {
         parameters: {
             query?: never;
@@ -1160,6 +1192,7 @@ export interface components {
         };
         WebsiteBase: {
             name: string | null;
+            updatedAt?: string;
             defaultHost: string | null;
             defaultDestination: string | null;
             defaultDestinationHost: string | null;
@@ -1197,6 +1230,7 @@ export interface components {
         WebsiteUpsertRequest: {
             /** @default null */
             id: components["schemas"]["Int64String"] | null;
+            expectedUpdatedAt?: string | null;
             /** @default null */
             name: string | null;
             /** @default null */
@@ -1433,6 +1467,47 @@ export interface components {
             clientIp: string | null;
             /** @default  */
             userAgent: string | null;
+            /** @default  */
+            clientBrowser: string | null;
+            /** @default  */
+            clientOs: string | null;
+            /** @default  */
+            clientDeviceType: string | null;
+            /** @default  */
+            clientDevice: string | null;
+            /** @default  */
+            clientBotName: string | null;
+            clientIsBot?: boolean | null;
+        };
+        RequestHistoryClientSummary: {
+            browser: string;
+            os: string;
+            deviceType: string;
+            botName: string;
+            isBot: boolean;
+            parseStatus: string;
+        };
+        RequestHistoryClientInfo: {
+            browser: {
+                name: string;
+                version: string;
+                major: string;
+            };
+            os: {
+                name: string;
+                version: string;
+                major: string;
+            };
+            device: {
+                type: string;
+                brand: string;
+                model: string;
+            };
+            bot: {
+                isBot: boolean;
+                name: string;
+            };
+            parseStatus: string;
         };
         RequestHistoryCommon: {
             id: components["schemas"]["Int64String"];
@@ -1447,7 +1522,11 @@ export interface components {
             statusSource: string;
             errorCategory: string;
             errorCode: string;
+            blacklistScope?: "gateway" | "site";
+            blacklistRuleId?: components["schemas"]["Int64String"];
+            blacklistCidr?: string;
             userAgent: string;
+            clientSummary: components["schemas"]["RequestHistoryClientSummary"];
             proxyStage: string;
             exceptionStage: string;
             forwarderError: string;
@@ -1473,6 +1552,7 @@ export interface components {
             responseBodyTruncated: boolean;
             exceptionMessage: string;
             exceptionStackTrace: string;
+            clientInfo: components["schemas"]["RequestHistoryClientInfo"];
         };
         RequestHistoryPage: {
             records: components["schemas"]["RequestHistoryListItem"][];
@@ -1517,6 +1597,8 @@ export interface components {
         IPBlacklistRule: {
             id: components["schemas"]["Int64String"];
             cidr: string;
+            /** @enum {string} */
+            scope: "gateway";
             profile: components["schemas"]["IPProfile"];
             blockedCount: components["schemas"]["Int64String"];
             lastBlockedAt: components["schemas"]["EpochSeconds"] | null;
@@ -1536,6 +1618,30 @@ export interface components {
         IPBlacklistUpsertRequest: {
             /** @description IPv4/IPv6 address or CIDR. Literal addresses are persisted as /32 or /128. */
             cidr: string;
+            /**
+             * @description Explicitly identifies this as a gateway rule; omitted for legacy clients.
+             * @enum {string}
+             */
+            scope?: "gateway";
+        };
+        WebsiteIPAccessUpsertRequest: {
+            websiteId: components["schemas"]["Int64String"];
+            /** @description IPv4/IPv6 address or CIDR. Literal addresses are normalized to /32 or /128. */
+            cidr: string;
+        };
+        WebsiteIPAccessRemoveRequest: {
+            websiteId: components["schemas"]["Int64String"];
+            cidr: string;
+        };
+        WebsiteIPAccessRule: {
+            websiteId: components["schemas"]["Int64String"];
+            cidr: string;
+            /** @enum {string} */
+            mode: "blacklist" | "whitelist" | "disabled";
+            cidrs: string[];
+        };
+        WebsiteIPAccessEnvelope: components["schemas"]["EnvelopeBase"] & {
+            data: components["schemas"]["WebsiteIPAccessRule"];
         };
         IPBlacklistPage: {
             records: components["schemas"]["IPBlacklistRule"][];
@@ -2789,6 +2895,65 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             500: components["responses"]["InternalError"];
             503: components["responses"]["Unavailable"];
+        };
+    };
+    websiteIPAccessUpsert: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WebsiteIPAccessUpsertRequest"];
+            };
+        };
+        responses: {
+            /** @description Adds one normalized CIDR to the website blacklist atomically. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WebsiteIPAccessEnvelope"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    websiteIPAccessRemove: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WebsiteIPAccessRemoveRequest"];
+            };
+        };
+        responses: {
+            /** @description Removes one normalized CIDR from the website access policy atomically. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WebsiteIPAccessEnvelope"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalError"];
         };
     };
     websiteRuleRefresh: {

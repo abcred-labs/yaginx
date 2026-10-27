@@ -22,14 +22,19 @@
   },
   "requestHistory": {
     "enabled": true,
+    "enableUAParsing": true,
+    "uaCacheSize": 10000,
     "recordMode": "ErrorsOnly",
     "successSamplingRate": 0,
-    "bodyCaptureMaxBytes": 8192,
-    "maxHeaderBytes": 8192,
+    "bodyCaptureMaxBytes": 0,
+    "maxHeaderBytes": 2048,
     "maxQueueBytes": 16777216,
     "batchSize": 250,
     "maxFlushRetryCount": 1,
-    "retentionHours": 48
+    "retentionHours": 72
+  },
+  "resourceReports": {
+    "contributionRetention": "72h"
   },
   "ports": {
     "bindAddress": "0.0.0.0",

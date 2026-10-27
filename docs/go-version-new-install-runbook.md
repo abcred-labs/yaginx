@@ -504,6 +504,7 @@ Key/Value endpoint 始终启动。provider 必须返回同集群的 `/api/identi
 | `trafficAggregation.updateCurrentPeriod` | `true` | — | 是否更新当前周期；管理台会明确标记未完成的当前桶 |
 | `trafficAggregation.excludedPathPrefixes` | `[]` | — | 不聚合的路径前缀 |
 | `requestHistory.enabled` | `true` | — | 默认记录错误请求的审计元数据 |
+| `requestHistory.enableUAParsing` / `requestHistory.uaCacheSize` | `true` / `10000` | — | 异步解析新请求的浏览器、操作系统、设备和爬虫信息；缓存大小 0–1000000；历史记录不回填 |
 | `requestHistory.recordMode` | `ErrorsOnly` | — | `ErrorsOnly` 或 `AllMetadata`；成功请求采样仅在 `AllMetadata` 下生效 |
 | `requestHistory.successSamplingRate` | `0` | — | 0–1；错误请求始终完整记录，例如错误全量加成功 5% 使用 `AllMetadata` 和 `0.05` |
 | `requestHistory.retentionHours` | `168` | — | 默认 7 天；1–8760 |
@@ -520,6 +521,7 @@ Key/Value endpoint 始终启动。provider 必须返回同集群的 `/api/identi
 | `resourceReports.minutelyReconciliationLookback` | `10m` | — | 分钟报表回看窗口；按分钟边界，不重算整天数据 |
 | `resourceReports.reconciliationLookback` | `48h` | — | 在线报表重算窗口；按 UTC 自然日扩展 |
 | `resourceReports.materializationStatementTimeout` | `2m` | — | 仅报表物化事务的 PostgreSQL 语句超时；不改变常规请求的数据库超时 |
+| `resourceReports.contributionRetention` | `168h` | — | 原始 contribution 保留时间（`72h`–`8760h`）；可配置为 `72h`，仅在对应汇总完整后清理 |
 | `resourceReports.monitorInfoRetention` | `48h` | — | 原始监控信息保留 |
 | `resourceReports.reportRetentionDays` | `365` | — | 旧版统一报表保留期；作为日报保留的下限（90–3650），新部署应配置下列三个粒度字段 |
 | `resourceReports.minutelyRetentionDays` / `hourlyRetentionDays` / `dailyRetentionDays` | `30` / `365` / `730` | — | 分别保留分钟、小时、日报表；小时/日数据不会因分钟清理而删除 |

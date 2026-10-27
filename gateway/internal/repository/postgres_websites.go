@@ -9,6 +9,7 @@ import (
 	"net/netip"
 	"strconv"
 	"strings"
+	"time"
 	"yaginx-gateway/internal/management"
 
 	"github.com/jackc/pgx/v5"
@@ -25,6 +26,7 @@ func (p *Postgres) UpsertWebsite(ctx context.Context, value management.WebsiteUp
 		return management.Website{}, fmt.Errorf("website name is required")
 	}
 	name := strings.TrimSpace(*value.Name)
+	expectedUpdatedAt := value.ExpectedUpdatedAt
 	if name == "" {
 		return management.Website{}, fmt.Errorf("website name is required")
 	}
@@ -48,6 +50,9 @@ func (p *Postgres) UpsertWebsite(ctx context.Context, value management.WebsiteUp
 	}
 	value.ResponseHeaderTimeout = strings.TrimSpace(value.ResponseHeaderTimeout)
 	value.IPAccessMode = strings.ToLower(strings.TrimSpace(value.IPAccessMode))
+	// This is an editor concurrency token, not part of the persisted website
+	// specification.
+	value.ExpectedUpdatedAt = nil
 	if value.IPAccessMode == "" {
 		value.IPAccessMode = "disabled"
 	}
@@ -93,8 +98,15 @@ func (p *Postgres) UpsertWebsite(ctx context.Context, value management.WebsiteUp
 	var outID int64
 	if value.ID != nil {
 		var previousSpec []byte
-		if err := tx.QueryRow(ctx, "SELECT specifications FROM website WHERE id=$1 FOR UPDATE", int64(*value.ID)).Scan(&previousSpec); err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		var currentUpdatedAt time.Time
+		if err := tx.QueryRow(ctx, "SELECT specifications,update_time FROM website WHERE id=$1 FOR UPDATE", int64(*value.ID)).Scan(&previousSpec, &currentUpdatedAt); err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return management.Website{}, management.ErrNotFound
+			}
 			return management.Website{}, err
+		}
+		if expectedUpdatedAt != nil && !currentUpdatedAt.Equal(expectedUpdatedAt.UTC()) {
+			return management.Website{}, fmt.Errorf("%w: website configuration changed; reload before saving", management.ErrConflict)
 		}
 		if len(previousSpec) > 0 {
 			var previousRequest management.WebsiteUpsertRequest
@@ -123,6 +135,174 @@ func (p *Postgres) UpsertWebsite(ctx context.Context, value management.WebsiteUp
 		return management.Website{}, err
 	}
 	return p.GetWebsite(ctx, strconv.FormatInt(outID, 10))
+}
+
+// UpsertWebsiteIPAccess atomically adds a deny CIDR to one website's existing
+// access policy. The console uses this for request-trace quick actions so a
+// concurrent website edit cannot overwrite unrelated fields.
+func (p *Postgres) UpsertWebsiteIPAccess(ctx context.Context, input management.WebsiteIPAccessUpsertRequest) (management.WebsiteIPAccessRule, error) {
+	cidr, err := normalizeWebsiteAccessCIDR(input.CIDR)
+	if err != nil {
+		return management.WebsiteIPAccessRule{}, err
+	}
+	tx, err := p.pool.Begin(ctx)
+	if err != nil {
+		return management.WebsiteIPAccessRule{}, err
+	}
+	defer tx.Rollback(ctx)
+	var raw []byte
+	if err := tx.QueryRow(ctx, "SELECT specifications FROM website WHERE id=$1 FOR UPDATE", int64(input.WebsiteID)).Scan(&raw); errors.Is(err, pgx.ErrNoRows) {
+		return management.WebsiteIPAccessRule{}, management.ErrNotFound
+	} else if err != nil {
+		return management.WebsiteIPAccessRule{}, err
+	}
+	spec, err := decodeWebsiteSpecifications(raw)
+	if err != nil {
+		return management.WebsiteIPAccessRule{}, err
+	}
+	mode := strings.ToLower(strings.TrimSpace(stringValue(spec, "ipAccessMode", "disabled")))
+	if mode == "" {
+		mode = "disabled"
+	}
+	if mode == "whitelist" {
+		return management.WebsiteIPAccessRule{}, fmt.Errorf("%w: website is using whitelist mode; switch it to blacklist before adding a deny rule", management.ErrConflict)
+	}
+	if mode != "disabled" && mode != "blacklist" {
+		return management.WebsiteIPAccessRule{}, fmt.Errorf("invalid website IP access mode %q", mode)
+	}
+	cidrs, err := websiteAccessCIDRsFromSpec(spec)
+	if err != nil {
+		return management.WebsiteIPAccessRule{}, err
+	}
+	if mode == "disabled" {
+		mode = "blacklist"
+	}
+	if !containsString(cidrs, cidr) {
+		cidrs = append(cidrs, cidr)
+	}
+	spec["ipAccessMode"] = mode
+	spec["ipAccessCIDRs"] = cidrs
+	encoded, err := json.Marshal(spec)
+	if err != nil {
+		return management.WebsiteIPAccessRule{}, err
+	}
+	if _, err := tx.Exec(ctx, "UPDATE website SET specifications=$2,update_time=clock_timestamp() WHERE id=$1", int64(input.WebsiteID), encoded); err != nil {
+		return management.WebsiteIPAccessRule{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return management.WebsiteIPAccessRule{}, err
+	}
+	return management.WebsiteIPAccessRule{WebsiteID: input.WebsiteID, CIDR: cidr, Mode: mode, CIDRs: cidrs}, nil
+}
+
+// RemoveWebsiteIPAccess atomically removes one CIDR from a website policy.
+func (p *Postgres) RemoveWebsiteIPAccess(ctx context.Context, input management.WebsiteIPAccessRemoveRequest) (management.WebsiteIPAccessRule, error) {
+	cidr, err := normalizeWebsiteAccessCIDR(input.CIDR)
+	if err != nil {
+		return management.WebsiteIPAccessRule{}, err
+	}
+	tx, err := p.pool.Begin(ctx)
+	if err != nil {
+		return management.WebsiteIPAccessRule{}, err
+	}
+	defer tx.Rollback(ctx)
+	var raw []byte
+	if err := tx.QueryRow(ctx, "SELECT specifications FROM website WHERE id=$1 FOR UPDATE", int64(input.WebsiteID)).Scan(&raw); errors.Is(err, pgx.ErrNoRows) {
+		return management.WebsiteIPAccessRule{}, management.ErrNotFound
+	} else if err != nil {
+		return management.WebsiteIPAccessRule{}, err
+	}
+	spec, err := decodeWebsiteSpecifications(raw)
+	if err != nil {
+		return management.WebsiteIPAccessRule{}, err
+	}
+	mode := strings.ToLower(strings.TrimSpace(stringValue(spec, "ipAccessMode", "disabled")))
+	if mode == "" {
+		mode = "disabled"
+	}
+	cidrs, err := websiteAccessCIDRsFromSpec(spec)
+	if err != nil {
+		return management.WebsiteIPAccessRule{}, err
+	}
+	filtered := make([]string, 0, len(cidrs))
+	found := false
+	for _, value := range cidrs {
+		if value == cidr {
+			found = true
+			continue
+		}
+		filtered = append(filtered, value)
+	}
+	if !found {
+		return management.WebsiteIPAccessRule{}, management.ErrNotFound
+	}
+	spec["ipAccessCIDRs"] = filtered
+	encoded, err := json.Marshal(spec)
+	if err != nil {
+		return management.WebsiteIPAccessRule{}, err
+	}
+	if _, err := tx.Exec(ctx, "UPDATE website SET specifications=$2,update_time=clock_timestamp() WHERE id=$1", int64(input.WebsiteID), encoded); err != nil {
+		return management.WebsiteIPAccessRule{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return management.WebsiteIPAccessRule{}, err
+	}
+	return management.WebsiteIPAccessRule{WebsiteID: input.WebsiteID, CIDR: cidr, Mode: mode, CIDRs: filtered}, nil
+}
+
+func websiteAccessCIDRsFromSpec(spec map[string]any) ([]string, error) {
+	raw, ok := spec["ipAccessCIDRs"]
+	if !ok || raw == nil {
+		return []string{}, nil
+	}
+	values, ok := raw.([]any)
+	if !ok {
+		return nil, fmt.Errorf("ipAccessCIDRs must be an array")
+	}
+	result := make([]string, 0, len(values))
+	seen := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		text, ok := value.(string)
+		if !ok {
+			return nil, fmt.Errorf("ipAccessCIDRs must contain strings")
+		}
+		cidr, err := normalizeWebsiteAccessCIDR(text)
+		if err != nil {
+			return nil, err
+		}
+		if _, exists := seen[cidr]; exists {
+			continue
+		}
+		seen[cidr] = struct{}{}
+		result = append(result, cidr)
+	}
+	return result, nil
+}
+
+func normalizeWebsiteAccessCIDR(raw string) (string, error) {
+	raw = strings.TrimSpace(raw)
+	if address, err := netip.ParseAddr(raw); err == nil {
+		address = address.Unmap()
+		bits := 128
+		if address.Is4() {
+			bits = 32
+		}
+		return netip.PrefixFrom(address, bits).String(), nil
+	}
+	prefix, err := netip.ParsePrefix(raw)
+	if err != nil {
+		return "", fmt.Errorf("CIDR must be a valid IPv4 or IPv6 address/network")
+	}
+	return prefix.Masked().String(), nil
+}
+
+func containsString(values []string, target string) bool {
+	for _, value := range values {
+		if value == target {
+			return true
+		}
+	}
+	return false
 }
 
 func validateWebsiteRules(rules []management.WebsiteProxyRule, pools []management.UpstreamPool) error {
@@ -554,11 +734,12 @@ func scanWebsiteRows(rows pgx.Rows) ([]management.Website, error) {
 		var id int64
 		var name string
 		var spec []byte
+		var updatedAt time.Time
 		var hasCertificate bool
-		if err := rows.Scan(&id, &name, &spec, &hasCertificate); err != nil {
+		if err := rows.Scan(&id, &name, &spec, &updatedAt, &hasCertificate); err != nil {
 			return nil, err
 		}
-		item, err := websiteMap(id, name, spec, hasCertificate)
+		item, err := websiteMapAt(id, name, spec, updatedAt, hasCertificate)
 		if err != nil {
 			return nil, err
 		}
@@ -575,20 +756,21 @@ func (p *Postgres) GetWebsite(ctx context.Context, key string) (management.Websi
 	var id int64
 	var name string
 	var spec, hosts, rules, transforms, responses []byte
+	var updatedAt time.Time
 	query := websiteDetailQuery + " WHERE w.id=$1"
 	arg := any(key)
 	if _, err := strconv.ParseInt(key, 10, 64); err != nil {
 		query = websiteDetailQuery + " WHERE w.name=$1"
 	}
 	var hasCertificate bool
-	err := p.pool.QueryRow(ctx, query, arg).Scan(&id, &name, &spec, &hosts, &rules, &transforms, &responses, &hasCertificate)
+	err := p.pool.QueryRow(ctx, query, arg).Scan(&id, &name, &spec, &hosts, &rules, &transforms, &responses, &updatedAt, &hasCertificate)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return management.Website{}, management.ErrNotFound
 	}
 	if err != nil {
 		return management.Website{}, err
 	}
-	item, err := websiteMapWithCollections(id, name, spec, hosts, rules, transforms, responses, hasCertificate)
+	item, err := websiteMapWithCollectionsAt(id, name, spec, hosts, rules, transforms, responses, updatedAt, hasCertificate)
 	if err != nil {
 		return management.Website{}, err
 	}
@@ -701,26 +883,38 @@ const websiteHasCertificateQuery = `EXISTS(
       AND COALESCE(w.specifications->>'defaultHost', '') = ANY(c.dns_names)
 )`
 
-const websiteResponseQuery = `SELECT w.id,w.name,w.specifications,
+const websiteResponseQuery = `SELECT w.id,w.name,w.specifications,w.update_time,
 ` + websiteHasCertificateQuery + ` AS is_have_ssl_cert
 FROM website w`
 
-const websiteDetailQuery = `SELECT w.id,w.name,w.specifications,w.hosts,w.proxy_rules,w.proxy_transforms,w.simple_responses,
+const websiteDetailQuery = `SELECT w.id,w.name,w.specifications,w.hosts,w.proxy_rules,w.proxy_transforms,w.simple_responses,w.update_time,
 ` + websiteHasCertificateQuery + ` AS is_have_ssl_cert
 FROM website w`
 
 func websiteMap(id int64, name string, spec []byte, hasCertificate bool) (map[string]any, error) {
+	return websiteMapAt(id, name, spec, time.Time{}, hasCertificate)
+}
+
+func websiteMapAt(id int64, name string, spec []byte, updatedAt time.Time, hasCertificate bool) (map[string]any, error) {
 	normalized, err := decodeWebsiteSpecifications(spec)
 	if err != nil {
 		return nil, fmt.Errorf("website %d specifications: %w", id, err)
 	}
-	return websiteMapFromSpecifications(id, name, normalized, hasCertificate), nil
+	out := websiteMapFromSpecifications(id, name, normalized, hasCertificate)
+	if !updatedAt.IsZero() {
+		out["updatedAt"] = updatedAt
+	}
+	return out, nil
 }
 
 // websiteMapWithCollections makes the dedicated website columns authoritative
 // for the editor.
 func websiteMapWithCollections(id int64, name string, spec, hosts, rules, transforms, responses []byte, hasCertificate bool) (map[string]any, error) {
-	out, err := websiteMap(id, name, spec, hasCertificate)
+	return websiteMapWithCollectionsAt(id, name, spec, hosts, rules, transforms, responses, time.Time{}, hasCertificate)
+}
+
+func websiteMapWithCollectionsAt(id int64, name string, spec, hosts, rules, transforms, responses []byte, updatedAt time.Time, hasCertificate bool) (map[string]any, error) {
+	out, err := websiteMapAt(id, name, spec, updatedAt, hasCertificate)
 	if err != nil {
 		return nil, err
 	}

@@ -231,15 +231,15 @@ type Runtime struct {
 	// RecordUnknownHosts also feeds traffic aggregation and request history for
 	// hosts no website binds; they then surface as unmanaged Host catalog rows.
 	RecordUnknownHosts bool
-	TraceID           func(context.Context) string
-	InternalPanic     func(error)
-	HistoryCapture    *HistoryCapture
-	expectPolicy      ExpectContinuePolicy
-	blacklist         []netip.Prefix
-	blacklistWarning  func(candidate, remote, host string)
-	upstreamMu        sync.Mutex
-	upstreamCursor    map[string]int
-	upstreamActive    map[string][]int
+	TraceID            func(context.Context) string
+	InternalPanic      func(error)
+	HistoryCapture     *HistoryCapture
+	expectPolicy       ExpectContinuePolicy
+	blacklist          []netip.Prefix
+	blacklistWarning   func(candidate, remote, host string)
+	upstreamMu         sync.Mutex
+	upstreamCursor     map[string]int
+	upstreamActive     map[string][]int
 }
 
 // HistoryCapture controls the bounded metadata copied into an asynchronous
@@ -381,7 +381,7 @@ func (r *Runtime) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 				ClientIP: captured.clientIP, Scheme: scheme(req), Protocol: req.Proto,
 				Status: captured.Status(), HistoryStatus: captured.HistoryStatus(), StatusSource: captured.StatusSource(), ErrorCategory: captured.ErrorCategory(), Inbound: inbound, Outbound: captured.Bytes(),
 				DurationMS: time.Since(started).Milliseconds(), At: started, UserAgent: req.Header.Get("User-Agent"), ProxyStage: "completed", UpstreamStatus: captured.upstreamStatus,
-				ExceptionType: captured.exceptionType, ExceptionMessage: captured.exceptionMessage, TraceID: traceID, BlacklistRuleID: captured.blacklistRuleID,
+				ExceptionType: captured.exceptionType, ExceptionMessage: captured.exceptionMessage, TraceID: traceID, BlacklistRuleID: captured.blacklistRuleID, BlacklistScope: captured.blacklistScope, BlacklistCIDR: captured.blacklistCIDR,
 			}
 			full.ResponseMode, full.TTFBMS, full.TTFTMS = captured.ResponseMode(), captured.TTFBMS(), captured.TTFTMS()
 			if matched {
@@ -469,6 +469,8 @@ func (r *Runtime) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	if ruleID, candidate, blocked := r.blacklistMatch(req); blocked {
 		captured.blacklistRuleID = ruleID
 		captured.clientIP = candidate
+		captured.blacklistScope = "gateway"
+		captured.blacklistCIDR = r.blacklistCIDR(req)
 		captured.classify(http.StatusForbidden, "YaginxPipeline", "Blacklist")
 		w.WriteHeader(http.StatusForbidden)
 		_, _ = io.WriteString(w, "Forbidden")
@@ -499,8 +501,10 @@ func (r *Runtime) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	domain = normalizedHost(req.Host)
-	if blocked, candidate := site.ipAccessBlocked(req); blocked {
+	if blocked, candidate, cidr := site.ipAccessBlocked(req); blocked {
 		captured.clientIP = candidate
+		captured.blacklistScope = "site"
+		captured.blacklistCIDR = cidr
 		category := "SiteIPBlacklist"
 		if strings.EqualFold(site.IPAccessMode, "whitelist") {
 			category = "SiteIPWhitelist"
@@ -794,33 +798,42 @@ func (r *Runtime) pickEndpoint(id string, pool UpstreamPool) (UpstreamEndpoint, 
 	return eligible[selected].endpoint, release, true
 }
 
-func (site Site) ipAccessBlocked(request *http.Request) (bool, string) {
+func (site Site) ipAccessBlocked(request *http.Request) (bool, string, string) {
 	mode := strings.ToLower(strings.TrimSpace(site.IPAccessMode))
 	if mode == "" || mode == "disabled" {
-		return false, clientHost(request.RemoteAddr)
+		return false, clientHost(request.RemoteAddr), ""
 	}
 	candidate, _ := blacklistCandidate(request)
 	client := clientHost(request.RemoteAddr)
 	if !candidate.IsValid() {
-		return mode == "whitelist", client
+		return mode == "whitelist", client, ""
 	}
 	matched := false
+	matchedCIDR := ""
+	matchedBits := -1
 	for _, raw := range site.IPAccessCIDRs {
 		value := strings.TrimSpace(raw)
 		prefix, err := netip.ParsePrefix(value)
 		if err == nil && prefix.Masked().Contains(candidate) {
 			matched = true
-			break
+			if prefix.Bits() > matchedBits {
+				matchedBits = prefix.Bits()
+				matchedCIDR = prefix.Masked().String()
+			}
+			continue
 		}
 		if address, err := netip.ParseAddr(value); err == nil && address.Unmap() == candidate {
 			matched = true
-			break
+			if address.BitLen() > matchedBits {
+				matchedBits = address.BitLen()
+				matchedCIDR = netip.PrefixFrom(address.Unmap(), address.BitLen()).String()
+			}
 		}
 	}
 	if mode == "whitelist" {
-		return !matched, candidate.String()
+		return !matched, candidate.String(), ""
 	}
-	return mode == "blacklist" && matched, candidate.String()
+	return mode == "blacklist" && matched, candidate.String(), matchedCIDR
 }
 
 func normalizeExpectPolicy(policy ExpectContinuePolicy) ExpectContinuePolicy {
@@ -927,6 +940,30 @@ func (r *Runtime) blacklistMatch(request *http.Request) (int64, string, bool) {
 		}
 	}
 	return 0, candidate.String(), false
+}
+
+func (r *Runtime) blacklistCIDR(request *http.Request) string {
+	candidate, _ := blacklistCandidate(request)
+	if !candidate.IsValid() {
+		return ""
+	}
+	matchedBits := -1
+	matched := ""
+	for _, rule := range r.snapshot.Load().Blacklist {
+		prefix, err := netip.ParsePrefix(strings.TrimSpace(rule.CIDR))
+		if err == nil && prefix.Masked().Contains(candidate) && prefix.Bits() > matchedBits {
+			matchedBits, matched = prefix.Bits(), prefix.Masked().String()
+		}
+	}
+	if matched != "" {
+		return matched
+	}
+	for _, prefix := range r.blacklist {
+		if prefix.Contains(candidate) && prefix.Bits() > matchedBits {
+			matchedBits, matched = prefix.Bits(), prefix.Masked().String()
+		}
+	}
+	return matched
 }
 
 func blacklistCandidate(request *http.Request) (netip.Addr, bool) {
@@ -1244,6 +1281,7 @@ type responseCapture struct {
 	exceptionType, exceptionMessage string
 	clientIP                        string
 	blacklistRuleID                 int64
+	blacklistScope, blacklistCIDR   string
 	capture                         *responseBodyCapture
 	captureLimit                    int
 	captureEnabled                  func() bool

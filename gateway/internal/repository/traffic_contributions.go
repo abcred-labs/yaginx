@@ -268,12 +268,27 @@ func marshalCounts(values map[string]int64) ([]byte, error) {
 	return json.Marshal(values)
 }
 
+// RetentionStats describes one telemetry retention pass.
+type RetentionStats struct {
+	Deleted                 map[string]int64
+	BlockedContributionRows int64
+}
+
 // PruneTelemetry deletes bounded batches so retention never turns into an
-// unbounded transaction. It is safe to call repeatedly until every table is
-// below its configured horizon.
+// unbounded transaction. Contributions are deleted only after their complete
+// report projections exist, so a delayed materializer never creates a gap in
+// the summarized data.
 func (p *Postgres) PruneTelemetry(ctx context.Context, now time.Time, contributionRetention, monitorInfoRetention time.Duration, trafficDays, reportDays, historyHours, batchSize int) error {
+	_, err := p.PruneTelemetryWithStats(ctx, now, contributionRetention, monitorInfoRetention, trafficDays, reportDays, historyHours, batchSize)
+	return err
+}
+
+// PruneTelemetryWithStats is PruneTelemetry with deletion and blocked-row
+// counts for retention observability.
+func (p *Postgres) PruneTelemetryWithStats(ctx context.Context, now time.Time, contributionRetention, monitorInfoRetention time.Duration, trafficDays, reportDays, historyHours, batchSize int) (RetentionStats, error) {
+	stats := RetentionStats{Deleted: map[string]int64{}}
 	if contributionRetention <= 0 {
-		contributionRetention = 31 * 24 * time.Hour
+		contributionRetention = 7 * 24 * time.Hour
 	}
 	if monitorInfoRetention <= 0 {
 		monitorInfoRetention = 48 * time.Hour
@@ -290,12 +305,13 @@ func (p *Postgres) PruneTelemetry(ctx context.Context, now time.Time, contributi
 	if batchSize < 1 {
 		batchSize = 5000
 	}
+	contributionCutoff := now.Add(-contributionRetention).Unix()
 	for _, task := range []struct {
 		table, predicate string
 		arg              any
 	}{
-		{"gateway_traffic_contribution", "period < $1", now.Add(-contributionRetention).Unix()},
-		{"resource_monitor_info", "create_ts < $1", now.Add(-monitorInfoRetention).Unix()},
+		{"gateway_traffic_contribution", "period < $1 AND NOT EXISTS (SELECT 1 FROM gateway_traffic_contribution pending WHERE pending.host_name=gateway_traffic_contribution.host_name AND pending.cycle_type=gateway_traffic_contribution.cycle_type AND pending.period=gateway_traffic_contribution.period AND NOT pending.is_final) AND EXISTS (SELECT 1 FROM resource_report report WHERE report.resource_uuid=gateway_traffic_contribution.host_name AND report.cycle_type=gateway_traffic_contribution.cycle_type AND report.report_ts=gateway_traffic_contribution.period AND NOT report.is_partial) AND (gateway_traffic_contribution.cycle_type <> 10 OR EXISTS (SELECT 1 FROM host_traffic traffic WHERE traffic.host_name=gateway_traffic_contribution.host_name AND traffic.period=gateway_traffic_contribution.period))", contributionCutoff},
+		{"resource_monitor_info", "create_ts < $1 AND EXISTS (SELECT 1 FROM gateway_system_setting done JOIN gateway_system_setting cutover ON cutover.setting_key='traffic.cutover_ts' WHERE done.setting_key='traffic.legacy_monitor_backfill_complete' AND done.value->>'unixMilli'=cutover.value->>'unixMilli')", now.Add(-monitorInfoRetention).Unix()},
 		{"request_history", "request_ts < $1", now.Add(-time.Duration(historyHours) * time.Hour).UnixMilli()},
 		{"host_traffic", "period < $1", now.AddDate(0, 0, -trafficDays).UTC().Truncate(time.Hour).Unix()},
 		{"resource_report", "report_ts < $1", now.AddDate(0, 0, -reportDays).UTC().Truncate(24 * time.Hour).Unix()},
@@ -304,11 +320,71 @@ func (p *Postgres) PruneTelemetry(ctx context.Context, now time.Time, contributi
 			query := fmt.Sprintf("DELETE FROM %s WHERE ctid IN (SELECT ctid FROM %s WHERE %s LIMIT $2)", task.table, task.table, task.predicate)
 			tag, err := p.pool.Exec(ctx, query, task.arg, batchSize)
 			if err != nil {
-				return fmt.Errorf("prune %s: %w", task.table, err)
+				return stats, fmt.Errorf("prune %s: %w", task.table, err)
 			}
+			stats.Deleted[task.table] += tag.RowsAffected()
 			if tag.RowsAffected() < int64(batchSize) {
 				break
 			}
+		}
+	}
+	if err := p.vacuumRetentionTables(ctx, stats.Deleted); err != nil {
+		return stats, err
+	}
+	if err := p.pool.QueryRow(ctx, `SELECT count(*)
+		FROM gateway_traffic_contribution c
+		WHERE c.period < $1
+		  AND (EXISTS (
+				SELECT 1 FROM gateway_traffic_contribution pending
+				WHERE pending.host_name=c.host_name AND pending.cycle_type=c.cycle_type AND pending.period=c.period AND NOT pending.is_final
+			) OR NOT EXISTS (
+				SELECT 1 FROM resource_report report
+				WHERE report.resource_uuid=c.host_name AND report.cycle_type=c.cycle_type AND report.report_ts=c.period AND NOT report.is_partial
+			) OR (c.cycle_type=10 AND NOT EXISTS (
+				SELECT 1 FROM host_traffic traffic WHERE traffic.host_name=c.host_name AND traffic.period=c.period
+			)))`, contributionCutoff).Scan(&stats.BlockedContributionRows); err != nil {
+		return stats, fmt.Errorf("count blocked contribution retention rows: %w", err)
+	}
+	return stats, nil
+}
+
+// vacuumRetentionTables refreshes planner statistics and makes deleted pages
+// reusable without requiring a long-lived VACUUM FULL lock. The table names
+// are fixed so the maintenance query cannot be influenced by configuration.
+func (p *Postgres) vacuumRetentionTables(ctx context.Context, deleted map[string]int64) error {
+	for _, table := range []string{
+		"gateway_traffic_contribution", "resource_monitor_info", "request_history", "host_traffic", "resource_report",
+	} {
+		if deleted[table] <= 0 {
+			continue
+		}
+		conn, err := p.pool.Acquire(ctx)
+		if err != nil {
+			return fmt.Errorf("acquire connection to vacuum %s after retention: %w", table, err)
+		}
+		var previousTimeout string
+		if err := conn.QueryRow(ctx, "SHOW statement_timeout").Scan(&previousTimeout); err != nil {
+			conn.Release()
+			return fmt.Errorf("read statement timeout before vacuum %s: %w", table, err)
+		}
+		if _, err := conn.Exec(ctx, "SELECT set_config('statement_timeout','0',false)"); err != nil {
+			conn.Release()
+			return fmt.Errorf("disable statement timeout for vacuum %s: %w", table, err)
+		}
+		_, vacuumErr := conn.Exec(ctx, "VACUUM (ANALYZE) "+table)
+		resetCtx := context.Background()
+		_, resetErr := conn.Exec(resetCtx, "SELECT set_config('statement_timeout',$1,false)", previousTimeout)
+		if resetErr != nil {
+			_ = conn.Conn().Close(resetCtx)
+			conn.Release()
+			if vacuumErr != nil {
+				return fmt.Errorf("vacuum %s after retention: %w (also failed to restore statement timeout: %v)", table, vacuumErr, resetErr)
+			}
+			return fmt.Errorf("restore statement timeout after vacuum %s: %w", table, resetErr)
+		}
+		conn.Release()
+		if vacuumErr != nil {
+			return fmt.Errorf("vacuum %s after retention: %w", table, vacuumErr)
 		}
 	}
 	return nil
@@ -405,6 +481,14 @@ func (p *Postgres) TrafficStatisticsHealth(ctx context.Context, begin, end time.
 // daily reports. It uses bounded deletes for installations upgraded before
 // time partitioning is available.
 func (p *Postgres) PruneReportCycles(ctx context.Context, now time.Time, minuteDays, hourlyDays, batchSize int) error {
+	_, err := p.PruneReportCyclesWithStats(ctx, now, minuteDays, hourlyDays, batchSize)
+	return err
+}
+
+// PruneReportCyclesWithStats is PruneReportCycles with per-table deletion
+// counts for retention observability.
+func (p *Postgres) PruneReportCyclesWithStats(ctx context.Context, now time.Time, minuteDays, hourlyDays, batchSize int) (map[string]int64, error) {
+	deleted := map[string]int64{}
 	if minuteDays < 1 {
 		minuteDays = 30
 	}
@@ -424,14 +508,18 @@ func (p *Postgres) PruneReportCycles(ctx context.Context, now time.Time, minuteD
 		for {
 			tag, err := p.pool.Exec(ctx, "DELETE FROM resource_report WHERE ctid IN (SELECT ctid FROM resource_report WHERE cycle_type=$1 AND report_ts < $2 LIMIT $3)", task.cycle, task.before, batchSize)
 			if err != nil {
-				return fmt.Errorf("prune report cycle %d: %w", task.cycle, err)
+				return deleted, fmt.Errorf("prune report cycle %d: %w", task.cycle, err)
 			}
+			deleted["resource_report"] += tag.RowsAffected()
 			if tag.RowsAffected() < int64(batchSize) {
 				break
 			}
 		}
 	}
-	return nil
+	if err := p.vacuumRetentionTables(ctx, deleted); err != nil {
+		return deleted, err
+	}
+	return deleted, nil
 }
 
 // MaterializeTraffic converts all process snapshots into absolute legacy
@@ -1142,6 +1230,10 @@ func insertRequestHistory(ctx context.Context, tx pgx.Tx, requestID int64, event
 	if event.UpstreamStatus != nil {
 		upstream = *event.UpstreamStatus
 	}
+	var blacklistRule any
+	if event.BlacklistRuleID != 0 {
+		blacklistRule = event.BlacklistRuleID
+	}
 	requestBody := redactJSONBody(event.RequestBodyBase64, event.RequestContentType)
 	responseBody := redactJSONBody(event.ResponseBodyBase64, event.ResponseContentType)
 	requestTruncated, responseTruncated := event.RequestBodyTruncated, event.ResponseBodyTruncated
@@ -1155,7 +1247,12 @@ func insertRequestHistory(ctx context.Context, tx pgx.Tx, requestID int64, event
 	redactedQuery := redactQuery(event.Query)
 	redactedEvent := event
 	redactedEvent.Query = redactedQuery
-	_, err = tx.Exec(ctx, "INSERT INTO request_history(id,request_time,request_ts,duration_ms,client_ip,method,scheme,host,path,query_string,url,protocol,status_code,user_agent,proxy_stage,exception_stage,forwarder_error,request_headers,response_headers,request_body_base64,response_body_base64,request_content_type,response_content_type,request_body_truncated,response_body_truncated,exception_type,exception_message,exception_stack_trace,upstream_status_code,status_source,error_category,trace_id) VALUES($1,$2,$3,$4,NULLIF($5,''),NULLIF($6,''),NULLIF($7,''),$8,NULLIF($9,''),NULLIF($10,''),NULLIF($11,''),NULLIF($12,''),$13,NULLIF($14,''),$15,NULLIF($16,''),NULLIF($17,''),$18::jsonb,$19::jsonb,NULLIF($20,''),NULLIF($21,''),NULLIF($22,''),NULLIF($23,''),$24,$25,NULLIF($26,''),NULLIF($27,''),NULLIF($28,''),$29,NULLIF($30,''),NULLIF($31,''),NULLIF($32,''))", requestID, event.At, event.At.UTC().UnixMilli(), event.DurationMS, event.ClientIP, event.Method, event.Scheme, host, event.Path, redactedQuery, requestURL(redactedEvent), event.Protocol, historyStatus, event.UserAgent, proxyStage, event.ExceptionStage, event.ForwarderError, requestHeaders, responseHeaders, requestBody, responseBody, event.RequestContentType, event.ResponseContentType, requestTruncated, responseTruncated, event.ExceptionType, event.ExceptionMessage, event.ExceptionStackTrace, upstream, statusSource, event.ErrorCategory, event.TraceID)
+	info := event.UserAgentInfo
+	var isBot any
+	if info.ParseStatus == "parsed" {
+		isBot = info.IsBot
+	}
+	_, err = tx.Exec(ctx, "INSERT INTO request_history(id,request_time,request_ts,duration_ms,client_ip,method,scheme,host,path,query_string,url,protocol,status_code,user_agent,user_agent_browser,user_agent_browser_version,user_agent_browser_major,user_agent_os,user_agent_os_version,user_agent_os_major,user_agent_device_type,user_agent_device_brand,user_agent_device_model,user_agent_is_bot,user_agent_bot_name,user_agent_parse_status,proxy_stage,exception_stage,forwarder_error,request_headers,response_headers,request_body_base64,response_body_base64,request_content_type,response_content_type,request_body_truncated,response_body_truncated,exception_type,exception_message,exception_stack_trace,upstream_status_code,status_source,error_category,blacklist_scope,blacklist_rule_id,blacklist_cidr,trace_id) VALUES($1,$2,$3,$4,NULLIF($5,''),NULLIF($6,''),NULLIF($7,''),$8,NULLIF($9,''),NULLIF($10,''),NULLIF($11,''),NULLIF($12,''),$13,NULLIF($14,''),NULLIF($15,''),NULLIF($16,''),NULLIF($17,''),NULLIF($18,''),NULLIF($19,''),NULLIF($20,''),NULLIF($21,''),NULLIF($22,''),NULLIF($23,''),$24,$25,NULLIF($26,''),$27,NULLIF($28,''),NULLIF($29,''),$30::jsonb,$31::jsonb,NULLIF($32,''),NULLIF($33,''),NULLIF($34,''),NULLIF($35,''),$36,$37,NULLIF($38,''),NULLIF($39,''),NULLIF($40,''),$41,NULLIF($42,''),NULLIF($43,''),NULLIF($44,''),NULLIF($45,''),$46,NULLIF($47,''),NULLIF($48,''))", requestID, event.At, event.At.UTC().UnixMilli(), event.DurationMS, event.ClientIP, event.Method, event.Scheme, host, event.Path, redactedQuery, requestURL(redactedEvent), event.Protocol, historyStatus, event.UserAgent, info.BrowserName, info.BrowserVersion, info.BrowserMajor, info.OSName, info.OSVersion, info.OSMajor, info.DeviceType, info.DeviceBrand, info.DeviceModel, isBot, info.BotName, info.ParseStatus, proxyStage, event.ExceptionStage, event.ForwarderError, requestHeaders, responseHeaders, requestBody, responseBody, event.RequestContentType, event.ResponseContentType, requestTruncated, responseTruncated, event.ExceptionType, event.ExceptionMessage, event.ExceptionStackTrace, upstream, statusSource, event.ErrorCategory, event.BlacklistScope, blacklistRule, event.BlacklistCIDR, event.TraceID)
 	return err
 }
 

@@ -272,11 +272,15 @@ func TestPruneTelemetryRemovesExpiredRowsInBoundedBatches(t *testing.T) {
 	if _, err := store.ApproveNode(ctx, nodeID); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := pool.Exec(ctx, "INSERT INTO gateway_system_setting(setting_key,value,content_type) VALUES('traffic.cutover_ts','{\"unixMilli\":1}'::jsonb,'application/json'),('traffic.legacy_monitor_backfill_complete','{\"unixMilli\":1}'::jsonb,'application/json')"); err != nil {
+		t.Fatal(err)
+	}
 	now := time.Date(2026, 7, 28, 12, 0, 0, 0, time.UTC)
 	old := now.Add(-400 * 24 * time.Hour)
 	fresh := now.Add(-time.Hour)
 	for i := 0; i < 3; i++ {
-		if _, err := pool.Exec(ctx, "INSERT INTO gateway_traffic_contribution(node_id,process_id,host_name,cycle_type,period,request_qty,duration_sum,duration_max,inbound_bytes,outbound_bytes,status_code,updated_at) VALUES($1::uuid,$2::uuid,$3,10,$4,1,0,0,0,0,'{}'::jsonb,$5)", nodeID, uuid.NewString(), fmt.Sprintf("old-contribution-%d", i), old.Unix()+int64(i), old); err != nil {
+		host := fmt.Sprintf("old-contribution-%d", i)
+		if _, err := pool.Exec(ctx, "INSERT INTO gateway_traffic_contribution(node_id,process_id,host_name,cycle_type,period,request_qty,duration_sum,duration_max,inbound_bytes,outbound_bytes,status_code,is_final,updated_at) VALUES($1::uuid,$2::uuid,$3,10,$4,1,0,0,0,0,'{}'::jsonb,true,$5)", nodeID, uuid.NewString(), host, old.Unix()+int64(i), old); err != nil {
 			t.Fatal(err)
 		}
 		if _, err := pool.Exec(ctx, "INSERT INTO resource_monitor_info(resource_uuid,create_ts,data) VALUES($1,$2,'{}'::jsonb)", fmt.Sprintf("old-monitor-%d", i), old.Unix()+int64(i)); err != nil {
@@ -285,10 +289,10 @@ func TestPruneTelemetryRemovesExpiredRowsInBoundedBatches(t *testing.T) {
 		if _, err := pool.Exec(ctx, "INSERT INTO request_history(id,request_time,request_ts,duration_ms,status_code) VALUES($1,$2,$3,0,200)", int64(i+1), old, old.UnixMilli()+int64(i)); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := pool.Exec(ctx, "INSERT INTO host_traffic(host_name,period,request_counts,inbound_bytes,outbound_bytes) VALUES($1,$2,1,0,0)", fmt.Sprintf("old-traffic-%d", i), old.Unix()+int64(i)); err != nil {
+		if _, err := pool.Exec(ctx, "INSERT INTO host_traffic(host_name,period,request_counts,inbound_bytes,outbound_bytes) VALUES($1,$2,1,0,0)", host, old.Unix()+int64(i)); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := pool.Exec(ctx, "INSERT INTO resource_report(resource_uuid,cycle_type,report_time,report_ts,request_qty,status_code,spider,browser,os,duration,create_time,update_time) VALUES($1,10,$2,$3,1,'{}'::jsonb,'{}'::jsonb,'{}'::jsonb,'{}'::jsonb,'{}'::jsonb,$4,$4)", fmt.Sprintf("old-report-%d", i), old, old.Unix()+int64(i), old); err != nil {
+		if _, err := pool.Exec(ctx, "INSERT INTO resource_report(resource_uuid,cycle_type,report_time,report_ts,request_qty,status_code,spider,browser,os,duration,is_partial,create_time,update_time) VALUES($1,10,$2,$3,1,'{}'::jsonb,'{}'::jsonb,'{}'::jsonb,'{}'::jsonb,'{}'::jsonb,false,$4,$4)", host, old, old.Unix()+int64(i), old); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -318,6 +322,75 @@ func TestPruneTelemetryRemovesExpiredRowsInBoundedBatches(t *testing.T) {
 		if count != 1 {
 			t.Fatalf("%s count=%d, want one retained row", table, count)
 		}
+	}
+}
+
+func TestPruneTelemetryKeepsContributionsWithoutCompleteSummary(t *testing.T) {
+	dsn := os.Getenv("YAGINX_TEST_DATABASE_URL")
+	if dsn == "" {
+		t.Skip("YAGINX_TEST_DATABASE_URL is not set")
+	}
+	ctx := context.Background()
+	base, err := pgx.Connect(ctx, dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer base.Close(ctx)
+	schema := "yaginx_goal_guard" + uuid.NewString()[:10]
+	if _, err := base.Exec(ctx, "CREATE SCHEMA "+pgx.Identifier{schema}.Sanitize()); err != nil {
+		t.Fatal(err)
+	}
+	isolation, err := database.WithSearchPath(dsn, schema)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := database.InitializeV2(ctx, isolation, bytes.NewBuffer(nil)); err != nil {
+		t.Fatal(err)
+	}
+	pool, err := pgxpool.New(ctx, isolation)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer pool.Close()
+	store := New(pool)
+	nodeID := uuid.NewString()
+	if _, err := store.RegisterNode(ctx, management.NodeRegistrationRequest{NodeID: nodeID, MachineFingerprint: strings.Repeat("e", 64)}); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Date(2026, 7, 28, 12, 0, 0, 0, time.UTC)
+	old := now.Add(-7 * 24 * time.Hour)
+	insertContribution := func(host string, final bool, period time.Time) {
+		t.Helper()
+		if _, err := pool.Exec(ctx, "INSERT INTO gateway_traffic_contribution(node_id,process_id,host_name,cycle_type,period,request_qty,duration_sum,duration_max,inbound_bytes,outbound_bytes,status_code,is_final,updated_at) VALUES($1::uuid,$2::uuid,$3,10,$4,1,0,0,0,0,'{}'::jsonb,$5,$6)", nodeID, uuid.NewString(), host, period.Unix(), final, period); err != nil {
+			t.Fatal(err)
+		}
+	}
+	insertContribution("complete.example", true, old)
+	insertContribution("missing.example", true, old.Add(time.Minute))
+	insertContribution("partial.example", true, old.Add(2*time.Minute))
+	insertContribution("pending.example", false, old.Add(3*time.Minute))
+	if _, err := pool.Exec(ctx, "INSERT INTO resource_report(resource_uuid,cycle_type,report_time,report_ts,request_qty,status_code,spider,browser,os,duration,is_partial,create_time,update_time) VALUES('complete.example',10,$1,$2,1,'{}'::jsonb,'{}'::jsonb,'{}'::jsonb,'{}'::jsonb,'{}'::jsonb,false,$1,$1),('partial.example',10,$3,$4,1,'{}'::jsonb,'{}'::jsonb,'{}'::jsonb,'{}'::jsonb,'{}'::jsonb,true,$3,$3),('pending.example',10,$5,$6,1,'{}'::jsonb,'{}'::jsonb,'{}'::jsonb,'{}'::jsonb,'{}'::jsonb,false,$5,$5)", old, old.Unix(), old.Add(2*time.Minute), old.Add(2*time.Minute).Unix(), old.Add(3*time.Minute), old.Add(3*time.Minute).Unix()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, "INSERT INTO host_traffic(host_name,period,request_counts,inbound_bytes,outbound_bytes) VALUES('complete.example',$1,1,0,0),('partial.example',$2,1,0,0),('pending.example',$3,1,0,0)", old.Unix(), old.Add(2*time.Minute).Unix(), old.Add(3*time.Minute).Unix()); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.PruneTelemetry(ctx, now, 72*time.Hour, 48*time.Hour, 90, 365, 72, 2); err != nil {
+		t.Fatal(err)
+	}
+	var retained int
+	if err := pool.QueryRow(ctx, "SELECT count(*) FROM gateway_traffic_contribution").Scan(&retained); err != nil {
+		t.Fatal(err)
+	}
+	if retained != 3 {
+		t.Fatalf("retained contributions=%d, want missing, partial and pending rows", retained)
+	}
+	var complete int
+	if err := pool.QueryRow(ctx, "SELECT count(*) FROM gateway_traffic_contribution WHERE host_name='complete.example'").Scan(&complete); err != nil {
+		t.Fatal(err)
+	}
+	if complete != 0 {
+		t.Fatalf("complete contribution rows=%d, want 0", complete)
 	}
 }
 
