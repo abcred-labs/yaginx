@@ -7,6 +7,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"strings"
 	"sync/atomic"
@@ -26,7 +27,26 @@ type snapshot struct {
 	exact    map[string]Entry
 	wildcard map[string]Entry
 }
-type Manager struct{ current atomic.Pointer[snapshot] }
+type Manager struct {
+	current atomic.Pointer[snapshot]
+	// hostFilter, when set, is consulted before any certificate lookup so
+	// that scanner SNI values for hosts we do not serve are rejected cheaply.
+	hostFilter atomic.Pointer[func(normalized string) bool]
+}
+
+// ErrUnknownSNI is returned (without allocation) when the requested name is not
+// a configured host or has no active certificate.
+var ErrUnknownSNI = errors.New("unknown SNI")
+
+// SetHostFilter installs the predicate that reports whether a normalized
+// hostname is configured. A nil filter disables the early rejection.
+func (m *Manager) SetHostFilter(filter func(normalized string) bool) {
+	if filter == nil {
+		m.hostFilter.Store(nil)
+		return
+	}
+	m.hostFilter.Store(&filter)
+}
 
 func NewManager() *Manager {
 	m := &Manager{}
@@ -102,17 +122,20 @@ func (m *Manager) GetCertificate(hello *tls.ClientHelloInfo) (*tls.Certificate, 
 	if name == "" {
 		return nil, fmt.Errorf("SNI is required")
 	}
+	if filter := m.hostFilter.Load(); filter != nil && !(*filter)(name) {
+		return nil, ErrUnknownSNI
+	}
 	current := m.current.Load()
-	if entry, ok := current.exact[name]; ok && entry.NotAfter.After(time.Now()) {
+	now := time.Now()
+	if entry, ok := current.exact[name]; ok && entry.NotAfter.After(now) {
 		return &entry.Certificate, nil
 	}
-	labels := strings.Split(name, ".")
-	if len(labels) > 2 {
-		if entry, ok := current.wildcard["*."+strings.Join(labels[1:], ".")]; ok && entry.NotAfter.After(time.Now()) {
+	if dot := strings.IndexByte(name, '.'); dot > 0 && strings.IndexByte(name[dot+1:], '.') >= 0 {
+		if entry, ok := current.wildcard["*"+name[dot:]]; ok && entry.NotAfter.After(now) {
 			return &entry.Certificate, nil
 		}
 	}
-	return nil, fmt.Errorf("no active certificate for %q", name)
+	return nil, ErrUnknownSNI
 }
 func (m *Manager) TLSConfig() *tls.Config {
 	return &tls.Config{MinVersion: tls.VersionTLS12, GetCertificate: m.GetCertificate, NextProtos: []string{"h2", "http/1.1"}}

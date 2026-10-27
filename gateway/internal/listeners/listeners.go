@@ -6,6 +6,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"log"
 	"log/slog"
 	"net"
 	"net/http"
@@ -46,6 +47,12 @@ type Config struct {
 	// Instrument wraps a business listener without importing a specific tracing
 	// SDK. The callback owns any context propagation and redaction policy.
 	Instrument func(listener string, next http.Handler) http.Handler
+	// UnknownSNIBlockThreshold is the number of rejected TLS handshakes (for
+	// example unknown SNI from internet scanners) within a minute after which
+	// the source is dropped at first read for UnknownSNIBlockDuration. Zero
+	// uses the default of 20; a negative value disables blocking.
+	UnknownSNIBlockThreshold int
+	UnknownSNIBlockDuration  time.Duration
 }
 type Running struct {
 	servers   []*http.Server
@@ -53,6 +60,7 @@ type Running struct {
 	h3Packet  net.PacketConn
 	listeners []net.Listener
 	once      sync.Once
+	done      chan struct{}
 }
 
 // requiredProxyListener validates the header before net/http receives a
@@ -111,6 +119,7 @@ type tlsHandshakeListener struct {
 	observer     func(reason string)
 	pendingMu    sync.Mutex
 	pendingSlots map[*tlsHandshakeSlot]struct{}
+	guard        *sourceGuard
 }
 
 type tlsHandshakeSlot struct {
@@ -130,7 +139,33 @@ func (s *tlsHandshakeSlot) release() {
 
 type tlsSlotConn struct {
 	net.Conn
-	slot *tlsHandshakeSlot
+	slot    *tlsHandshakeSlot
+	checked sync.Once
+}
+
+// Read drops sources the guard has blocked before any TLS work happens. The
+// check runs on the first read, when a PROXY protocol header (if any) has
+// been consumed and RemoteAddr is the real client rather than the load balancer.
+func (c *tlsSlotConn) Read(buffer []byte) (int, error) {
+	var blocked bool
+	c.checked.Do(func() {
+		guard := c.slot.owner.guard
+		if guard == nil {
+			return
+		}
+		if ip, ok := addrOf(c.Conn.RemoteAddr()); ok && guard.isBlocked(ip) {
+			blocked = true
+		}
+	})
+	if blocked {
+		c.slot.owner.guard.blocked.Add(1)
+		if observer := c.slot.owner.observer; observer != nil {
+			observer("blocked_source")
+		}
+		_ = c.Close()
+		return 0, errBlockedSource
+	}
+	return c.Conn.Read(buffer)
 }
 
 func (c *tlsSlotConn) Close() error {
@@ -191,6 +226,17 @@ func (l *tlsHandshakeListener) Close() error {
 	return err
 }
 
+// rejectHandshake accounts for a handshake that failed certificate selection:
+// one metric increment and one strike against the source, no log line.
+func (l *tlsHandshakeListener) rejectHandshake(slot *tlsHandshakeSlot) {
+	if l.observer != nil {
+		l.observer("unknown_sni")
+	}
+	if ip, ok := addrOf(slot.conn.RemoteAddr()); ok {
+		l.guard.fail(ip)
+	}
+}
+
 func (l *tlsHandshakeListener) configFor(slot *tlsHandshakeSlot) *tls.Config {
 	var wrap func(*tls.Config) *tls.Config
 	wrap = func(source *tls.Config) *tls.Config {
@@ -208,6 +254,15 @@ func (l *tlsHandshakeListener) configFor(slot *tlsHandshakeSlot) *tls.Config {
 			_ = slot.conn.SetDeadline(time.Time{})
 			slot.release()
 			return nil
+		}
+		if getCertificate := config.GetCertificate; getCertificate != nil {
+			config.GetCertificate = func(info *tls.ClientHelloInfo) (*tls.Certificate, error) {
+				certificate, err := getCertificate(info)
+				if err != nil {
+					l.rejectHandshake(slot)
+				}
+				return certificate, err
+			}
 		}
 		if getConfig := config.GetConfigForClient; getConfig != nil {
 			config.GetConfigForClient = func(info *tls.ClientHelloInfo) (*tls.Config, error) {
@@ -236,6 +291,7 @@ func (c *proxyRejectionLoggingConn) Read(buffer []byte) (int, error) {
 func (r *Running) Close(ctx context.Context) error {
 	var first error
 	r.once.Do(func() {
+		close(r.done)
 		if r.h3 != nil {
 			if err := r.h3.Close(); err != nil && first == nil {
 				first = err
@@ -275,7 +331,7 @@ func Start(config Config) (*Running, error) {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	running := &Running{}
+	running := &Running{done: make(chan struct{})}
 	if config.ActivityTimeout <= 0 {
 		config.ActivityTimeout = 2 * time.Hour
 	}
@@ -294,6 +350,11 @@ func Start(config Config) (*Running, error) {
 	if config.TLSHandshakeTimeout <= 0 {
 		config.TLSHandshakeTimeout = 10 * time.Second
 	}
+	guard := newSourceGuard(config.UnknownSNIBlockThreshold, config.UnknownSNIBlockDuration)
+	if guard != nil {
+		go guard.summarize(logger, running.done)
+	}
+	errorLog := log.New(serverErrorWriter{logger: logger}, "", 0)
 	requestSlots := make(chan struct{}, config.MaxConcurrentRequests)
 	tlsSlots := make(chan struct{}, config.MaxTLSHandshakes)
 	handlerFor := func(name string) http.Handler {
@@ -378,10 +439,10 @@ func Start(config Config) (*Running, error) {
 						config.ObserveTLSHandshakeRejection(name, reason)
 					}
 				},
-				pendingSlots: make(map[*tlsHandshakeSlot]struct{}),
+				pendingSlots: make(map[*tlsHandshakeSlot]struct{}), guard: guard,
 			}
 		}
-		server := &http.Server{Handler: handlerFor(name), ReadHeaderTimeout: 30 * time.Second, IdleTimeout: config.ActivityTimeout, MaxHeaderBytes: config.MaxRequestHeaderBytes, TLSConfig: serverTLSConfig}
+		server := &http.Server{Handler: handlerFor(name), ReadHeaderTimeout: 30 * time.Second, IdleTimeout: config.ActivityTimeout, MaxHeaderBytes: config.MaxRequestHeaderBytes, TLSConfig: serverTLSConfig, ErrorLog: errorLog}
 		if tlsEnabled {
 			if err := http2.ConfigureServer(server, &http2.Server{MaxConcurrentStreams: uint32(config.MaxConcurrentRequests)}); err != nil {
 				_ = listener.Close()

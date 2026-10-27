@@ -187,6 +187,7 @@ func (r Runtime) Build() (*proxy.Runtime, *listeners.Config, error) {
 	if err != nil {
 		return nil, nil, fmt.Errorf("core proxy settings: %w", err)
 	}
+	manager.SetHostFilter(business.HasHost)
 	headerTimeout, _ := time.ParseDuration(r.Listeners.HeaderTimeout)
 	h3Idle, _ := time.ParseDuration(r.Listeners.HTTP3MaxIdleTimeout)
 	config := &listeners.Config{

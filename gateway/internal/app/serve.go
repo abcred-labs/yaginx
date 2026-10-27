@@ -403,6 +403,8 @@ func runServe(ctx context.Context, args []string, stdout, stderr io.Writer) int 
 		events.Record(ctx, "runtime", "configure_proxy", "critical", "PROXY_RUNTIME_CONFIGURATION_FAILED", err)
 		return failServe(stderr, fmt.Errorf("proxy runtime settings: %w", err))
 	}
+	// Reject SNI values no website binds before any certificate lookup.
+	certificatesManager.SetHostFilter(business.HasHost)
 	business.TraceID = func(ctx context.Context) string {
 		span := trace.SpanContextFromContext(ctx)
 		if !span.IsValid() {

@@ -218,6 +218,7 @@ func DefaultSettings() Settings {
 
 type Runtime struct {
 	snapshot          atomic.Pointer[Snapshot]
+	hostIdx           atomic.Pointer[hostIndex]
 	transport         *http.Transport
 	transportFactory  func(proxyURL string, allowUnsafeTLS bool) (http.RoundTripper, error)
 	derivedMu         sync.Mutex
@@ -1533,21 +1534,16 @@ func clientHost(remote string) string {
 	return remote
 }
 func (r *Runtime) match(host string) (Site, bool, *HostBinding) {
-	host = normalizedHost(host)
-	for _, site := range r.snapshot.Load().Sites {
-		for i := range site.HostBindings {
-			binding := &site.HostBindings[i]
-			if binding.Enabled && normalizedHost(binding.Hostname) == host {
-				return site, true, binding
-			}
-		}
-		for _, candidate := range site.Hosts {
-			if host == strings.ToLower(strings.TrimSuffix(candidate, ".")) {
-				return site, true, nil
-			}
-		}
+	index := r.hostIndexFor()
+	ref, ok := index.hosts[normalizedHost(host)]
+	if !ok {
+		return Site{}, false, nil
 	}
-	return Site{}, false, nil
+	site := index.snapshot.Sites[ref.site]
+	if ref.binding >= 0 {
+		return site, true, &site.HostBindings[ref.binding]
+	}
+	return site, true, nil
 }
 
 func normalizedHost(host string) string {
