@@ -1192,6 +1192,7 @@ export interface components {
         };
         WebsiteBase: {
             name: string | null;
+            /** Format: date-time */
             updatedAt?: string;
             defaultHost: string | null;
             defaultDestination: string | null;
@@ -1230,6 +1231,10 @@ export interface components {
         WebsiteUpsertRequest: {
             /** @default null */
             id: components["schemas"]["Int64String"] | null;
+            /**
+             * Format: date-time
+             * @description Optimistic concurrency token returned by website reads.
+             */
             expectedUpdatedAt?: string | null;
             /** @default null */
             name: string | null;
@@ -1522,6 +1527,7 @@ export interface components {
             statusSource: string;
             errorCategory: string;
             errorCode: string;
+            /** @enum {string} */
             blacklistScope?: "gateway" | "site";
             blacklistRuleId?: components["schemas"]["Int64String"];
             blacklistCidr?: string;
@@ -2891,8 +2897,10 @@ export interface operations {
                     "application/json": components["schemas"]["WebsiteUpsertEnvelope"];
                 };
             };
+            400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
+            409: components["responses"]["Conflict"];
             500: components["responses"]["InternalError"];
             503: components["responses"]["Unavailable"];
         };
